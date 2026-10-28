@@ -1,0 +1,18 @@
+version: '3'
+
+# LAN storage location / update server for Your Community Communications.
+# Image built from the Dockerfile here:  docker build -t ycc-files .
+# Login from a .env file next to this one (YCC_USER=..., YCC_PASSWORD=...), or set
+# YCC_PASSWORD under Environment Variables on NOMAD's Manage page.
+services:
+  nomad-app:
+    image: ycc-files:1.0
+    container_name: ycc-files
+    restart: unless-stopped
+    ports:
+      - "8647:47490"  # NOMAD custom apps use host ports 8600+
+    environment:
+      YCC_USER: ${YCC_USER:-ycc}
+      YCC_PASSWORD: ${YCC_PASSWORD:?Set YCC_PASSWORD}
+    volumes:
+      - ./data:/data

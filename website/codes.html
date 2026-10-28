@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DRYAD and pigpen — Your Community Communications</title>
+  <meta name="description" content="What DRYAD sheets and pigpen are, and how to make, share and use them in the Your Community Communications app.">
+  <link rel="icon" href="img/logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <a href="index.html"><img src="img/logo.svg" alt="Your Community Communications home"></a>
+    <div class="name">Your Community <span>Comms</span></div>
+    <nav>
+      <a href="index.html">App</a>
+      <a href="#dryad">DRYAD</a>
+      <a href="#pigpen">Pigpen</a>
+      <a href="#app">Using them in the app</a>
+      <a href="pi-board.html">Pi board</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="hero" style="grid-template-columns:1fr">
+    <div>
+      <h1>DRYAD sheets and pigpen</h1>
+      <p class="lead">Two old-school paper codes, built into Your Community Communications so a group can share
+        keys, pick channels and pass short coded notes without any extra gear.</p>
+    </div>
+  </div>
+
+  <section id="dryad">
+    <h2>What DRYAD is</h2>
+    <p class="sub">A DRYAD sheet is a table of scrambled alphabets, one per row, used to code numbers and pick shared secrets.</p>
+    <p>DRYAD comes from military radio procedure. Each sheet has rows labelled A to Z. Every row
+      holds the alphabet in a random order, split into ten columns headed 0 to 9. Everyone in the
+      group carries the same sheet, and each sheet is only valid for a set period, so it can be
+      thrown away and replaced.</p>
+    <p>The classic paper sheet leaves out Z. Your Community Communications uses <strong>Modern DRYAD</strong>: every
+      row holds all 26 letters <em>plus two special symbols</em>, 28 in all, shuffled together. The
+      two specials stand for a space and a new line. They default to <code>.</code> (space) and
+      <code>@</code> (new line), and you can pick others, such as brackets, commas or semicolons,
+      when you generate a batch. The columns hold 4, 3, 3, 3, 2, 3, 2, 3, 3 and 2 symbols.</p>
+
+    <figure class="dryad-row">
+      <table>
+        <tr><th>Row</th><th>0</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th><th>7</th><th>8</th><th>9</th></tr>
+        <tr><td><strong>A</strong></td><td>MZ.K</td><td>FQA</td><td>TRW</td><td>BHE</td><td>YO</td><td>@JS</td><td>LC</td><td>NUG</td><td>DPV</td><td>XI</td></tr>
+      </table>
+      <figcaption>An example Modern DRYAD row A, with the default specials <code>.</code> and <code>@</code>. Real sheets are generated at random by the app; never use this one.</figcaption>
+    </figure>
+
+    <div class="grid">
+      <div class="card"><h3>Coding numbers</h3><p>Agree a row. For each digit, send any one symbol from that digit's column. With row A above, 47 could go as <code>YN</code>, <code>OG</code> or <code>YU</code>. The receiver looks up which column each one sits in. Using a different symbol each time makes repeats harder to spot.</p></div>
+      <div class="card"><h3>Shared secrets</h3><p>A whole row is 28 random symbols that only your group holds. Your Community Communications can use a row as a channel name, so picking "row K" on today's sheet puts everyone on the same encrypted channel without saying the name out loud.</p></div>
+      <div class="card"><h3>Keying pigpen</h3><p>A row can also scramble the pigpen alphabet (below), so the same symbols mean different letters on every row.</p></div>
+    </div>
+  </section>
+
+  <section id="pigpen">
+    <h2>What pigpen is</h2>
+    <p class="sub">A centuries-old cipher where each letter becomes a shape cut from a grid or an X.</p>
+    <p>Draw two tic-tac-toe grids and two X shapes, and fill them with letters. The second grid and
+      second X get a dot in each space. Each letter is then written as the outline of the space it
+      sits in, plus the dot if it has one. Your Community Communications adds two more symbols in the centres of the
+      X shapes: a plain X is a space, and an X with a dot in each corner is a new line. Classic
+      pigpen fills the spaces with A to Z in order, then space and new line. In Your Community Communications you can
+      instead fill them with a Modern DRYAD row, so the key changes with the row.</p>
+
+    <div class="pig-demo">
+      <div class="pig-controls">
+        <label><input type="radio" name="pigkey" value="classic" checked> Classic A–Z</label>
+        <label><input type="radio" name="pigkey" value="row"> Keyed with example row A</label>
+      </div>
+      <svg id="pigKey" viewBox="0 0 480 130" role="img" aria-label="Pigpen key: two grids and two X shapes filled with letters, with space and new line in the centres of the X shapes"></svg>
+      <p class="pig-legend"><code>.</code> in the key means a space and <code>@</code> means a new line.</p>
+      <label class="pig-input">Try it: <input id="pigText" value="MEET AT NINE" maxlength="40"></label>
+      <div id="pigOut" class="pig-out" aria-live="polite"></div>
+    </div>
+
+    <div class="note">Pigpen is a simple letter swap. Keying it with a DRYAD row stops anyone who
+      only knows classic pigpen, but a long message can still be broken by letter counting. Use it
+      for short notes, and use the encrypted radio channels for anything that matters.</div>
+  </section>
+
+  <section id="app">
+    <h2>Using them in the app</h2>
+    <p class="sub">Open the menu on the radio screen and choose DRYAD sheets or Pigpen.</p>
+
+    <div class="grid">
+      <div class="card"><h3>1. Generate sheets</h3><p>DRYAD sheets → <strong>Generate</strong>. Give the batch a friendly name, choose how many sheets, how long each one is valid and when the first starts, pick the two special symbols (or keep <code>.</code> and <code>@</code>), and leave "Secure random" selected. Each sheet gets a colour so they're easy to tell apart.</p></div>
+      <div class="card"><h3>2. Share them</h3><p><strong>Share</strong> sends the batch as text through any app, shows one QR code per sheet for others to scan, or uses <strong>Send on air</strong> to send them over channel A or B to everyone on it. Receivers confirm the import, and sheets they already hold are skipped. Sheets can't be sent on Public.</p></div>
+      <div class="card"><h3>3. Pick the sheet in use</h3><p>The <strong>Sheet in use</strong> drop-down selects the currently valid sheet. Tap <strong>Mark used</strong> when you're done with one. Under <strong>Age rules</strong> you can delete sheets as soon as they're used, or a set number of hours after they expire.</p></div>
+      <div class="card"><h3>4. Row to channel</h3><p>On a row, tap <strong>Row → Ch A</strong> or <strong>Row → Ch B</strong>. That row's symbols become the channel name, so everyone who picks the same row on the same sheet lands on the same encrypted channel.</p></div>
+      <div class="card"><h3>5. Make pigpen</h3><p>Pigpen → choose the sheet and row (or <strong>Classic (A–Z)</strong>). Under <strong>Make pigpen</strong>, type the message and the symbols appear, with spaces and new lines as their own symbols, ready to copy by hand or screenshot.</p></div>
+      <div class="card"><h3>6. Decode pigpen</h3><p>Choose the same sheet and row, then use <strong>Decode (tap symbols)</strong>. The pad is laid out like the figures (# # X X), so tap each symbol where you see it, including the X centres for space and new line. <strong>Delete</strong> and <strong>Clear</strong> fix mistakes, and the text appears as you go.</p></div>
+    </div>
+
+    <div class="note"><strong>PIN lock.</strong> If a PIN is set (menu → PIN lock…), the DRYAD and
+      pigpen screens ask for it first. They then stay unlocked for 5 minutes.</div>
+
+    <div class="note"><strong>Emergency sheets.</strong> The generator can also rebuild sheets from a
+      phrase, for when you can't share real ones. Anyone who guesses the phrase can rebuild every
+      sheet, so the app marks them "(EMERGENCY)". Replace them with random sheets as soon as you can.</div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    Your Community Communications · <a href="index.html">back to the app</a> · <a href="recreate.html">built with Claude</a>
+  </div>
+</footer>
+<script>
+(function () {
+  // 28 slots like the app: A-Z then '.' (space) and '@' (new line).
+  var CLASSIC = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ.@';
+  var ROW_A = 'MZ.KFQATRWBHEYO@JSLCNUGDPVXI'; // example row from the table above
+  var NS = 'http://www.w3.org/2000/svg';
+  var key = CLASSIC;
+
+  function el(name, attrs, parent) {
+    var e = document.createElementNS(NS, name);
+    for (var k in attrs) e.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function line(g, x1, y1, x2, y2) { el('line', { x1: x1, y1: y1, x2: x2, y2: y2 }, g); }
+  function text(g, x, y, s) { var t = el('text', { x: x, y: y, 'text-anchor': 'middle' }, g); t.textContent = s; }
+
+  // Slots as in the app: 0-8 grid, 9-17 grid with dot, 18-21 X (top, right, bottom, left),
+  // 22-25 X with dot, 26 centre of the first X (plain X), 27 centre of the second X (X with four dots).
+  function drawKey() {
+    var svg = document.getElementById('pigKey');
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    var g = el('g', { 'class': 'pig-lines' }, svg);
+    var t = el('g', { 'class': 'pig-letters' }, svg);
+    for (var p = 0; p < 2; p++) {
+      var x0 = 10 + p * 120, y0 = 10;
+      line(g, x0 + 30, y0, x0 + 30, y0 + 90); line(g, x0 + 60, y0, x0 + 60, y0 + 90);
+      line(g, x0, y0 + 30, x0 + 90, y0 + 30); line(g, x0, y0 + 60, x0 + 90, y0 + 60);
+      for (var c = 0; c < 9; c++) {
+        var cx = x0 + 15 + (c % 3) * 30, cy = y0 + 15 + Math.floor(c / 3) * 30;
+        text(t, cx - (p ? 4 : 0), cy + 5, key[p * 9 + c]);
+        if (p) el('circle', { cx: cx + 8, cy: cy, r: 2.5, 'class': 'pig-dot' }, g);
+      }
+    }
+    var spots = [[45, 22], [70, 50], [45, 80], [20, 50]];
+    for (p = 0; p < 2; p++) {
+      x0 = 250 + p * 120; y0 = 10;
+      line(g, x0, y0, x0 + 90, y0 + 90); line(g, x0 + 90, y0, x0, y0 + 90);
+      for (var i = 0; i < 4; i++) {
+        var sx = x0 + spots[i][0], sy = y0 + spots[i][1];
+        text(t, sx - (p && i % 2 === 0 ? 6 : 0), sy + 5, key[18 + p * 4 + i]);
+        if (p) el('circle', { cx: sx + (i % 2 === 0 ? 7 : 0), cy: sy + (i % 2 === 0 ? 0 : 12), r: 2.5, 'class': 'pig-dot' }, g);
+      }
+      text(el('g', { 'class': 'pig-letters pig-centre' }, svg), x0 + 45, y0 + 50, key[26 + p]);
+    }
+    var cap = el('g', { 'class': 'pig-cap' }, svg);
+    ['grid', 'grid + dot', 'X', 'X + dot'].forEach(function (s, j) { text(cap, 55 + j * 120, 122, s); });
+  }
+
+  // One symbol, 36x36, the outline of the slot's space.
+  function glyph(slot) {
+    var svg = el('svg', { viewBox: '0 0 36 36', width: 36, height: 36, 'class': 'pig-glyph' });
+    var g = el('g', { 'class': 'pig-lines' }, svg);
+    var dot = (slot >= 9 && slot < 18) || (slot >= 22 && slot < 26);
+    if (slot >= 26) {
+      line(g, 4, 4, 32, 32); line(g, 32, 4, 4, 32);
+      if (slot === 27) [[18, 9], [27, 18], [18, 27], [9, 18]].forEach(function (d) {
+        el('circle', { cx: d[0], cy: d[1], r: 2.5, 'class': 'pig-dot' }, g);
+      });
+    } else if (slot < 18) {
+      var c = slot % 9, r = Math.floor(c / 3), k = c % 3;
+      if (r > 0) line(g, 4, 4, 32, 4);
+      if (r < 2) line(g, 4, 32, 32, 32);
+      if (k > 0) line(g, 4, 4, 4, 32);
+      if (k < 2) line(g, 32, 4, 32, 32);
+    } else {
+      var d = (slot - 18) % 4;
+      if (d === 0) { line(g, 4, 4, 18, 30); line(g, 18, 30, 32, 4); }      // V
+      if (d === 1) { line(g, 32, 4, 6, 18); line(g, 6, 18, 32, 32); }      // <
+      if (d === 2) { line(g, 4, 32, 18, 6); line(g, 18, 6, 32, 32); }      // ^
+      if (d === 3) { line(g, 4, 4, 30, 18); line(g, 30, 18, 4, 32); }      // >
+    }
+    if (dot) {
+      // Like the app: grid dots sit in the middle, X dots inside the open side of the V.
+      var dx = 18, dy = 18, o = slot >= 22 ? (slot - 22) : -1;
+      if (o === 0) dy = 12; else if (o === 1) dx = 24; else if (o === 2) dy = 24; else if (o === 3) dx = 12;
+      el('circle', { cx: dx, cy: dy, r: 3, 'class': 'pig-dot' }, g);
+    }
+    return svg;
+  }
+
+  function drawText() {
+    var out = document.getElementById('pigOut');
+    out.innerHTML = '';
+    var s = document.getElementById('pigText').value.toUpperCase();
+    for (var i = 0; i < s.length; i++) {
+      // Like the app: a space is written as the '.' symbol, other characters outside A-Z are skipped.
+      var ch = s[i] === ' ' ? '.' : s[i];
+      var slot = /[A-Z.]/.test(ch) ? key.indexOf(ch) : -1;
+      if (slot >= 0) out.appendChild(glyph(slot));
+    }
+  }
+
+  document.querySelectorAll('input[name=pigkey]').forEach(function (r) {
+    r.addEventListener('change', function () { key = r.value === 'row' ? ROW_A : CLASSIC; drawKey(); drawText(); });
+  });
+  document.getElementById('pigText').addEventListener('input', drawText);
+  drawKey(); drawText();
+})();
+</script>
+</body>
+</html>

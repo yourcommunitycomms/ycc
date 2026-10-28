@@ -1,0 +1,166 @@
+YOUR COMMUNITY COMMUNICATIONS - ALL THE FEATURES (release 1, 28 October 2026)
+For MANET and offline messaging.
+
+Plain text, one feature per line, grouped by area, written to be read straight through or read
+aloud. "Untested" means it has not been tried with real hardware yet.
+
+
+WHAT IT IS
+- An Android app that turns phones and tablets into encrypted push-to-talk radios, with chat, maps,
+  reports and field codes, over an OpenMANET mesh or any shared WiFi network. No internet, no
+  accounts, no app store: the APK is sideloaded.
+- Runs on Android 4.1 (2012) up to Android 14, phones, tablets and Android TV.
+- An optional LAN storage server (a small Docker app, for example on Project NOMAD) keeps map tiles,
+  app updates, missions, logs and the group's default settings, and makes the phone setup QR code.
+- Open source under the Apache License 2.0, and it can be rebuilt by any AI coding assistant from
+  the included prompt.
+
+GETTING STARTED
+- Setup wizard: callsign, then "Quick set from a QR code" or "Skip quick set", then the mode, the
+  keys, and the permissions screen.
+- Phone setup QR code: one scan gives a new phone the LAN storage and its login, the tunnel server,
+  the Public key, optionally channel A, OpenMANET and the home WiFi, then loads the group's default
+  settings and DRYAD sheets. The phone checks the login first and shows what it will change.
+- The setup QR code is shown on the server's admin page (Phone setup tab) or by any set-up phone
+  (Settings, Phone setup QR code for new phones, with or without channel A).
+- Channel QR codes (QR of A, QR of B) and Scan QR in Settings.
+- Share these settings and DRYAD sheets with the channel: everything except callsign, PIN and
+  phone-specific settings; each receiver is asked before anything changes.
+- Permissions screen: checks every permission and battery setting and explains the phone maker's own
+  power saving.
+
+MODES
+- Advanced: the full radio, DRYAD, maps and every tool.
+- Simple modes for Scouts, Staff, 4WDing, Friends convoy and Caravan or camping: one private key plus
+  Public, and eight quick buttons made for the activity (map points, messages, share location).
+- 4WD and convoy extras: drop-out alert when someone is not heard for 2 minutes, and crash detection
+  (untested) that asks "Are you OK?" and sends a rescue alert with your position after 30 seconds.
+- Intercom mode for a wall-mounted phone or tablet: room buttons, talk to one room or everyone,
+  hands-free, history of every call, gate camera, auto blackout, settings PIN, no Exit, and it comes
+  back by itself.
+- Tablet commander view in landscape: big map with contacts and channels beside it, broadcast to
+  several teams at once, and every map point button of the group's profile.
+- TV mode for a big screen: map, chat cards and cameras; Android TV opens it by itself.
+
+TALKING
+- Channels A and B plus extra channels C to H. The channel name is the passcode: the same name always
+  gives the same encryption keys, so anyone with the name can join and nobody else can listen.
+- A Public channel with its own key, and an optional OpenMANET channel (experimental, unencrypted).
+- Full duplex, many to many: everyone on a channel hears everyone, mixed.
+- Hold to talk, tap-on tap-off, VOX, a USB or keyboard PTT key, a headset button, or a Bluetooth PTT
+  button that works with the screen off.
+- Acknowledgements: "Heard by" after each transmission, and "Transmission failed" with Retry now or
+  Retry later when nobody confirms.
+- Call button: rings everyone, or one person, with a full-screen alert they acknowledge.
+- Start tone before each transmission (optional).
+- Burst voice: record while PTT is held and send it as one file, for weak links.
+- Dual watch: talk on one channel and listen to others, quiet mix or stereo, per-channel mute.
+- Radio silent: receive only, nothing at all is sent, and texts wait until the silence ends.
+- Status: Available, Away (voice saved to chat), Stealth (nothing plays; automatic at volume zero
+  or on silent).
+- Record all voice (optional), and voice heard while away saved for playback.
+- Bluetooth headset and wired headset support; audio page with devices, levels, a meter and an echo
+  test.
+- Possible gunshots alert (untested): three loud bangs in 10 seconds send an alert with your position.
+- Internet radio streams (optional): public scanner feeds such as Broadcastify.
+
+CHAT, REPORTS AND CONTACTS
+- Chat per channel: messages, private messages, pictures, files, voice, map points and reports.
+- Pinned announcements, resent to people who join later.
+- Catch-up sync every 5 minutes so anyone briefly out of range gets what they missed.
+- Reports: SALUTE, SPOTREP, SITREP, LACE, ACE, 9-line MEDEVAC, CASEVAC, MIST, POSREP, LOCSTAT, AAR and
+  custom templates, one field per page, sent now, later, or as a map point.
+- Video reports during a mission (recorded on the phone, uploaded later, never sent over the radio).
+- Contacts grouped by team: status colour, battery, last seen, distance and bearing, a private note,
+  Message and Call for each person and team, Remove.
+- Acknowledgement mode for range tests.
+
+MAPS AND LOCATION
+- Home screen as a radio (big PTT) or as a map (map with a smaller PTT).
+- Full map with everyone's last position, a compass list, your heading arrow and a corner compass.
+- Offline map folders, online maps (OpenStreetMap, Google satellite and terrain, OpenTopoMap, Esri,
+  custom), a see-through layer on top, and online for 5 minutes, an hour, a day, or always.
+- LAN storage tiles: maps read from the server first and save every online tile to it, so the whole
+  group builds one shared offline map cache.
+- Map tiles can be sent to another phone over the radio.
+- Map points with icons by category, quick-point profiles (Friends, Security, Firefighting, Military,
+  Emergency services, custom), shapes (rectangle, circle, oval, line, arrow, text box) and colours,
+  photo points with their direction cone, move, edit, remove, announce, and sync with everyone.
+- Share my location for 30 minutes or until stopped; it carries on after a restart.
+- Send my location when I transmit (optional).
+- Bearing and distance to the map cross, lat/lon and MGRS of the cross.
+- Full-screen baseplate compass with bearings to points and people, true or magnetic north.
+- Navigate to a point in Google Maps or another map app.
+- Fake GPS for training: a random spot near a chosen centre, marked "Fake" for everyone.
+- Aircraft (ADS-B) from a MANET receiver or online feeds, and ships (AIS) from Open Waters, each
+  shareable to the channel.
+- ATAK: import and export map files, an ATAK map source for the LAN tiles, and an ATAK compatible
+  switch (positions and All Chat Rooms; never private channels or voice).
+
+CODES AND SECURITY
+- Modern DRYAD sheets: batches, validity times, names, colours, 5-letter IDs, random row order, huge
+  AA to ZZ sheets, share by text, QR or radio, and a row can become a channel key.
+- DRYAD Enigma (encode and decode with QR), challenge and response, and a how-it-works page.
+- Pigpen cipher: write with a classic or DRYAD-row key, and decode by tapping symbols.
+- Automatic key rotation hourly or daily, and a read-only Public listen key.
+- PIN for codes, channels and settings; two wrong PINs (or a triple-tap on the callsign) erase all
+  of the app's data.
+- Lock button, red light mode, blackout and a black screen timer.
+- Clear mission data, and clear all data and exit.
+
+NETWORKS
+- UDP broadcast or multicast on port 47474, over WiFi, VPN, USB tethering or USB Ethernet.
+- Extra peers and a small PC relay to link separate networks or emulators.
+- Tunnel comms: a phone away from the group reaches it over the internet through the server's bridge
+  or a relay phone, UDP
+  with TCP fallback, end to end encrypted, one port and DRYAD row per remote person.
+- OpenMANET support (off by default): talk groups and an internet gateway switch for the node
+  (untested on a real node).
+- Project NOMAD screen: ask its AI and open its Command Center.
+
+LAN STORAGE AND SYNC (ON THE PHONE)
+- LAN storage location with a Test button.
+- Auto updates from the server, logs, data files, DRYAD sheets and config backups, on demand, weekly,
+  daily or every minute, and always on the home WiFi.
+- Missions: files go under the mission's own folder, with a final sync before clearing.
+- Config backups: load defaults (the app's or the network's), save and read my config.
+
+THE LAN STORAGE SERVER
+- A small Python file server in Docker with no add-ons, for Project NOMAD, any Linux box or a Pi.
+- Map tiles and the APK can be read without a login; everything else needs it.
+- Web admin page: Manage (folder sizes, delete old files, delete missions, delete tile sources),
+  Files (browse, upload, rename, delete), Defaults (the group's settings and DRYAD sheets), Phone
+  setup (the setup QR code), Sync (copy new files to other stores such as a Pi, on a schedule with a
+  bandwidth limit, never deleting anything there), Bridge (links a Waydroid or emulator tablet on the
+  server to the WiFi, and is the tunnel relay for remote people, each with a forwarded port, a DRYAD
+  row key and a QR code), Updates (publish an APK), Login, Docs (licence and
+  how to rebuild with the AI prompt) and Erase (back to an empty store for a clean snapshot).
+- Destructive buttons always ask first; Erase needs ERASE typed.
+
+ON A COMPUTER
+- The commander (tablet) APK runs on a Linux or Windows desktop in an Android emulator, or in Waydroid
+  on an Ubuntu desktop such as Project NOMAD, linked to the group by the bridge or the small PC relay.
+  See NOMAD-SETUP.md.
+
+NOT DONE YET
+- Automatic location sending after moving a set distance, a native Windows app, MeshCore, and real
+  hardware tests for the FalconClaw, cameras, gunshot alert, crash detection, the tunnel over a real
+  router and the OpenMANET gateway switch.
+
+LATEST ADDITIONS (since release 1, 28 October 2026)
+- Phone setup QR codes can carry only a tunnel (remote people); scanning keeps the phone's LAN login.
+- Catch-ups per channel ("Request catch-ups" on the Channels page, Public off), on coming back to the
+  app too, reaching back to the last message received (up to a day); listen-only channels can ask.
+- Missed live voice comes back from phones that record all voice: one phone announces and sends, the
+  others leave those clips out; they arrive unread in Chat.
+- Commander view: "X has been offline for Y min and missed N messages. Send?" for 10 seconds.
+- Setup asks about the black screen and Record all voice; Settings can run the wizard again.
+- Settings split into pages (Channel, Audio and PTT, Home screen, Network and sync, Security, Mission
+  and data); Update from URL (e.g. GitHub) that also refreshes the LAN storage's copy for everyone.
+- Audio page: test left and right, swap left and right; received bursts wait for a clear channel,
+  with an optional call-waiting beep.
+- Maps: optional arrow and zoom controls, Resync map points, show points from one channel only, and
+  a Fake GPS on/off button. Radio silent tick on the Channels page and Data screen.
+- TV: a Menu and a TV mode button in the title bar.
+- LAN storage server: Bridge tab (WiFi bridge and tunnel relay with per-person ports, keys, own
+  addresses and QR codes), works with or without /YCC on the address.
