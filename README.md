@@ -1,5 +1,7 @@
 # Your Community Communications
 
+Download YCC.apk from the newest release: https://github.com/yourcommunitycomms/ycc/releases/latest/download/YCC.apk
+
 *For MANET and offline messaging.* Release 1 (2026-10-28).
 
 An Android app that turns phones and tablets into encrypted, full-duplex, many-to-many push-to-talk
