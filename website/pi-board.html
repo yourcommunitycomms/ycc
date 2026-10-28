@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Flat Pi expansion board — Your Community Communications</title>
+  <meta name="description" content="An open 4-layer carrier board that lays a Raspberry Pi 4 and its HAT stack side by side, for slimmer OpenManet radios. KiCad files and Gerbers to download.">
+  <link rel="icon" href="img/logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <a href="index.html"><img src="img/logo.svg" alt="Your Community Communications home"></a>
+    <div class="name">Your Community <span>Comms</span></div>
+    <nav>
+      <a href="index.html">App</a>
+      <a href="index.html#openmanet">OpenManet</a>
+      <a href="#photos">Photos</a>
+      <a href="#versions">Versions</a>
+      <a href="#download">Download</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="hero">
+    <div>
+      <h1>Flat Raspberry Pi expansion board</h1>
+      <p class="lead">A thin carrier board that unfolds a Raspberry Pi 4 and its HAT stack so they
+        sit side by side instead of on top of each other. Built for slimmer
+        <a href="https://openmanet.net/">OpenManet</a> radios.</p>
+      <a class="btn" href="#download">Download the design</a>
+    </div>
+    <img class="board-hero" src="img/pi-board-render.png" alt="3D render of the board: a long green PCB with a male 40-pin header at one end and a female 40-pin socket at the other">
+  </div>
+
+  <section id="why">
+    <h2>What it does</h2>
+    <p class="sub">The Pi, battery board and transmitter board are too tall stacked up. This board folds the stack open.</p>
+    <div class="grid">
+      <div class="card"><h3>Fold the stack open</h3><p>Picture the Pi 4 stack hinged open along its short edge, opposite the USB and network ports. The Pi lies on one half of the board and the battery and transmitter boards on the other, all at the same height.</p></div>
+      <div class="card"><h3>Pi mounts upside down</h3><p>The Pi plugs <em>chip side down</em> into the female socket (J1). The battery board plugs onto the male header (J2) as usual, and the transmitter still stacks on the battery board.</p></div>
+      <div class="card"><h3>Every GPIO pin passed through</h3><p>All 40 pins are wired straight through, pin 1 to pin 1, on the two inner copper layers. The top and bottom stay bare apart from the connector pads.</p></div>
+      <div class="card"><h3>Screw it down first</h3><p>The standard HAT hole pattern on both halves holds the Pi and the expansion boards, and 8 extra M3 holes let you screw the board onto a plastic panel before fitting anything.</p></div>
+    </div>
+    <div class="note">Because the Pi is upside down, its USB, Ethernet, HDMI, audio and SD card
+      all face down towards the panel. Plan cutouts in the panel or case for the ones you need.</div>
+  </section>
+
+  <section id="photos">
+    <h2>Photos</h2>
+    <p class="sub">Photos of the real board will go here.</p>
+    <div class="photos">
+      <!-- To add a photo, save it with the file name shown. It appears automatically, no editing needed. -->
+      <figure class="ph"><img src="img/photos/board.jpg" alt="The bare board" onerror="this.remove()"><span>Photo coming<br><code>img/photos/board.jpg</code></span><figcaption>The board</figcaption></figure>
+      <figure class="ph"><img src="img/photos/board-headers.jpg" alt="The board with headers soldered" onerror="this.remove()"><span>Photo coming<br><code>img/photos/board-headers.jpg</code></span><figcaption>With headers fitted</figcaption></figure>
+      <figure class="ph"><img src="img/photos/board-pi.jpg" alt="The board with a Raspberry Pi 4 fitted" onerror="this.remove()"><span>Photo coming<br><code>img/photos/board-pi.jpg</code></span><figcaption>With the Pi fitted</figcaption></figure>
+      <figure class="ph"><img src="img/photos/board-case.jpg" alt="The board assembled in its case" onerror="this.remove()"><span>Photo coming<br><code>img/photos/board-case.jpg</code></span><figcaption>In a case</figcaption></figure>
+    </div>
+  </section>
+
+  <section id="versions">
+    <h2>Two versions</h2>
+    <p class="sub">Same holes, same connectors, same pin wiring. The second adds its own power supply.</p>
+    <div class="grid">
+      <figure class="card board-card">
+        <img src="img/pi-board-render.png" alt="3D render of the GPIO-only board">
+        <h3>GPIO only</h3>
+        <p>143 × 56.5 mm, 4 layers. Two parts: a 2×20 female socket and a 2×20 male header. Easy to solder by hand.</p>
+      </figure>
+      <figure class="card board-card">
+        <img src="img/pi-board-power-top.png" alt="Top view of the power version, with the power supply strip on the left">
+        <h3>With 5–24 V power supply</h3>
+        <p>165 × 56.5 mm, 4 layers. Adds a 22 mm strip with an XT30 input and a buck-boost regulator that turns 5–24 V into 5.2 V for the Pi (up to 5 A limit, about 3 A continuous), with reverse-polarity and surge protection and a power LED. Its wide 5 V and ground areas also carry Pi 4 current properly.</p>
+      </figure>
+    </div>
+
+    <table style="margin-top:24px">
+      <tr><th>Part</th><th>Details</th></tr>
+      <tr><td>J1, Pi side</td><td>2×20 female socket, 2.54 mm, through-hole. Pad layout mirrored for the upside-down Pi.</td></tr>
+      <tr><td>J2, expansion side</td><td>2×20 male header, 2.54 mm, through-hole, standard layout.</td></tr>
+      <tr><td>Mounting</td><td>Two full Raspberry Pi HAT patterns (58 × 49 mm, M2.5) labelled H_PI1–4 and H_EXP1–4, plus 8 M3 panel holes H_PANEL1–8. Every hole is labelled on the silkscreen.</td></tr>
+      <tr><td>Checks</td><td>Design rule check passes with 0 errors on both versions. The hole-to-header offset was checked against two official Raspberry Pi sources.</td></tr>
+    </table>
+  </section>
+
+  <section id="download">
+    <h2>Download</h2>
+    <p class="sub">Open hardware. Made in KiCad 10, generated by script so every position is exact and reproducible.</p>
+    <table>
+      <tr><th>File</th><th>What's in it</th></tr>
+      <tr><td><a href="downloads/pi-board/community-comms-pi-board-gerbers.zip">GPIO only: Gerbers</a> <small>(53 KB)</small></td><td>Upload this as-is to a PCB maker such as JLCPCB. Choose 4 layers and 1.6 mm.</td></tr>
+      <tr><td><a href="downloads/pi-board/community-comms-pi-board-kicad.zip">GPIO only: full design</a> <small>(118 KB)</small></td><td>KiCad board and project, the build script, design notes and full spec, design-rule report, BOM, placement file and an ordering guide.</td></tr>
+      <tr><td><a href="downloads/pi-board/community-comms-pi-board-power-gerbers.zip">Power version: Gerbers</a> <small>(93 KB)</small></td><td>Upload as-is. Choose 4 layers, and 1 oz inner copper if it's cheap (less voltage drop).</td></tr>
+      <tr><td><a href="downloads/pi-board/community-comms-pi-board-power-kicad.zip">Power version: full design</a> <small>(473 KB)</small></td><td>KiCad board, project and rules, footprints and 3D models, the build script, design notes PDF, BOM with LCSC part numbers, placement file and an ordering guide.</td></tr>
+    </table>
+  </section>
+
+  <section id="before">
+    <h2>Before you order</h2>
+    <div class="grid">
+      <div class="card"><h3>Check the pinout</h3><p>A wrong pin could damage a Pi. Open the board in KiCad and compare J1 and J2 against a Pi 4 pinout and your own boards before paying for anything.</p></div>
+      <div class="card"><h3>Power on the GPIO-only board</h3><p>On the GPIO-only version, 5 V and ground run on thin 0.25 mm inner tracks. They are fine for signals but too thin to feed a Pi 4 from the battery board for long. Use the power version if power flows through the board.</p></div>
+      <div class="card"><h3>Power version notes</h3><p>Check the XT30 polarity against your lead first. Don't plug in the Pi's USB-C at the same time. If the battery board also drives 5 V, read its notes in the download before fitting both. The regulator tuning is calculated but not yet bench-tested.</p></div>
+      <div class="card"><h3>Assembly</h3><p>The GPIO-only board has just two through-hole parts, so ordering the bare board and soldering 80 pins yourself is often simplest. The ordering guides in each download explain the JLCPCB steps.</p></div>
+    </div>
+    <div class="note">This board was designed with Claude, Anthropic's AI, in Claude Code. It is
+      shared as-is, with no warranty. Check it against your own hardware before you order.</div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    Your Community Communications · <a href="index.html">back to the app</a> · <a href="recreate.html">built with Claude</a>
+  </div>
+</footer>
+</body>
+</html>

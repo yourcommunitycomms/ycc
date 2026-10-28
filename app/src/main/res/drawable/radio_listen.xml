@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Home screen channel button for the channel only listened to (dual watch): a ring with a white
+     centre, next to the yellow checked one that is on air. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:width="32dp"
+        android:height="32dp">
+        <shape android:shape="oval">
+            <solid android:color="#00000000" />
+            <size
+                android:width="32dp"
+                android:height="32dp" />
+        </shape>
+    </item>
+    <item
+        android:bottom="6dp"
+        android:left="6dp"
+        android:right="6dp"
+        android:top="6dp">
+        <shape android:shape="oval">
+            <stroke
+                android:width="2dp"
+                android:color="#FFFFFFFF" />
+            <solid android:color="#00000000" />
+        </shape>
+    </item>
+    <item
+        android:bottom="11dp"
+        android:left="11dp"
+        android:right="11dp"
+        android:top="11dp">
+        <shape android:shape="oval">
+            <solid android:color="#FFFFFFFF" />
+        </shape>
+    </item>
+</layer-list>

@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Colour scheme from the icon: near-black green background, dark green bars, gold accent,
+         pale green text accents. Red light mode filters the whole window, so it still wins. -->
+    <style name="AppTheme" parent="@android:style/Theme.DeviceDefault">
+        <item name="android:windowBackground">@color/bg</item>
+        <item name="android:colorBackground">@color/bg</item>
+        <item name="android:actionBarStyle">@style/AppActionBar</item>
+    </style>
+
+    <style name="AppActionBar" parent="@android:style/Widget.DeviceDefault.ActionBar">
+        <item name="android:background">@color/bar</item>
+    </style>
+
+    <style name="SmallButton">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:textSize">13sp</item>
+        <!-- Small phones: mixed case and tight padding keep labels from breaking mid-word. -->
+        <item name="android:textAllCaps">false</item>
+        <item name="android:paddingLeft">2dp</item>
+        <item name="android:paddingRight">2dp</item>
+    </style>
+
+    <!-- Smaller than a normal button: Join / Leave and the ack bar's buttons. -->
+    <style name="CompactButton">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:minHeight">36dp</item>
+        <item name="android:minWidth">56dp</item>
+        <item name="android:textSize">13sp</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:paddingLeft">10dp</item>
+        <item name="android:paddingRight">10dp</item>
+    </style>
+
+    <style name="Label">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:paddingTop">10dp</item>
+        <item name="android:textSize">12sp</item>
+        <item name="android:textColor">@color/label</item>
+    </style>
+</resources>

@@ -159,7 +159,7 @@ see-through layer on top; offline with no tiles asks for 10 s "online for 5 min?
 (GPS course on phones without a compass), accuracy circle, reason shown when there is no fix.
 Everyone's last position with a compass list. Map points with icon, note, expiry; edit, Move… (drag
 under the +, Save here), remove, asking "announce the change?"; Navigate / open in Google Maps or any
-map app; Sync POIs; long-press to drop; camera photos drop a photo point. Dragging shows the +'s
+map app; icon buttons (Me, All, POI, Sync with Resync, Points filter, Pad, Fake, Tiles; landscape: a column on the right); long-press to drop; camera photos drop a photo point. Dragging shows the +'s
 distance and bearing. A centre-on-me target button next to the corner compass; tapping the compass
 opens a full-screen Silva-style baseplate compass: travel arrow, red/white needle, a bezel dragged to
 set a bearing with an orienting arrow, "turn left/right N°", Set to my heading, Bearing to X, true /
@@ -185,7 +185,7 @@ decode on a tap pad.
 (a stream URL or a Broadcastify feed number, e.g. CFA district dispatch), one at a time until Stop.
 
 **First start and shared setup:** random callsign like TANGO38; wizard: callsign, "Quick set from a
-QR code" (Scan QR code / Skip quick set; a phone setup QR code, see below), mode, then for
+QR code" (Scan QR code / Skip quick set; a phone setup QR code, see below), units (metric default / imperial, on the callsign step), "Advanced or simple" (a note: Advanced modes revolve around DRYAD sheets for encryption, messages and channel names, shared between trusted devices; Simple modes have fixed keys set next), mode, then for
 Advanced the public key (default `publicchannelkey`), what the group is for (sets the map-point
 buttons) and whether to create one never-expiring DRYAD sheet (row A → A, row B → B; "no" joins
 Public to wait for settings). Settings > "Share these settings and DRYAD sheets" sends everything
@@ -219,7 +219,7 @@ leave every channel first). Clear all data and exit (next start runs the wizard)
   sent to it; never private channels, voice or DRYAD.
 - Commander view: ▶ slides the side buttons away leaving a small PTT and + POI on the map.
 - Burst voice (Audio page): record while PTT held, send as one file on release, auto-play
-  (AMR 4.75k to AAC 48k). Share my camera (phone or network camera, 160–320 px, 1–5 fps, packet 17)
+  (AMR 4.75k to AAC 48k). Bulk POIs (BulkPois: CSV Name,Icon,Lat,Lon,Notes[,Layer]; icon 47 grey dot for unknown; [layer:X] note tag and a layer filter; QR parts 'YCCPOI1 i/n'; quiet sends). Enigma CW (audio/Morse: 8 kHz tone WAVs with 5 ms ramps, PARIS timing 1200/wpm ms, Goertzel tone search 300-1500 Hz and k-means dot/dash decode; Cw.java format with %R% %SheetID% %StartRow% %CipherText% %Call% and <prosigns>, parsed back by regex; CW mode = RadioEngine.cwMode: stealth, PTT/VOX/bursts off; CwReceiver records from first tone to the clear-air gap; optional CW Decoded / CW received lines to Chat; optional relay of private texts out by CW via CwPlayer, waiting while CW is heard; cw prefs keep the mode across crashes). Burst cleanup (audio/BurstCleanup, off by default): MediaExtractor/MediaCodec decode, 120 Hz high-pass, downward expander under the noise floor, speech level to about -18 dBFS (max +20 dB, hiss capped at half), soft limiter, played from a temporary WAV. Location requests: chat text 'LOCATION REQUEST: ' on private channels, answered by a prompt or automatically (Mission and data tick, off). Chat filter by category (prefs chatHidden bitmask). POI pose tag [pose:rot;size%;arrow] in the note (rotation, 50-1000% size, heading arrow; pose-only edits go [quiet]). Map menu Emergency alerts (CAP, geo/CapFeed: VicEmergency osom-geojson, NOAA api.weather.gov alerts at the map centre with zone outlines, or custom CAP XML / GeoJSON; shaded areas). Share my camera (phone or network camera, 160–320 px, 1–5 fps, 10–15 fps for 160 px; optional audio as packet 17 with chunk count 0, IMA ADPCM, played only while Tactical videos is open)
   and a Tactical videos grid. TV mode (map, chat cards, cameras; Android TV opens it by itself).
 - Pinned announcements in Chat (resent to newcomers); automatic key rotation hourly / daily (not
   Public); read-only Public listen key (YCCL1-…, P-256 signed key changes).

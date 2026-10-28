@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="8dp">
+
+    <TextView style="@style/Label" android:paddingTop="0dp" android:text="@string/dryad_in_use" />
+
+    <Spinner
+        android:id="@+id/sheet"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content" />
+
+    <TextView
+        android:id="@+id/info"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textSize="13sp" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <Spinner
+            android:id="@+id/row"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1" />
+
+        <!-- Narrow fixed-width buttons leave the row picker room on small screens (ZTE 480 px). -->
+        <Button
+            android:id="@+id/row_to_a"
+            style="@style/SmallButton"
+            android:layout_width="56dp"
+            android:layout_weight="0"
+            android:text="@string/row_to_a" />
+
+        <Button
+            android:id="@+id/row_to_b"
+            style="@style/SmallButton"
+            android:layout_width="56dp"
+            android:layout_weight="0"
+            android:text="@string/row_to_b" />
+
+        <Button
+            android:id="@+id/row_to_x"
+            style="@style/SmallButton"
+            android:layout_width="56dp"
+            android:layout_weight="0"
+            android:text="@string/row_to_x" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+
+        <Button android:id="@+id/generate" style="@style/SmallButton" android:text="@string/dryad_generate" />
+        <Button android:id="@+id/share" style="@style/SmallButton" android:text="@string/dryad_share" />
+        <Button android:id="@+id/import_sheet" style="@style/SmallButton" android:text="@string/dryad_import" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+
+        <Button android:id="@+id/pigpen" style="@style/SmallButton" android:text="@string/pigpen" />
+        <Button android:id="@+id/enigma" style="@style/SmallButton" android:text="Enigma" />
+        <Button android:id="@+id/challenge" style="@style/SmallButton" android:text="Challenge" />
+        <Button android:id="@+id/mark_used" style="@style/SmallButton" android:text="@string/dryad_used" />
+        <Button android:id="@+id/settings" style="@style/SmallButton" android:text="@string/dryad_age" />
+    </LinearLayout>
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <HorizontalScrollView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <TextView
+                android:id="@+id/table"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:padding="4dp"
+                android:textIsSelectable="true"
+                android:textSize="15sp"
+                android:typeface="monospace" />
+        </HorizontalScrollView>
+    </ScrollView>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+
+        <Button android:id="@+id/send_air" style="@style/SmallButton" android:text="@string/dryad_send_air" />
+        <Button android:id="@+id/show_qr" style="@style/SmallButton" android:text="@string/show_qr" />
+        <Button android:id="@+id/scan_qr" style="@style/SmallButton" android:text="@string/scan_qr" />
+        <Button android:id="@+id/delete" style="@style/SmallButton" android:text="@string/dryad_delete" />
+    </LinearLayout>
+</LinearLayout>

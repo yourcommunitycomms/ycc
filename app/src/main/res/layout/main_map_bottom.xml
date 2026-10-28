@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<merge xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <include layout="@layout/ack_bar" />
+
+    <include layout="@layout/main_contacts_row" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:baselineAligned="false"
+        android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/chat"
+            style="@style/SmallButton"
+            android:layout_height="match_parent"
+            android:text="@string/chat" />
+
+        <Button
+            android:id="@+id/quick_1"
+            style="@style/SmallButton"
+            android:layout_height="match_parent" />
+
+        <Button
+            android:id="@+id/share_loc"
+            style="@style/SmallButton"
+            android:layout_height="match_parent"
+            android:text="@string/share_loc_short" />
+
+        <Button
+            android:id="@+id/map"
+            style="@style/SmallButton"
+            android:layout_height="match_parent"
+            android:text="@string/full_map" />
+
+        <Button
+            android:id="@+id/lock"
+            style="@style/SmallButton"
+            android:layout_height="match_parent"
+            android:text="@string/lock" />
+
+        <Button
+            android:id="@+id/black_screen"
+            style="@style/SmallButton"
+            android:layout_height="match_parent"
+            android:text="@string/black_screen"
+            android:visibility="gone" />
+    </LinearLayout>
+</merge>

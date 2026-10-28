@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- "Your Community Communications" colour scheme (matches the icon). -->
+    <color name="bg">#0F1F16</color>
+    <color name="bar">#1F3D2B</color>
+    <color name="gold">#F0C75E</color>
+    <color name="pale">#CFE3D4</color>
+    <color name="label">#9DBBA6</color>
+</resources>

@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Tablet in landscape: the commander view. Contacts / Channels on the left (one tap to switch),
+     the map in the middle, channel select, shortcuts and PTT on the right. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:baselineAligned="false"
+    android:orientation="horizontal"
+    android:paddingLeft="4dp"
+    android:paddingRight="4dp"
+    android:paddingTop="4dp"
+    android:paddingBottom="28dp">
+
+    <LinearLayout
+        android:id="@+id/side_panel"
+        android:layout_width="0dp"
+        android:layout_weight="3"
+        android:layout_height="match_parent"
+        android:orientation="vertical">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:baselineAligned="false"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/tab_contacts"
+                style="@style/SmallButton"
+                android:layout_height="match_parent"
+                android:text="@string/contacts" />
+
+            <Button
+                android:id="@+id/tab_channels"
+                style="@style/SmallButton"
+                android:layout_height="match_parent"
+                android:text="@string/channels_button" />
+        </LinearLayout>
+
+        <FrameLayout
+            android:id="@+id/side_holder"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+    </LinearLayout>
+
+    <!-- Hides / shows the side panel for a bigger map. -->
+    <Button
+        android:id="@+id/side_toggle"
+        android:layout_width="36dp"
+        android:layout_height="match_parent"
+        android:layout_marginLeft="4dp"
+        android:minWidth="0dp"
+        android:paddingLeft="0dp"
+        android:paddingRight="0dp"
+        android:text="◀"
+        android:textSize="18sp" />
+
+    <FrameLayout
+        android:id="@+id/map_holder"
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_marginLeft="4dp"
+        android:layout_weight="4" />
+
+    <!-- Hides / shows the right-hand buttons; then a small PTT and + POI float on the map. -->
+    <Button
+        android:id="@+id/right_toggle"
+        android:layout_width="36dp"
+        android:layout_height="match_parent"
+        android:layout_marginLeft="4dp"
+        android:minWidth="0dp"
+        android:paddingLeft="0dp"
+        android:paddingRight="0dp"
+        android:text="▶"
+        android:textSize="18sp" />
+
+    <LinearLayout
+        android:id="@+id/right_panel"
+        android:layout_width="0dp"
+        android:layout_weight="3"
+        android:layout_height="match_parent"
+        android:layout_marginLeft="4dp"
+        android:orientation="vertical">
+
+        <include layout="@layout/main_map_top" />
+
+        <include layout="@layout/main_map_bottom" />
+
+        <!-- Every map point of the profile in use (filled in by the code), two per row. -->
+        <TextView
+            style="@style/Label"
+            android:text="@string/quick_poi" />
+
+        <ScrollView
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1">
+
+            <LinearLayout
+                android:id="@+id/commander_points"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical" />
+        </ScrollView>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:baselineAligned="false"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/call"
+                style="@style/SmallButton"
+                android:layout_height="match_parent"
+                android:text="@string/call" />
+
+            <Button
+                android:id="@+id/broadcast"
+                style="@style/SmallButton"
+                android:layout_height="match_parent"
+                android:text="@string/broadcast_button" />
+
+            <Button
+                android:id="@+id/radio_silent"
+                style="@style/SmallButton"
+                android:layout_height="match_parent"
+                android:text="@string/radio_silent_off" />
+        </LinearLayout>
+
+        <Button
+            android:id="@+id/ptt"
+            android:layout_width="match_parent"
+            android:layout_height="110dp"
+            android:layout_marginTop="4dp"
+            android:background="@drawable/ptt_background"
+            android:text="@string/ptt"
+            android:textColor="#ffffff"
+            android:textSize="26sp"
+            android:textStyle="bold" />
+
+        <include layout="@layout/main_map_hidden" />
+    </LinearLayout>
+</LinearLayout>

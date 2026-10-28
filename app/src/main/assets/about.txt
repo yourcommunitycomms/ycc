@@ -1,0 +1,826 @@
+This app was created by Claude Code (Anthropic) with the following prompt and updates, based initially off the "Your Community Communications" project.
+
+==== PROMPT ====
+
+# Your Community Communications: copy-paste prompt to recreate it (compatible)
+
+Paste everything below the line into an AI coding tool (it was built with Claude Code) in an empty
+folder. It describes the whole app and includes the exact wire protocol, so the result talks to
+existing phones running this app. Change the name, tagline, logo and colours in the first section
+to make it your own (for example "Bass Coast Community Comms"); everything else stays compatible.
+Claude will ask before installing tools (JDK, Android SDK, emulators) and accepting licences.
+
+---
+
+**Name, logo and colours (make these your own)**
+- **Name:** "Your Community Communications". "Your" is part of the name, in the same style as the
+  rest; a group building its own copy replaces it, e.g. "Bass Coast Community Comms". Use the name
+  for the app label, launcher, About page, files and descriptions. Phone title bars say "Comms".
+- **Tagline:** "For MANET and offline messaging".
+- **Logo:** a radio broadcasting to a ring of nodes. A rounded square (corner radius 22 % of the
+  side) in dark green; in the centre a gold dot with two gold arcs either side, like radio waves
+  going left and right; around it a dotted pale-green ring, with six pale-green node dots spaced
+  evenly on the ring (top, bottom and four diagonals). 512×512 reference: background rect rx 112;
+  dotted ring r 150 (dots every ~26 units); arcs of radius 56 and 96 (stroke 18, round caps);
+  centre dot r 24; node dots r 22 at (256,106), (386,181), (386,331), (256,406), (126,331),
+  (126,181).
+- **Colours:** dark green #1F3D2B (icon background, title bars), gold #F0C75E (arcs, centre dot,
+  accents), pale green #CFE3D4 (ring, nodes, highlights), near-black green #0F1F16 (screen
+  background). A red light mode overrides all colours at night.
+- **About page (Settings → About):** it must read: "This app was created by [AI tool name] with
+  the following prompt and updates, based initially off the "Your Community Communications"
+  project." Below that, show this whole prompt, then a short list of later updates, one line per
+  change, and a "Copy to clipboard" button that copies all of it. Keep that text in one bundled
+  file, and keep this About requirement in any copy of this prompt you pass on.
+
+**What to build**
+
+A native Android app with that name: a push-to-talk radio and field tool for OpenMANET meshes or
+any WiFi network that passes broadcast/multicast. It must be **fully compatible on the wire with
+existing phones running this app**, so follow the "Wire protocol" section at the end exactly (byte
+layouts, crypto, timings), and check your key derivation against its test vectors before building
+anything on top.
+
+**Ground rules**
+- Plain Java, Android framework only (no AndroidX, no Google Play services), minSdk 16
+  (Android 4.1), targetSdk 34. Version-check anything newer. Sideloaded APK, no app store.
+- Fully offline: no accounts, no cloud servers, no analytics, nothing uploaded. Anything that uses
+  the internet (online map tiles, radio streams, aircraft and ship feeds, the tunnel) is optional and
+  off by default. The only server is the group's own optional LAN storage (described below).
+- Test on two emulators (Android 4.1 and 14), a tablet emulator and any connected phone, linked by a
+  tiny UDP relay on the PC (forward every datagram to every client heard in the last minute). Prove
+  every feature with screenshots or logs before calling it done; start emulators with audio off when
+  testing must be quiet.
+- Recommended phone setup: Developer options and USB debugging on each phone, connected by USB, and
+  the AI installs the app and grants every permission and setting with adb.
+- Keep docs/REQUIREMENTS.md updated with every request and decision.
+
+**Modes** (asked by the first-start wizard after the callsign; Settings > Mode)
+- **Advanced:** everything below.
+- **Simple modes** for Scouts, Staff, 4WDing, Friends convoy and Caravan / camping: only a private key
+  (channel A, shown as "Private") and the public key; no DRYAD, Pigpen or OpenMANET. The wizard asks
+  for the private key ("Make one" = random 20-character key) and the public key, then joins. The home
+  screen has Private and Public (Public can be hidden) and 8 quick buttons for the activity; Channels
+  opens a Keys page (both keys hidden until Show, Make one, Show / Scan QR, show Public on home).
+  Quick buttons are a map point, a chat message ("{me} is going on a short break", "Meal ready in 15
+  minutes, at {in15}") or "share location until stop":
+  - Scouts: meeting point, evacuation point, first aid station, trail start / end, help needed,
+    water, toilets, group here, all good.
+  - Staff: help, medical, security (points), long break, short break, back on duty, on my way,
+    cleanup needed (messages).
+  - 4WDing: flat tyre, rescue needed, share until stop, bogged, hazard / washout, track closed, camp
+    here, regroup point (at the map +), stopping, all clear.
+  - Convoy: issue, need fuel, next toilet, share until stop, food stop, slow down, meet here, parked.
+  - Camping: meal ready now, meal in 15 min, BBQ, our camp site, cabin, car parked, playground,
+    toilets / showers, camp kitchen, friends' site, pool, kids come back.
+  4WD and convoy alert when someone on the channel has not been heard for 2 minutes. 4WD has crash
+  detection* (a ~4 g jolt opens a 30 s "Are you OK?" with I'm OK; no answer sends a rescue point,
+  a message, a Call to everyone and shares location until stopped). Both switch in Settings.
+- **Intercom** (a phone or tablet fixed to a wall): no title bar, only three menu dots (Settings,
+  Audio, Contacts, Radio streams, Set intercom key). Big room buttons (saved callsigns, "(not
+  heard)" when off air, refreshed every few seconds) plus Everyone; hold to talk or Hands-free
+  toggle; talking to one room uses VOICE_TO so only that intercom plays it. History / messages
+  (records all voice by default), long-press a room to message or Call it, Camera (a gate camera's
+  snapshot URL refreshed every second), Blackout (auto after 60 s without a touch, on by default;
+  long-press to switch auto off). Always joins its private channel (whatever Rejoin on start says),
+  rejoins after 10 s off air, has no Exit, and comes back to the front a minute after being left
+  (SYSTEM_ALERT_WINDOW; Android 10+ asks once for "Display over other apps"). Sideways: rooms left,
+  every button in one column on the right.
+
+**Radio**
+- Full duplex, many to many: everyone hears everyone, overlapping talkers are mixed, you keep
+  hearing while you talk. Echo cancelling and the call audio mode so duplex works on a speaker.
+- PTT: hold the big on-screen button; toggle mode; a learned hardware key (USB PTT, headset button);
+  a Bluetooth LE PTT button chosen in Settings (works with the screen off, e.g. the FalconClaw's
+  "BLU-PTT"); VOX with level slider, live meter, 3 s pre-roll and 5 s hang. Optional start tone (a
+  0.16 s rising beep at the start of each PTT transmission, off by default).
+- Channel name = passcode (see protocol). Slots A, B, extra channels C–H (off by default), Public
+  (published, editable key) and an experimental OpenMANET talk-group mode (unencrypted Opus in RTP,
+  half duplex). Re-joining keeps the old channel on air until the new key is derived, then swaps.
+  Rejoin on start (on by default); Leave turns it off.
+- Acknowledgements: "Heard by …"; if nobody acknowledges within 5 s play a tone and say
+  "Transmission failed", with Resend now and Retry in 5 min / 15 min / 1 h / at a time, 1–99 tries.
+  A tap too short to send audio is never "failed".
+- Dual watch: talk on one channel and also listen to every channel ticked Listen (A–H, Public).
+  Listen-only channels only ever send acks (plus what the user sends there on purpose). Quiet (both
+  ears, 70 %) or Stereo (one listened channel: the earlier one left ear); per-channel mute;
+  optionally save their voice as WAV recordings in Chat.
+- Call asks Everyone / one person / Cancel. Ringing: ~6 s of ringtone plus a loud two-tone trill and
+  vibration, a full-screen red alert (over the lock screen) with ACKNOWLEDGE (sends "X heard the call
+  from Y") and Stop ringing only.
+- Status: Available / Away (voice heard also saved to Chat with a notification) / Stealth (nothing
+  plays, rings or speaks; saved; buzzes). Volume all the way down or silent / vibrate = stealth
+  (option). A Call to a turned-down phone turns it up for the ring and then restores it. Status and
+  battery go out with presence; changes show as Chat lines. Record all voice (option): every
+  transmission heard or sent saved to Chat.
+- Possible gunshots alert* (untested, off): 3 sudden mic-clipping bangs in 10 s send an alert with
+  position.
+- Radio silent: receive only; nothing at all is sent. Ending it asks for confirmation.
+- Network: broadcast or multicast, a network picker (WiFi, VPN, USB tethering / Ethernet), extra
+  unicast peers (host:port).
+- **Tunnel comms** (Settings, advanced): a relay phone (best the commander tablet) with one forwarded
+  port per remote person, each keyed by its own DRYAD row; remote phones send and receive everything
+  through it over the internet, UDP with TCP fallback (see protocol section 11).
+
+**Audio**
+- Audio screen: devices in use, each with a cog: sound (Automatic = loudspeaker unless a headset is
+  in / Loudspeaker always / Earpiece or headset), microphone (Automatic or a chosen input, Android
+  6+), ringer for Call alerts (follows media, or loudspeaker always, Android 6+) and the PTT button
+  (learn / clear). Call and media volumes, hearing boost and mic level (50–400 %), meter, echo test.
+- Bluetooth headset: while on air, radio audio and mic over SCO. A wired headset plugged in or pulled
+  out while on air moves the audio with it.
+
+**Home screen** (setup lives in Settings): up to 4 channel buttons (chosen with eyes on the Channels
+page; the one on air yellow, listen-only ones a white-centred circle); a Channels button (no
+Join / Leave on the home screen: the Channels page lists every channel with Talk here / Leave
+(confirmed), Listen, eye, key = DRYAD, note, and a menu with name, swap with A/B, mute); Contacts
+(n online, red at 0); status button; camera shortcut; quick map point buttons; share location 30 min;
+Call; Silent; Chat (amber with an unread count); Reports; Map; Lock (blocks setup until a long
+press); optional Black screen button; big PTT; a blank strip at the bottom so the phone's own buttons
+do not hit PTT. ▲ hides the title bar, a small ▼ brings it back. Two styles: Radio (big PTT) or Map
+(mostly map, small PTT, "Mark…" asking at the X or at me). Landscape layouts for both. Black screen
+after N seconds without a touch (Settings; warn if the phone's own timeout is shorter). Every other
+screen has a house button back home. Menu: Chat, Audio, Settings, Data/files, Modern DRYAD, Pigpen,
+OpenMANET node (browser), Radio streams (only when Internet audio is on), Blackout, Red light mode,
+Exit (off air and close). A Permissions screen (Settings, and once at first start) checks and asks for
+everything with phone-maker power-saving instructions.
+
+**Contacts:** everyone heard with status colour, last seen, battery, distance and bearing, show on
+map, private note (hidden while locked); grouped into teams (team = channel) with Message / Call per
+person and Message team / Call team. "Less details" = one line each.
+
+**Tablet commander view** (tablet in landscape): side panel (Contacts / Channels, hideable) next to
+the map, columns about 30 / 40 / 30 % so 7-inch tablets fit; Broadcast talks and messages to several
+listened channels at once; smaller PTT; every map-point button of the profile.
+
+**Quick map point profiles:** Friends, Security, Firefighting, Military, Custom (edit button text,
+announcement with {me} {in10} {in15} {in30}, icon, duration, my position or map centre) and the
+simple-mode sets above. Icon pickers list the profile's icons first.
+
+**Map and compass:** offline z/x/y tile folders (e.g. ATAK imagery), optional online tiles
+(OpenStreetMap, Google satellite, OpenTopoMap, Google terrain, Esri topo, custom URL) with a
+see-through layer on top; offline with no tiles asks for 10 s "online for 5 min?". Live "Me" arrow
+(GPS course on phones without a compass), accuracy circle, reason shown when there is no fix.
+Everyone's last position with a compass list. Map points with icon, note, expiry; edit, Move… (drag
+under the +, Save here), remove, asking "announce the change?"; Navigate / open in Google Maps or any
+map app; icon buttons (Me, All, POI, Sync with Resync, Points filter, Pad, Fake, Tiles; landscape: a column on the right); long-press to drop; camera photos drop a photo point. Dragging shows the +'s
+distance and bearing. A centre-on-me target button next to the corner compass; tapping the compass
+opens a full-screen Silva-style baseplate compass: travel arrow, red/white needle, a bezel dragged to
+set a bearing with an orienting arrow, "turn left/right N°", Set to my heading, Bearing to X, true /
+magnetic with declination, and map points around the edge or as a list (tap one for a red arrow).
+
+**Chat and reports:** text, reports, map points, files and pictures for the channels on air; private
+messages (per-phone RSA keys); acknowledgement mode for range tests. Reports: SALUTE, SPOTREP,
+SITREP, LACE, ACE, 9-line MEDEVAC, CASEVAC, MIST, POSREP, LOCSTAT, AAR and custom, one field per page
+with quick picks, location and DTG; send now, at a time, or as a map point; Cancel. Catch-up sync
+every 5 min covering 30 min. To / Message / Send in one even row.
+
+**Data:** location, files, camera photos (shrunk to 1600 px; phone camera app, choose an app, USB
+camera* or network camera* snapshot URL), screenshots and map tile packs; resilient on lossy WiFi
+(NACK repair, SHA-256 check).
+
+**Codes:** Modern DRYAD sheets (26 rows A–Z, each a random permutation of A–Z plus two chosen
+symbols for space and new line), batches with validity windows, names, colours, age rules,
+emergency rebuild from a phrase; share as text, QR or over the air (warn on Public); a row can
+become channel A, B, any of A–H or the Public key (→ X). Keyed pigpen: write from a DRYAD row and
+decode on a tap pad.
+
+**Internet audio** (Settings, off by default): Radio streams in the menu plays public scanner feeds
+(a stream URL or a Broadcastify feed number, e.g. CFA district dispatch), one at a time until Stop.
+
+**First start and shared setup:** random callsign like TANGO38; wizard: callsign, "Quick set from a
+QR code" (Scan QR code / Skip quick set; a phone setup QR code, see below), units (metric default / imperial, on the callsign step), "Advanced or simple" (a note: Advanced modes revolve around DRYAD sheets for encryption, messages and channel names, shared between trusted devices; Simple modes have fixed keys set next), mode, then for
+Advanced the public key (default `publicchannelkey`), what the group is for (sets the map-point
+buttons) and whether to create one never-expiring DRYAD sheet (row A → A, row B → B; "no" joins
+Public to wait for settings). Settings > "Share these settings and DRYAD sheets" sends everything
+except the callsign and phone-specific settings (audio devices, tunnel, PTT key…); receivers are asked
+"Clear all settings and accept the new ones?".
+
+**Protection and housekeeping:** PIN for DRYAD, pigpen, channel names / QR and Settings; lost-device
+option (2 wrong PINs erase all of the app's own data, sending nothing); secret triple-tap wipe on
+the callsign; red light mode; blackout (double-tap to wake). Clear mission data (chat, reports,
+files, recordings, map points, contacts' positions; keeps sheets, channels, settings, maps; must
+leave every channel first). Clear all data and exit (next start runs the wizard).
+
+**More map, comms and code features**
+- Maps: "Online map tiles…" for 5 min / 1 hour / 1 day / always / offline now; Android 4.x swaps
+  OSM/Topo/Esri for Google road tiles (old TLS). The + as lat/lon and MGRS; ▼/▲ folds the map's
+  buttons away; "+ POI" at the +; home map centres on me when opened. POI shapes (rectangle, circle,
+  oval, line, arrow, text box) with colours and "Also share on Public"; photo points keep direction
+  and field of view (a cone); icon picker by category with a filter (military unit and decision
+  icons); Emergency services profile; Settings > My map icon. Maps redraw only for heading changes
+  of 2° or more.
+- Fake GPS (Settings): a random fixed spot within 2 km of a centre, used for everything; the LOCATION
+  flags byte marks it, others show "NAME (Fake)"; "+ Fake being here" on the full map.
+- Aircraft (ADS-B, off by default): a MANET receiver's aircraft.json, or adsb.lol / airplanes.live
+  around the map centre; slow mode (5 min online, 30 s local) by default; "Share ADS-B data" sends
+  them to the channel (TYPE_ADSB). Ships (AIS, off by default) from Open Waters
+  (`https://ais.openwaters.io/v1/vessels?bbox=…&max_age=30m`, optional key) shared as TYPE_AIS;
+  turns itself off inland.
+- ATAK: import MBTiles / osmdroid SQLite as offline map sets, export the view for ATAK, an ATAK map
+  source XML for the LAN tiles; "Enable ATAK compatible" (off, warned): CoT position every 30 s on
+  239.2.3.1:6969, ATAK positions and GeoChat All Chat Rooms (224.10.10.1:17012) shown, Public messages
+  sent to it; never private channels, voice or DRYAD.
+- Commander view: ▶ slides the side buttons away leaving a small PTT and + POI on the map.
+- Burst voice (Audio page): record while PTT held, send as one file on release, auto-play
+  (AMR 4.75k to AAC 48k). Bulk POIs (BulkPois: CSV Name,Icon,Lat,Lon,Notes[,Layer]; icon 47 grey dot for unknown; [layer:X] note tag and a layer filter; QR parts 'YCCPOI1 i/n'; quiet sends). Enigma CW (audio/Morse: 8 kHz tone WAVs with 5 ms ramps, PARIS timing 1200/wpm ms, Goertzel tone search 300-1500 Hz and k-means dot/dash decode; Cw.java format with %R% %SheetID% %StartRow% %CipherText% %Call% and <prosigns>, parsed back by regex; CW mode = RadioEngine.cwMode: stealth, PTT/VOX/bursts off; CwReceiver records from first tone to the clear-air gap; optional CW Decoded / CW received lines to Chat; optional relay of private texts out by CW via CwPlayer, waiting while CW is heard; cw prefs keep the mode across crashes). Burst cleanup (audio/BurstCleanup, off by default): MediaExtractor/MediaCodec decode, 120 Hz high-pass, downward expander under the noise floor, speech level to about -18 dBFS (max +20 dB, hiss capped at half), soft limiter, played from a temporary WAV. Location requests: chat text 'LOCATION REQUEST: ' on private channels, answered by a prompt or automatically (Mission and data tick, off). Chat filter by category (prefs chatHidden bitmask). POI pose tag [pose:rot;size%;arrow] in the note (rotation, 50-1000% size, heading arrow; pose-only edits go [quiet]). Map menu Emergency alerts (CAP, geo/CapFeed: VicEmergency osom-geojson, NOAA api.weather.gov alerts at the map centre with zone outlines, or custom CAP XML / GeoJSON; shaded areas). Share my camera (phone or network camera, 160–320 px, 1–5 fps, 10–15 fps for 160 px; optional audio as packet 17 with chunk count 0, IMA ADPCM, played only while Tactical videos is open)
+  and a Tactical videos grid. TV mode (map, chat cards, cameras; Android TV opens it by itself).
+- Pinned announcements in Chat (resent to newcomers); automatic key rotation hourly / daily (not
+  Public); read-only Public listen key (YCCL1-…, P-256 signed key changes).
+- PTT reads "network not connected" with no WiFi/Ethernet, tunnel or extra peers. Tunnel: "Use the
+  relay now" switch, and an offer to test the relay after a minute with nobody heard.
+- OpenMANET (off by default, menus hidden until on): talk groups, node web page, and an internet
+  gateway switch* via the node's ubus API (toggles DHCP option 3 with a note and a backup; password
+  never saved). Project NOMAD screen: ask its Ollama AI (port 11434) and open its Command Center.
+- DRYAD: 5-letter sheet IDs, optional random row order, AA–ZZ sheets (676 rows, not QR), Enigma
+  (plain/cipher boxes, Paste/Copy, digits as words, QR YCCE1|id|row|cipher), Challenge and response,
+  a "How modern DRYAD works" page; Pigpen opens from the DRYAD screen.
+- Contacts > More details: Remove and Add/Edit note on each row.
+
+**LAN storage (on the phone)**
+- Settings > LAN storage location: WebDAV/HTTP base URL (e.g. `http://server:8647/YCC`), user,
+  password (never shown again), Test. Maps read `Maps cache/<host-hash>/z/x/y.jpg` from it before
+  going online and copy every online tile to it; "Sync tiles (LAN storage)" syncs the view both ways.
+- LAN sync and updates (per phone, never shared, all off): auto update from `Updates/version.txt`
+  ("<versionCode>\nYCC.apk") and the APK (installed via a notification; versionCode = minutes since
+  2026-01-01); logs to `Logs/<callsign>/<yyyy-MM-dd>/`, data files to `Data/<callsign>/<yyyy-MM-dd>/`
+  (yyyyMMddHHmmss_ stamps), DRYAD sheets merged both ways (`DRYAD/sheets.txt`), config backup
+  `Configs/<callsign>.ucconfig`; on demand / weekly / daily / every minute; Sync now. Home network:
+  on that SSID everything but logs syncs at least hourly.
+- Config backups: Load defaults (the app's own, or the server's network defaults
+  `Configs/_defaults.ucconfig`), Save my config / Read my config. Mission mode: files under
+  `Missions/<name>/`, Clear mission data offers a final sync first; Video report records into
+  Mission videos (uploaded later, never radioed).
+
+**Phone setup QR code**
+- Text `YCCSETUP1|` + compact JSON: name, url, user, pass, tunnel, tkey, pub, chA, omg (OpenMANET
+  group: turns OpenMANET on), omh (OpenMANET node), home (home WiFi SSID: turns home sync on),
+  defaults (1 = load network defaults). Empty fields left out.
+- Scanning (wizard, or Settings > Scan QR) shows what it sets, tests the LAN login (offer "Set up
+  anyway" on failure), saves the LAN storage, applies the network defaults and DRYAD sheets, then the
+  tunnel server/key (left switched off), Public key, channel A, OpenMANET and home WiFi.
+- Settings > "Phone setup QR code (for new phones)" makes the same code from this phone (asks
+  whether to include channel A) and warns that it holds the LAN password.
+
+**The LAN storage server** (a `server` folder beside the app)
+- One Python 3 file server, no add-ons, in Docker (`python:3.12-alpine`, port 47490, `/data`
+  volume, `YCC_USER` / `YCC_PASSWORD`; Project NOMAD custom app on host port 8647). GET, HEAD, PUT
+  (streamed, `.part` then rename), MKCOL, OPTIONS under `/YCC`; Basic auth; `Maps cache/` and
+  `Updates/YCC.apk` readable without a login; hidden files never served.
+- `/webadmin` (same login; `/` and `/admin` redirect): Manage, Files, Defaults (edit the UCCONFIG1
+  network defaults, dropping per-phone keys), Phone setup (the QR code, drawn by a built-in QR maker,
+  saved in a hidden file), Sync (one-way copy of new/changed files to other stores: folders, every N
+  minutes between hours, KB/s limit, remembers what each has, never deletes there), Updates (publish
+  an APK, version code read from its binary manifest), Login, Docs (Apache-2.0 and this prompt) and
+  Erase (type ERASE). Plain HTML forms, confirm() on destructive buttons, posts must carry the page's
+  own Origin.
+- **Bridge** (`server/bridge/`, Python, no add-ons, a startup service on the host, not in Docker): hears
+  the phones' broadcasts on UDP 47474 and passes them to devices whose Extra peers point at it on UDP
+  47400 (a Waydroid or emulator commander tablet on the same computer), broadcasts what they send, and
+  is the tunnel relay (protocol section 11) for remote people, each on their own port with a DRYAD-row
+  key; the channel crypto (PBKDF2, AES-256-CTR, HMAC) in plain Python, checked against the test vector;
+  dedupe by (senderId, seq). Settings and status pass through hidden files in the data folder, shown on
+  the admin page's **Bridge** tab (on/off, broadcast address, internet address, people, a tunnel-only
+  setup QR code each). Setup codes without a url keep the phone's LAN login.
+- The commander tablet view can run on a desktop in the Android emulator or in Waydroid (Ubuntu,
+  software graphics), linked by the bridge (Waydroid: Extra peers 192.168.240.1:47400; emulator:
+  10.0.2.2:47400).
+
+**Later additions (keep them)**
+- Catch-up per channel (Channels page "Request catch-ups", default on except Public; listen-only
+  channels ask and take answers, never answer). Coming back to the front after 30 s asks at once, back
+  to the newest message received (30 min to a day; DIGEST flags bits 1-7 say how far).
+- Voice catch-up (chat kind 8, protocol section 6): shared recording ids, announce first, then send
+  VOICEREC-<id>.wav files; announced clips show as "fetching…" and fill in unread; one re-ask for gaps.
+- Commander pop-up for 10 s when someone back after 2 min offline missed messages, with Send.
+- Setup: Quick set QR, then (after Permissions) black screen and Record all voice (with Request
+  catch-ups); Settings > Run the setup wizard again.
+- Settings pages: main (callsign, Update from URL / Edit update URL, wizard, permissions, mode, links),
+  Channel, Audio PTT and alerts, Home screen, Network and sync, Security, Mission and data. Update from
+  URL keeps a tested "updateUrl" (shared setting); a newer APK from outside the LAN is uploaded to the
+  LAN storage's Updates so everyone gets it.
+- Audio: Test left/right tones, Swap left and right; received bursts wait for a clear channel (0 s to
+  5 min, default 1 min) with an optional call-waiting beep.
+- Maps: optional arrow/zoom/centre pad (off by default, toggled on the full map), Resync POIs, a
+  per-channel map point filter, Fake GPS on/off. Radio silent tick on the Channels and Data screens.
+  TV: Menu and TV mode buttons in the title bar; remote arrows pan in TV mode.
+- Obscure location 0–10 km (default 2 km): a fixed random offset on every real position sent (LOCATION
+  and ATAK), accuracy widened to the range; also the fake GPS radius. Share location with Fake GPS on asks
+  keep fake / share real (obscured or exact).
+
+**Wire protocol (must match exactly)**
+
+Everything another app (a Windows client, or a rebuild from scratch) needs to talk to Your Community Communications
+phones. The Android source is the reference: `net/Packet.java`, `crypto/ChannelCrypto.java`,
+`RadioEngine.java`, `msg/MessageCenter.java`, `msg/PrivateKeys.java`, `net/FileTransfer.java`,
+`geo/Poi.java`, `dryad/DryadSheet.java`.
+
+All multi-byte numbers are **big-endian**. Doubles and floats are IEEE 754 (Java `ByteBuffer`
+order). Text is UTF-8. "len(1) text" means one length byte followed by that many bytes.
+
+---
+
+### 1. How a channel name becomes the encryption keys (plain language)
+
+There are no accounts and no key exchange. **The channel name is the password.** Every phone
+that types the same channel name works out the same secret keys on its own, so they can all read
+each other, and a phone with a different name (or none) sees only noise.
+
+1. **Stretch the name into key material.** The name (spaces at the ends removed, as UTF-8 bytes)
+   goes through PBKDF2 with HMAC-SHA256, the fixed salt `communitycomms/v1` and 20,000 rounds. The
+   20,000 rounds make each guess slow, so someone trying to guess a channel name by brute force
+   pays 20,000 hash operations per guess. Out come 64 bytes.
+2. **Split it into two keys.** The first 32 bytes are the **encryption key** (AES-256). The last 32
+   bytes are the **authentication key** (HMAC-SHA256).
+3. **Make a public channel tag.** HMAC-SHA256(authentication key, the text `channel-tag`); the first
+   4 bytes are the tag. It goes in the clear on every packet so a phone can instantly drop packets
+   from other channels without trying to decrypt them. It does not reveal the name or the keys.
+4. **Every packet:** the payload (callsign, voice, message…) is encrypted with AES-256 in counter
+   mode, using a starting counter built from the sender's random id and the packet's sequence
+   number, so no two packets ever reuse a counter. Then a 10-byte authentication code (truncated
+   HMAC-SHA256 over the header and the encrypted payload) is added. A receiver recomputes it and
+   silently drops anything that does not match, so packets cannot be forged or altered without the
+   name.
+
+What this means in practice:
+- **The name is the whole secret.** A short or guessable name (a word, "teamA") can be brute
+  forced offline from a captured packet. Use long random names: a DRYAD row (28 random symbols,
+  about 98 bits) is excellent, and that is what "Row → A/B" does.
+- **Public** uses a published name, by default `publicchannelkey` (editable in Settings and in the
+  first-start wizard, so a group can run its own), so anyone with the app can read it.
+- **Private messages** add a second layer for one person (section 6): each phone has its own
+  RSA-2048 key pair, and the message is locked with the recipient's public key on top of the
+  channel encryption.
+- **Emergency DRYAD from a phrase** uses the same stretching (salt `communitycomms/dryad/v1`) to turn
+  a phrase into a deterministic sheet, so everyone who types the phrase gets the same sheet.
+- Not provided: forward secrecy (anyone who later learns the name can decrypt recordings of old
+  traffic), hiding who is talking to whom (sender ids, timing and sizes are visible), replay
+  protection beyond de-duplication. The design has not been independently reviewed.
+
+### Exact derivation
+
+```
+okm        = PBKDF2-HMAC-SHA256(password = UTF8(trim(name)), salt = "communitycomms/v1",
+                                iterations = 20000, length = 64)
+encKey     = okm[0..32)        (AES-256)
+macKey     = okm[32..64)       (HMAC-SHA256)
+channelTag = first 4 bytes of HMAC-SHA256(macKey, "channel-tag")   as a big-endian int
+```
+(An empty name would use a single 0x00 byte as the HMAC key; the app never allows empty names.)
+The Android code does PBKDF2 by hand because old Android's built-in PBKDF2 mangled non-ASCII names;
+any standard PBKDF2-HMAC-SHA256 gives the same result.
+
+### Test vectors
+
+```
+name "publicchannelkey" (the default Public channel)
+  encKey     59c8612e1eb6c613ee8113af0d18f81803e8189f3f9804cbc33ca9eace12c962
+  macKey     68122fc3607f09414b456a9e29fd645ed458408ec827c7712094aef4da783680
+  channelTag f9929a84
+  PRESENCE packet, sender id 0102030405060708, seq 1, callsign "ALPHA":
+  55420103f9929a840102030405060708000000012d3d7d76c1577acddbfc72bd822f291f
+```
+
+---
+
+### 2. Transport
+
+- **UDP port 47474** (configurable; every phone on a channel must use the same port).
+- **Broadcast mode (default):** send to the subnet broadcast address of the chosen network
+  interface(s) (or 255.255.255.255). **Multicast mode:** send to **239.47.47.47:47474**, TTL 8.
+  Receivers bind 0.0.0.0:47474 with SO_REUSEADDR/broadcast on, and join 239.47.47.47.
+- **Extra peers:** optional unicast `host:port` destinations (e.g. a relay across subnets). The
+  relay (`relay/UdpRelay.java`) forwards every datagram to every other client heard in the last
+  minute; it never decrypts.
+- One packet per UDP datagram; payloads are kept at or under ~1200 bytes so datagrams stay under
+  a typical 1500-byte MTU.
+- Own packets are recognised by the sender id and ignored.
+
+### 3. Packet format
+
+```
+ offset size
+  0      2   'U' 'B'                      magic
+  2      1   version = 1
+  3      1   type                         see table
+  4      4   channelTag                   cleartext
+  8      8   senderId                     random per app run (new each time the app starts a channel)
+ 16      4   seq                          per sender, +1 every packet (starts random)
+ 20      n   ciphertext                   AES-256-CTR(encKey, IV, payload)
+ 20+n   10   mac                          first 10 bytes of HMAC-SHA256(macKey, bytes 0 .. 20+n)
+ IV (16 bytes) = senderId(8) || seq(4) || 00 00 00 00     (standard CTR: the 128-bit block counter
+                                                           increments big-endian from this value)
+```
+Receivers drop: wrong magic/version, wrong channelTag, bad mac, own senderId.
+
+**Every payload starts with the callsign:** `nameLen(1) name(UTF-8, at most 32 bytes)`. The bodies
+below are what follows it.
+
+| type | name | body after the callsign |
+|---|---|---|
+| 1 | VOICE | txId(4) + one IMA-ADPCM frame (section 4) |
+| 2 | VOICE_END | txId(4). Sent 3 times when the talker releases PTT |
+| 3 | PRESENCE | status(1: 0 available, 1 away, 2 stealth) battery(1: 0-100 %, 255 unknown); every 5 s while on a channel and at once when the status changes. Old phones sent nothing here: treat a missing status as unknown |
+| 4 | ACK | txId(4) targetSenderId(8) framesHeard(2) |
+| 10 | CHAT | messages, reports, catch-up sync, private messages (section 6) |
+| 11 | LOCATION | lat(8 double) lon(8 double) accuracyM(4 float) fixAgeMs(8) labelLen(1) label. Sent twice |
+| 12 | MARK | map point (POI) body (section 7). Sent twice |
+| 13 | DRYAD | transferId(4) chunkIndex(2) chunkCount(2) up to 1000 bytes of sheet text (section 8) |
+| 14 | FILE | file transfer message (section 9) |
+| 15 | CALL | callId(4), then optionally targetLen(1) + target callsign (UTF-8, at most 32 bytes): only that callsign rings (case-insensitive). Without a target, everyone rings. Sent 3 times 250 ms apart; receivers ring once per (sender, callId) |
+| 16 | VOICE_TO | voice for one callsign only (intercom: talk to one room): txId(4) targetLen(1) target callsign (UTF-8, at most 32 bytes) then the ADPCM frame. Only the phone with that callsign (case-insensitive) plays it; it treats it exactly like VOICE. The transmission ends with a normal VOICE_END, so only the target acks. Phones without type 16 ignore it |
+| 17 | VIDEO | live camera picture (small JPEG, 1–5 a second): streamId(4) frameNo(4) chunkIndex(1) chunkCount(1) then up to 1100 bytes of the JPEG. Shown only when every chunk of a frame arrived; no repair |
+| 18 | ADSB | shared aircraft: count(1), then per aircraft 25 bytes: ICAO hex(3) lat(4, 1e-5 deg) lon(4) altitude(2, ft/25; -32768 on the ground, 32767 unknown) track(2, deg or -1) speed(2, kt or -1) flight(8, ASCII, space padded). At most 40 per packet. Shown for 10 min |
+| 19 | AIS | shared ships: count(1), then per ship 29 bytes: MMSI(4) lat(4, 1e-5 deg) lon(4) speed(2, 0.1 kt or -1) course(2, 0.1 deg or -1) ITU ship type(1) name(12, ASCII, space padded). At most 35 per packet. Shown for 15 min |
+
+**LOCATION extensions:** after the label, newer phones append an **icon** byte (the map icon index
+others see them as, 255 = a plain dot) and a **flags** byte (bit 0 = a fake GPS position: show
+"NAME (Fake)"). Older phones stop reading after the label, so both are optional.
+
+Unknown types must be ignored (newer phones may add types).
+
+**Stations:** a phone lists everyone it has heard (any packet) by senderId with their callsign.
+Drop a station after 60 s of silence unless it has sent a position (keep those 24 h for the map).
+A station whose app restarts gets a new senderId; replace the old entry with the same callsign.
+
+### 4. Voice
+
+- 8000 Hz, mono, 16-bit. **One VOICE packet per 40 ms frame (320 samples).** Full duplex: keep
+  playing others while transmitting; mix all talkers (one jitter buffer per sender, start a talker
+  after 3 frames, cap at 12, drop out-of-order/duplicate seq).
+- `txId` is random per transmission (per PTT press).
+- **IMA ADPCM frame** (163 bytes for 320 samples): predictor(2, signed) stepIndex(1) then 160 bytes,
+  two samples per byte, **first sample in the low nibble**. Standard IMA step and index tables
+  (89 steps, 7 … 32767; index deltas -1,-1,-1,-1,2,4,6,8). Each frame carries its own state, so a
+  lost packet never corrupts the next.
+- **Acknowledgements:** a receiver sends one ACK per (sender, txId) when VOICE_END arrives, or if
+  that sender's voice stops for 1 s without an END. framesHeard = VOICE frames received. The
+  talker waits 5 s after its END; if no ACK names it, it reports "transmission failed".
+- VOX: same packets; the app keeps a 3 s pre-roll and 5 s hang.
+- A PTT press too short to send any frame sends VOICE_END but expects no ACK (no "failed" report).
+- Optional start tone (sender only, nothing on the wire changes): the first 4 frames of a PTT
+  transmission are a beep (2 frames 880 Hz, 2 frames 1320 Hz) instead of the microphone.
+- Recorders must drop duplicate (sender, seq) frames: the same packet can arrive by broadcast and
+  through a relay or extra peer.
+
+### 5. Channels in the app
+
+- Slots **A** and **B**: user names (often a DRYAD row). **Public**: the public key, default
+  `publicchannelkey`.
+- Extra slots **C**–**H**: more user-named channels, mainly for listening.
+- **Dual watch** listens to every channel ticked Listen (A–H, Public; none ticked = the other of
+  A/B) with one receive-only decoder each, fed by the main socket (packets are routed by channel tag).
+  It sends ACKs for voice it heard (sealed with that channel's keys, through the main socket), so
+  their talkers see "Heard by", and otherwise only what the user sends there on purpose: a team
+  message (CHAT text), a call (CALL) or a **broadcast** (the same VOICE frames and VOICE_END as the
+  channel on air, under that channel's keys, own sender id and sequence). Never presence or sync.
+- **Channel QR:** `UBC1|<A|B|P>|<channel name>`.
+- **Phone setup QR:** `YCCSETUP1|` + compact JSON with any of `name`, `url` (LAN storage base, e.g.
+  `http://server:8647/YCC`), `user`, `pass`, `tunnel` (host:port), `tkey`, `pub` (Public key),
+  `chA` (channel A name), `omg` (OpenMANET group; turns OpenMANET on), `omh` (OpenMANET node),
+  `home` (home WiFi SSID; turns home sync on) and `defaults` (1 = load the LAN storage's network
+  defaults `Configs/_defaults.ucconfig` first). Empty fields are left out. Made by the server's admin
+  page or by a phone; never sent over the radio.
+- **LAN storage layout** (HTTP/WebDAV under the base URL): `Maps cache/<source>/z/x/y.jpg` (no login),
+  `Updates/YCC.apk` (no login) and `Updates/version.txt` ("versionCode" line, then the APK name),
+  `Logs/`, `Data/` and `Missions/<name>/`, `DRYAD/sheets.txt`, `Configs/<callsign>.ucconfig` and
+  `Configs/_defaults.ucconfig` (settings bundle format, section 9).
+- **OpenMANET\* (experimental, separate):** unencrypted Opus 48 kHz mono, 20 ms, 32 kbit/s in RTP
+  (payload type 111) on a talk group's multicast address:port; half duplex. Not part of this protocol.
+
+### 6. CHAT bodies (type 10)
+
+`kind(1)` then:
+
+```
+ 1 TEXT     id(8) ageMs(8) creatorLen(1) creator textLen(2) text(UTF-8, at most 1000 bytes)
+ 2 REPORT   id(8) ageMs(8) creatorLen(1) creator dataLen(2) zlib-deflate(report text)
+ 3 DIGEST   flags(1, bit0 = "answer with what I lack"; bits 1-7 = answer from this far back in
+            12-minute steps, 0 = your own window) count(1), then per entry:
+            type(1) id(8) version(4) ageSec(4) creatorLen(1) creator labelLen(1) label(<=40 bytes)
+ 4 REQUEST  count(1), then per entry: type(1) id(8)
+ 5 ACK      same layout as TEXT: an automatic "message received" reply; never itself acknowledged
+ 6 PRIVATE  id(8) ageMs(8) creatorLen(1) creator toFingerprint(8) sealedLen(2) sealed
+ 7 KEY      pubLen(2) RSA public key (X.509 / SubjectPublicKeyInfo DER)
+ 8 VOICE    flags(1, bit0 ask, bits 1-7 window in 12-minute steps) count(1), then per recording:
+            id(8) ageSec(4) seconds(2) creatorLen(1) creator   (voice catch-up, see below)
+```
+- **Voice catch-up (kind 8):** every recording of one transmission has the same id on every phone:
+  `id = talkerSenderId * 0x9E3779B97F4A7C15 + txId` (64-bit, wrapping). A phone coming back to the front
+  sends VOICE with ask set, listing the recordings it holds from the window. A phone with Record all
+  voice that holds others waits a random 0.3-2.8 s, leaves out any another phone announced in the last
+  60 s, announces its own (VOICE without ask), then sends each as a FILE named
+  `VOICEREC-<id as 16 hex digits>.wav` (one at a time). Receivers show announced recordings as
+  "fetching" and fill them in under the same id when the file arrives (unread); still missing after
+  30 s + 4 s per recording, they ask once more. At most 40 recordings or 10 MB per answer. Phones
+  without kind 8 ignore it.
+- **Ages, not clock times:** ageMs = now − creation time on the sender. Receivers set
+  time = their now − age, so wrong phone clocks still agree.
+- TEXT and REPORT are sent **twice**; receivers de-duplicate by id. Messages are at most
+  1150 bytes of body.
+- **Report text** (`UBR1`): lines `UBR1`, code, title, then one `label<TAB>value` per field;
+  backslash, tab and newline escaped as `\\`, `\t`, `\n`. Labels travel with the report, so any
+  template (including custom ones) displays without the receiver knowing it.
+- **Catch-up sync:** every 5 min, on join, and when the app comes back to the front after more than 30 s
+  away (back to the newest message it has from anyone, up to a day; bits 1-7 say how far), a phone sends a
+  DIGEST (with bit0 set) of what it
+  holds from the last 30 min: types 1 text, 2 report, 3 POI, 4 file. Anyone holding something the
+  digest lacks answers with its own digest (no bit0) after a random 0.3–2.8 s; a phone that lacks
+  a text/report/POI sends a REQUEST after a random 0.2–1.7 s and any holder resends it (suppress if
+  someone else already resent it). Files are never resent this way; a missed file is shown as
+  "missed". A POI with a higher version replaces an older one. File digest id =
+  `senderId * 1000003 + transferId` (64-bit wrap-around).
+- **Private messages:** each phone announces KEY on join and every 60 s. Fingerprint = first 8 bytes
+  of SHA-256(public key DER), as a big-endian long. `sealed` =
+  ```
+  rsaLen(2) RSA-2048-OAEP(SHA-1, MGF1-SHA-1)(secret 32 bytes) iv(16)
+            AES-256-CTR(SHA-256("enc"||secret), iv, text)  HMAC-SHA256(SHA-256("mac"||secret), iv||ciphertext)[first 16]
+  ```
+  Only the phone whose fingerprint matches opens it. Never in digests, never resent, never acked.
+
+### 7. Map points (type 12)
+
+```
+ op(1)  1 = upsert, 2 = sync request (no further fields: everyone replies with all their points)
+ upsert: id(8) version(4) lat(8 double) lon(8 double) msLeft(8, -1 = never expires) icon(1)
+         creatorLen(1) creator  editorLen(1) editor  noteLen(2) note(UTF-8, <=600 bytes)
+```
+- Highest version wins. **Remove** = send a higher version that has already expired (msLeft 0).
+- Note tags (hidden from people): `[photo:<hex file key>]` links a picture sent on the channel;
+  `[quiet]` = update maps without speaking an announcement.
+- Icons: 0 person blue, 1 person red, 2 person yellow, 3 car, 4 truck, 5 bus, 6 ambulance,
+  7 helicopter, 8 plane, 9 drone, 10 red square, 11 blue square, 12 photo, 13 toilets,
+  14 meeting point (flag), 15 parked car (P), 16 fire front, 17 spot fire, 18 fire truck,
+  19 tanker truck, 20 water point, 21 hostile (red diamond), 22 friendly (blue rectangle),
+  23 unknown, 24 observation post, 25 danger/hazard, 26 first aid/casualty, 27 landing zone,
+  28 checkpoint, 29 food/camp, 30 road closed. Treat unknown numbers as 0.
+
+### 8. DRYAD sheets (type 13)
+
+The sheet text is split into chunks of up to 1000 bytes; every chunk is sent, then the whole set
+twice more (3 rounds, 15 ms apart). Receivers reassemble by (senderId, transferId) and offer to
+import. The joined text is one or more sheets in this form:
+
+```
+COMMUNITY-COMMS-DRYAD v1
+NAME: Team DRYAD #1
+VALID-FROM: 2026-10-21 00:00Z          (optional, UTC)
+VALID-TO: 2026-10-22 00:00Z            (optional, UTC)
+COLOUR: Orange                         (optional)
+USED: yes                              (optional)
+SPECIAL: .@  = SPACE NEWLINE           (Modern DRYAD: the sheet's space and end-of-line symbols)
+   0    1   2   3   4  5   6  7   8   9
+A: VZ.Q TEG DFW XLK UN CBJ YP @HM OSR IA
+... rows B to Z ...
+```
+Each row is a random permutation of 28 symbols (A–Z plus the two specials) in columns of
+4,3,3,3,2,3,2,3,3,2 (classic 26-letter sheets: 4,3,3,2,2,3,2,3,2,2). Generation: Fisher–Yates
+with a secure random source. Emergency "from a phrase": PBKDF2-HMAC-SHA256(phrase,
+"communitycomms/dryad/v1", 20000, 32) as key; random bytes = SHA-256(key || counter(8, big-endian))
+blocks; below(n) uses rejection sampling (take a byte b, accept if b < 256 − 256 mod n, return b mod n);
+alphabet order "ABCDEFGHIJKLMNOPQRSTUVWXYZ" + space + eol; rows A to Z in order from one shared
+random stream, each a Fisher–Yates shuffle from the last position down (j = below(i + 1)).
+**QR form:** `UBD1|name|fromMin36|toMin36|colour|used(0/1)|<26×28 symbols row by row>|<space><eol>`
+(times = minutes since 1970 in base 36, empty = open-ended).
+**Row as a channel name:** the row's 28 symbols as a string.
+**Pigpen keyed by a row:** slot i of the 28 pigpen figures holds the row's i-th symbol (sheet
+specials mapped to '.' space and '@' new line). Slots: 0–8 grid no dot, 9–17 grid with dot,
+18–21 X arms no dot (top, right, bottom, left), 22–25 X arms with dot, 26 plain X, 27 X with four dots.
+
+### 9. Files (type 14)
+
+```
+ OFFER  1 id(4) size(8) chunkSize(2) count(4) sha256(32) mimeLen(1) mime nameLen(1) name
+ CHUNK  2 id(4) index(4) data (chunkSize = 1150 bytes, last one shorter)
+ NACK   3 id(4) rangeCount(1) { start(4) length(2) } …     (at most 100 ranges)
+ DONE   4 id(4)
+```
+Sender: OFFER, then every chunk once at about 140 chunks/s, then DONE (OFFER repeated with DONE
+for late joiners). Receivers write chunks to disk; after 1.2 s of quiet they NACK the missing
+ranges and the sender re-sends exactly those (one re-send serves every receiver). Give up after
+120 s without progress. The finished file must match the SHA-256. Max 50 MB.
+**Map tile packs** are ordinary files named `SET.uctiles.zip`: entries `z/x/y.jpg|png` plus
+`uctiles.txt` (`set=`, `lat=`, `lon=`, `radiusKm=`, `zMin=`, `zMax=`); receivers unpack into their
+offline tile folder for that set.
+
+### Settings bundle (shared setup)
+
+A phone can hand its whole setup to the channel as an ordinary file named `settings.ucconfig`
+(mime `application/x-ucconfig`), UTF-8 JSON:
+```
+{"format":"UCCONFIG1", "from":"<callsign>",
+ "prefs":{"settings":{key:{"t":"s|i|l|b|f","v":value}}, "map":{…}, "quickProfiles":{…}, "dryad":{…}},
+ "sheets":"<every DRYAD sheet in the text form of section 8, one after another>"}
+```
+Never included (and never overwritten on the receiver): callsign, PIN hash/salt/fail count,
+lost-device wipe, private-message keys, PTT key, Bluetooth button, network interface, radio
+silent, audio levels, online-tile window, setup-done flag, lock state. The receiver is asked
+"Clear all settings and accept the new ones?"; accepting clears its shared settings, applies the
+bundle and replaces all its DRYAD sheets. Sending it on Public gives the channel names to everyone
+on Public (the sender is warned). A new phone's first-start wizard can join Public and wait for one.
+
+### 10. Compatibility rules
+
+- Keep the version byte at 1 and these layouts as they are; add new things as **new packet types or
+  new CHAT kinds**, and ignore anything unknown.
+- Truncate callsigns to 32 bytes, creators to 32, labels to 40, notes to 600, texts to 1000.
+- Use ages, not absolute times, on the wire.
+- On a channel you only watch (dual watch) send nothing but voice ACKs and what the user sends there on
+  purpose (team message, call, broadcast), and send nothing at all in
+  radio-silent mode.
+- Extra bytes may be appended to an existing layout (PRESENCE, CALL) when old phones simply ignore
+  them; anything else needs a new type or CHAT kind.
+
+### 11. Tunnel comms (a phone reaching the group over the internet)
+
+Optional. A **relay** (the LAN storage server's bridge, or a phone, best the commander tablet) stays on the group's network; the router
+forwards one port per remote person (9991, 9992, …, UDP and TCP) to it. Each **remote** phone has
+the relay's internet address, its port and a key made from one DRYAD row. The remote sends every
+radio packet it would broadcast to the relay instead, and the relay sends back whatever is heard
+locally on the remote's channels. Radio packets are carried unchanged, so they stay end-to-end
+encrypted with the channel keys; the relay never needs channel names.
+
+- **Key:** `ChannelCrypto("tunnel:" + DRYAD row)` (the same PBKDF2 derivation as a channel name).
+- **Frame:** `'U' 'T'` type(1) 0(1) session(8) seq(4) | AES-256-CTR body (IV = session(8) seq(4)
+  `'T'` 0 0 0) | HMAC-SHA256 over everything before it, truncated to 10 bytes.
+  - type 1 **DATA**: body = one radio packet exactly as sent on the network.
+  - type 2 **HELLO** (remote to relay, every 5 s): time ms(8) nonce(8) count(1) then count channel
+    tags (4 each): every channel the remote talks or listens on.
+  - type 3 **HELLO_ACK** (relay to remote): the nonce(8) from the HELLO.
+- **Replay protection:** each end has a random session id per start and counts seq up from 0; the
+  receiver accepts each seq of the current session once (64-frame window). The relay accepts a new
+  remote session only from a HELLO whose time is later than any HELLO before; the remote accepts a
+  new relay session only in a HELLO_ACK that echoes its own nonce.
+- **Transport:** UDP first. If the remote hears nothing for 12 s it connects TCP to the same port
+  and sends the same frames, each after a 2-byte big-endian length; while on TCP it still tries a
+  UDP HELLO every 30 s and goes back to UDP as soon as a HELLO_ACK arrives over UDP. Replies go
+  back the way the last valid frame came (the remote's NAT address may change). On TCP the sender
+  keeps at most about 80 frames queued (1.5 s of voice), dropping the oldest, so voice cannot lag
+  further and further behind.
+- **Relay forwarding:** a DATA frame from a remote is broadcast on the local network (and handed to
+  the relay phone itself) and sent to every other remote listening to its channel tag. Packets heard
+  locally, and the relay phone's own, go to every remote whose last HELLO listed their channel tag
+  (and that was heard in the last 30 s). The relay remembers (senderId, seq) of what it forwarded so
+  a packet that comes back (broadcast loop-back, UDP and TCP copies) is not forwarded or played twice.
+
+
+### Bugs found while building this, and what to watch out for
+
+Each of these happened in the original build. Check for them in yours.
+
+**Radio and networking**
+- **Two radios at once.** Key derivation takes seconds on old phones. If Join is tapped again (or Leave)
+  during that time, the first join must cancel itself; otherwise a hidden second radio stays on air,
+  the phone hears its own sends as someone else's (e.g. "X sent 7 DRYAD sheets" on the sender) and lists
+  itself as a station. Fix: a join generation counter; a join that is no longer current stops itself.
+- **A restarted app looks like a new person.** Sender ids are random per run, so a restart left the old
+  entry listed too ("two of TANGO"). Replace an entry with the same callsign when a new id appears.
+- **Emulators cannot see each other's broadcasts** (the Android 14 emulator sits behind its own router).
+  Link test devices with a small UDP relay on the PC and "extra peers"; real phones on one WiFi do not
+  need it. The emulator's fake microphone also runs faster than real time, so its recordings come out
+  too long; real phones are fine.
+  How the original was linked: on the PC run
+  `java relay/UdpRelay.java 47400 0.0.0.0 0 <phone IP>:47474,<phone IP>:47474` (listen port, bind
+  address, % of packets to drop for testing bad links, then fixed peers that always get a copy, here the real phones on the WiFi). In each
+  emulator set Extra peers to `10.0.2.2:47400` (10.0.2.2 is the PC as seen from an emulator). On a
+  real phone, Extra peers = the PC's WiFi IP and port 47400. The relay only forwards the encrypted
+  datagrams, so it never needs the channel name.
+- **Radio silent must block everything**, including acks, presence, catch-up sync, file repairs, calls,
+  VOX and online map tiles, not just the PTT button.
+
+**Files and storage**
+- **Received files silently lost on real phones.** The finished file was moved from app storage to
+  shared storage with rename(), which fails across file systems (most real phones, Android 11+). Copy
+  when rename fails. Symptom: a photo reached one phone but not another.
+- **"name (2).zip"** style duplicate names break checks on the file extension; match on the name part.
+
+**Old Android (4.1 to 6)**
+- **Classes that do not exist on old Android crash the app** if they are created in a field initializer
+  (e.g. Bluetooth LE GATT callbacks on 4.1). Create them only after a version check.
+- **Android 4.x only offers TLS 1.0** by default; enable TLS 1.2 for online map tiles. OpenStreetMap,
+  OpenTopoMap and Esri still refuse 4.x; Google tiles work. Say so on the map screen.
+- **Old built-in PBKDF2 mangles non-ASCII channel names** (Android before 4.4); implement PBKDF2 yourself.
+  AES-GCM needs API 19, so use AES-CTR + HMAC instead.
+- **Vector icons** need PNGs generated for old Android, and dashed strokes are not supported (draw dots).
+
+**Maps and location**
+- **OpenStreetMap blocks some user agents** (one containing "offline" got an "Access blocked" tile that
+  was then cached). Use a plain user agent and a separate tile cache per tile source.
+- **No position shown:** Location switched off in the phone's settings, no GPS fix indoors, and no
+  network location without internet are all common. Show the reason on the map instead of nothing.
+- **Phones without a compass** (e.g. ZTE Blade A462) cannot show which way they face; point the arrow
+  along the GPS course while moving.
+- A corner compass whose needle points north can look like it disagrees with the "me" arrow; on a
+  north-up map show a pointer for the way you face instead.
+
+**Audio and alerts**
+- **Bluetooth headsets need SCO started**, or radio audio stays on the phone speaker.
+- **A phone on vibrate mutes the ringer stream**, so the Call ring also plays a loud tone on the media
+  stream (speaker / Bluetooth / headphones).
+- Stereo dual watch must use the media stream; the call stream is mono on most phones.
+
+**Screens**
+- **Small screens (480x854):** button labels broke mid-word ("HOSTIL E"), report quick-pick codes hid
+  behind the keyboard, drop-downs truncated to "…", landscape rows overflowed. Use mixed-case labels,
+  tight padding and narrow fixed-width buttons; test at that size.
+- Changing one button's background colour changed every button (shared drawable); call mutate() first.
+
+**Security and sharing**
+- **Sending settings or DRYAD sheets on Public gives your channel names to everyone on Public.** Warn
+  before sending.
+- The channel name is the whole secret; short names can be guessed offline from recorded traffic.
+
+**Found on real phones (2026-10-23)**
+- **Camera crash on Android 6+.** An app that lists the CAMERA permission but has not been granted it
+  cannot even start the phone's camera app (SecurityException). Ask for CAMERA before taking a photo.
+- **Listen-only channels must still acknowledge.** A dual-watch decoder that never sends made talkers on
+  that channel see "transmission failed" although they were heard. Let it send ACKs (only ACKs) through
+  the main socket, sealed with that channel's keys.
+- **Buttons in a row jump up and down** when one label wraps: LinearLayout aligns baselines by default.
+  Turn baselineAligned off and give the buttons match_parent height.
+- **android:padding beats android:paddingBottom**; set the four sides separately when one must differ.
+- **"All the way down" differs by phone:** the call stream's lowest step is 1 on some phones and 0 on
+  others, and Android before 9 cannot say which. Silent/vibrate ringer modes count too.
+- **A woken ringer must be put back.** Turning the volume up for a Call left phones loud and out of
+  stealth; save the ringer mode and volumes and restore them after the ring.
+- **Android 10+ blocks activities started from the background:** a full-screen alert needs a
+  high-importance notification channel with a full-screen intent (and USE_FULL_SCREEN_INTENT).
+- **Re-joining went quiet for seconds** while the new key was derived; derive first, then swap radios.
+
+**Found later (2026-10-24)**
+- **Speaker / headset chosen only at join:** a wired headset plugged in after joining left the audio on
+  the loudspeaker. Listen for ACTION_HEADSET_PLUG while on air and switch then. Some PTT headsets read
+  as plain headphones (no mic line), so their button never reaches the app.
+- **A tap too short for one voice frame was reported as "transmission failed":** nothing was sent, so
+  nobody could ack. Only expect acks when at least one frame went out.
+- **Recordings 3x too long:** the same packet arrived by broadcast and through the relay / extra peers,
+  and the recorder wrote every copy. Drop repeated (sender, seq) frames when recording.
+- **Coming back to the front from the background** (intercom) is blocked on Android 10+ unless the app
+  declares SYSTEM_ALERT_WINDOW and the user allows "Display over other apps".
+- **Android 11+ hides other apps** from resolveActivity: declare a <queries> entry for geo: links and
+  Google Maps. **Android 9+ blocks plain http** (streams, IP cameras) unless cleartext traffic is
+  allowed.
+- **Font glyphs:** ⚙, ➤ and ▶ are missing on Android 4.x; draw icons or use the system drawables.
+- **Dialogs and buttons:** AlertDialog has only three buttons; put extra actions in its view.
+
+**LAN storage, server and setup QR**
+- **A shared button style with layout_weight 1 and width 0** made a lone full-width button in a
+  vertical layout swallow the rest of the Settings page (everything below it blank). Give such a
+  button its own width and weight 0.
+- **The admin page's folder sizes** take tens of seconds on gigabytes of map tiles: count in one pass
+  and cache the result for a few minutes.
+- **The Docker container's clock is UTC** unless TZ is set, so schedules by hour follow UTC.
+- **Network defaults must not overwrite the channel or Public key set by a setup QR code:** apply the
+  defaults first, then the QR code's own fields.
+- **Old Android TLS:** Android 4.x cannot reach OSM, OpenTopoMap or Esri tile servers; fall back to
+  Google road tiles there.
+
+**Not yet tested on real equipment:** scanning a phone setup QR code with a real camera, Bluetooth PTT buttons (e.g. FalconClaw "BLU-PTT"; the signal it
+sends is unknown, so the app shows the last raw value in Settings), OpenMANET / ATAK Vx voice, USB,
+network and intercom cameras, the possible-gunshots alert, crash detection, tunnel comms over a real
+router and the internet, internet radio streams.
+
+
+==== UPDATES SINCE ====
+
+# Updates
+
+- 2026-10-28: Release 1, the first release. Everything it does is in FEATURES.md (user guide) and ALL-FEATURES.txt; the LAN storage server and the Ubuntu desktop commander are in NOMAD-SETUP.md. Later bug fixes are listed below.
+- 2026-10-28: Commander tablet in Waydroid on Ubuntu/NOMAD (NOMAD-SETUP.md section 3) and the bridge, which links Waydroid or emulator devices to the WiFi phones with no change on the phones.
+- 2026-10-28: The bridge (server/bridge, a startup service on the server) is also the tunnel relay for remote people: one forwarded port and DRYAD-row key each, set up on the admin page's new Bridge tab (on/off, status, people, a QR code each). Phone setup codes may now hold only the tunnel; scanning one keeps the phone's LAN login.
+- 2026-10-28: Fixed: Settings > LAN storage location, Share, only marked it for Share config; it now sends it to everyone on the channel at once (they are asked 'Update LAN storage location?'), and the dialog has 'Send it to the group again'. Fixed: with the internet tunnel on, a phone sent only through the relay, so back on the group's WiFi it went silent; it now sends on the local network as well. The Bridge tab shows where each remote person connects from, and shows no QR code until the internet address is set.
+- 2026-10-28: Share location: tapping it while sharing offers Stop, 2 hours, Until the app restarts or Always. Bridge tab: an External gateway section (LAN addresses, what to forward where, the internet address, Find my WAN address), Show key with Copy for each person, and the QR code links work again (they failed with an error).
+- 2026-10-28: Map controls on the home map, commander view and full map: arrows, zoom in and out, and a centre dot (centres on me), all usable with a TV remote. On a TV the title bar always shows, with a TV mode button; in TV mode the remote's arrows move the map and + / − (or channel up / down) zoom.
+- 2026-10-28: On a TV the title bar has a Menu button (TVs often show no overflow dots), listing the whole menu.
+- 2026-10-28: Map controls are off by default: the full map's Zoom − / Zoom + buttons are now one 'Show map controls' switch, which shows or hides the arrows and zoom pad on every map.
+- 2026-10-28: LAN storage: an address without /YCC (e.g. http://<server>:8647) now works; before, phones looked for updates in the wrong folder and saved their sync files beside YCC (those were moved into YCC). Bridge tab: each remote person can have their own address (e.g. the server's VPN address), used in their QR code instead of the internet address.
+- 2026-10-28: End of setup (and once on phones already set up): 'Keep the app on screen (black screen)' offers black screen after 1 min or a black screen button, and explains that a closed or backgrounded app may miss live messages. Coming back to the app after more than 30 s away now asks the others at once for what was sent meanwhile (catch-up sync, not while radio silent); it shows unread in Chat.
+- 2026-10-28: Setup (and once on phones already set up) asks 'Record all voice', ticked by default, noting it sets the same option in Settings.
+- 2026-10-28: New option 'Request missed messages when away' (on by default; Settings, below Record all voice, and in the setup step when Record all voice is ticked) switches the catch-up on coming back to the app.
+- 2026-10-28: The catch-up on coming back asks for everything since the newest message this phone has from anyone (at least 30 min, up to a day), not a fixed 30 min. The DIGEST flags byte now says how far back to answer from (bits 1-7, 12-minute steps); older phones answer from their own window.
+- 2026-10-28: Missed live voice: coming back to the app also asks for voice recordings; phones with Record all voice announce which ones they will send (others then leave those out) and send them; they appear unread in Chat ('Missed voice from …, caught up'), and gaps are asked for once more. New chat kind 8 VOICE; recordings of one transmission share an id on every phone. Setup questions now show one at a time.
+- 2026-10-28: Commander view: when someone comes back after more than 2 min offline and missed messages, a 10 s pop-up asks 'X has been offline for Y min and missed N messages on B. Send?' (Send / Don't ask again / Not now; Settings option below Request missed messages). Send puts those messages, map points and voice recordings on the channel again. Tested: with two recording phones holding the same clips, only one sent them.
+- 2026-10-28: Catch-ups are set per channel: each channel on the Channels page has 'Request catch-ups' (on for A, B and C-H, off for Public), listen-only channels too (they ask and take answers for messages and reports, and never answer). It replaces the single Settings option; the setup step ticks it on all channels but Public.
+- 2026-10-28: Settings, under the callsign: 'Run the setup wizard again' (asks first; settings not changed in the wizard stay).
+- 2026-10-28: Full map: 'Resync POIs' (clears others' map points and expired ones, keeps yours, asks everyone for theirs) and a 'Points:' filter for which channel's map points show.
+- 2026-10-28: Settings split into pages: the main page (callsign, Update from URL and Edit update URL, setup wizard, permissions, mode) links to Channel settings, Audio PTT and alerts, Home screen, Network and sync, Security, and Mission and data (also on the Data / files screen); About and How Modern DRYAD works are at the bottom. Update from URL asks for the address the first time (suggesting the LAN storage's Updates/YCC.apk), tests it and keeps it as 'updateUrl', a shared setting that network defaults can set. Audio page: Test left / Test right tones and Swap left and right (stereo listening).
+- 2026-10-28: Update from URL (e.g. a GitHub release): when what it downloads is newer than the LAN storage's Updates/version.txt, the phone also uploads it there (YCC.apk and version.txt), so every phone with auto updates gets it from the LAN cache.
+- 2026-10-28: Received burst voice waits for a clear channel (nobody talking live, this phone not on air or recording, no other burst playing), up to a set time (Audio page: play at once, or wait up to 15 s / 30 s / 1 min (default) / 2 min / 5 min), then plays in order; an optional call-waiting beep says one is waiting (on by default).
+- 2026-10-28: Full map: 'Fake GPS: on / off' button. Radio silent tick on the Channels page and the Data / files screen (the same switch as Settings > Security). Map controls stay off by default.
+- 2026-10-28: Obscure location (Settings > Mission and data, below Fake GPS): 0 to 10 km, 2 km by default. Others get a spot up to that far from your real position (the same offset each time, accuracy widened to the range); it is also the fake spot's distance from its centre. Share location with Fake GPS on asks: keep the fake spot, or share your real position, obscured or exact (0 km). Applies to ATAK positions too.
+- 2026-10-28: Turning Fake GPS off (full map button or the Settings tick) while Obscure location is above 0 asks yes/no: Yes keeps obscuring your real position, No sets it to 0 km (exact).
+- 2026-10-28: Setup wizard: after the callsign and quick set, an "Advanced or simple" note explains DRYAD sheets (Advanced: encryption, digital and physical messages, channel names, shared between trusted devices) versus Simple modes' fixed keys, before the mode choice.
+- 2026-10-28: Units: metric (default) or imperial (ft, mi), in the wizard's callsign step and at the top of Settings; every distance shown or read aloud follows it.
+- 2026-10-28: Share my camera: 10 and 15 pictures a second for Tiny pictures (larger sizes stay at 5 or fewer), and Send audio too (off by default). The audio plays only on the Tactical videos screen, for the people shown (or just the one filling the screen); older versions ignore it.
+- 2026-10-28: Map menu > Emergency alerts (CAP): presets VicEmergency (all of Victoria: incidents, warnings, burn areas) and NOAA / National Weather Service (alerts in force at the map centre), or a custom CAP 1.2 / CAP-AU XML or GeoJSON address. Areas are shaded by severity with a marker to tap for the details; also on the TV screen. Off by default; slow mode checks every 10 minutes.
+- 2026-10-29: POIs drawn as an icon can be turned (5° steps), sized 50% to 1000% and given a direction arrow, to line a unit up with its real formation and heading. Changing only these updates everyone's map without a spoken announcement. Older versions show the icon as normal.
+- 2026-10-29: Full map: the buttons are now one row of icons (Me, All, POI, Sync, Points, Pad, Fake, Tiles; long press says what each does) so none run off the screen. Sync and Resync POIs are one Sync button that offers both. In landscape the buttons sit in a column on the right of the map.
+- 2026-10-29: Chat: the Report, Picture / file, Map and Announce buttons line up (same height, no shift when a label wraps).
+- 2026-10-29: Chat: a Filter button (top right) to show or hide Messages, Voice, Pictures and files, Map points, Reports, and Status changes and notices; pinned announcements always show.
+- 2026-10-29: Full map: Share (my location, same questions as home) and Ask (asks everyone on a private channel (A, B or another keyed channel, not Public) to share for 30 minutes). Others get a Share / Not now prompt, or share by themselves with Settings > Mission and data > Automatically accept location sharing (off by default). The map's icons are now two rows of five.
+- 2026-10-29: Audio page: Clean up received bursts (off by default). Before a burst plays it is decoded and cleaned: rumble cut (high-pass), background hiss between words turned down, quiet speech turned up (up to 20 dB) towards a common level, with a soft limiter; the original stays in Chat.
+- 2026-10-29: Chat filter: a Channel choice: the channel on air (default, with the ones listened to), All channels, A (Private), B or Public.
+- 2026-10-29: Update from URL now defaults to the project's GitHub release (https://github.com/yourcommunitycomms/ycc/releases/latest/download/YCC.apk, always the newest); Edit update URL's middle button switches to the LAN storage. tools/publish-github-release.ps1 makes a release (run it yourself with your token).
+- 2026-10-29: DRYAD Enigma: CW (Morse). A row above the pigpen buttons (now one row of four): the lock enters CW mode (stealth; PTT, VOX and voice in and out off, for a radio plugged into the phone's audio), Generate CW (encode) / CW decode (decode, from a file), Send CW (made files, newest first), Receive CW (listens, records each message until the clear air after it, decodes and fills the sheet ID, start row and cipher text), and ⋯ for CW settings (message format with %R%, %SheetID%, %StartRow%, %CipherText%, %Call% and prosigns like <AR>; speed, tone, repeats, clear air before and after, receive end gap) and CW files (play, decode, join, split at gaps, delete).
+- 2026-10-29: CW settings: Put received CW in Chat ("CW Decoded: <plain text>" when it decodes, "CW received: <what was heard>" when not), and In CW mode, send private texts by CW (texts on a private channel or just to me are encoded on the sheet last used on the Enigma page, from its next unused row, and sent when the air is clear). CW mode is now kept across restarts and crashes.
+- 2026-10-29: Full map menu: Bulk add points (one per line: Name, Icon, Lat, Lon, Notes; typed, pasted, scanned from QR codes or opened from a .csv / .txt file; unknown icons become a grey dot with the icon name in brackets) asks whether to send them to everyone on the channel or keep them on this phone, a layer name, expiry, and skips repeats (same name within 25 m). Export points (all, or one layer) as text to copy, a .csv to share or save, or QR codes (in parts if long). Map > Points can show one layer.

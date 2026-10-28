@@ -346,8 +346,21 @@ type ERASE). Destructive buttons ask first.
 - **Fake GPS** (Settings > Mission and data, or the full map's **Fake GPS: on / off** button): a random
   spot within 2 km of a set centre, used for everything this phone shows and sends; others see
   "NAME (Fake)". **+ Fake being here** moves it to the +.
+- **CW (Morse) on the DRYAD Enigma page**: Generate CW turns the cipher text into a Morse tone file using a message
+  format (CW settings: %R% random letter, %SheetID%, %StartRow%, %CipherText%, %Call%, prosigns such as <AR>; speed 5–40 wpm,
+  tone, repeats, clear air before and after). The lock enters **CW mode** (stealth: PTT, VOX and voice off) for a radio
+  plugged into the phone; then **Send CW** plays a made file (newest first) and **Receive CW** listens, records and decodes
+  each message (done after the set seconds of clear air), filling in the sheet ID, start row and cipher text. **CW decode**
+  decodes a saved recording without a radio; ⋯ > CW files plays, decodes, joins or splits them. CW settings can also put
+  received CW in Chat ("CW Decoded: …" or "CW received: …") and, in CW mode, send private texts out by CW automatically
+  (encoded on the last sheet used, from its next row). CW mode stays on across restarts and crashes until the lock is tapped.
 - **Clean up received bursts** (Audio page, off by default): less background noise, quiet bursts turned up and loud ones
   evened out before playing (the original recording stays in Chat).
+- **Bulk add / export points** (full map menu): one point per line, `Name, Icon, Lat, Lon, Notes` (the position may be one
+  field; a Name,Icon header and # lines are skipped). Type or paste it, scan it from QR codes, or open a .csv / .txt file.
+  Unknown icons become a grey dot with the icon name in brackets. Then choose: send to everyone on the channel or just this
+  phone, a layer name, expiry, and skip repeats. Export (all or one layer) copies the text, shares or saves a .csv, or shows
+  QR codes in parts. Map > Points can show just one layer.
 - **Full map buttons** are icons in two rows of five (Me, All, POI, Sync / Resync, Points filter, Pad, Fake GPS,
   Share my location, Ask to share, Tiles); long press for what each does. Landscape puts them in a column on the right.
 - **Ask to share** (full map, private channels only, not Public): everyone on the channel is asked to share their location for 30

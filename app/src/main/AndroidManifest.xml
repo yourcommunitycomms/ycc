@@ -1,0 +1,172 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Permissions screen: ask to be left out of battery optimisation so the radio keeps hearing when locked. -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <!-- The incoming Call alert fills the screen, over the lock screen, like a phone call. -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <!-- Intercom mode: the intercom screen comes back by itself a minute after being left. -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <!-- LAN auto-update: hands a downloaded update to Android's installer (it still asks the user). -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
+    <!-- Bluetooth headset audio and a Bluetooth (BLE) PTT button such as the FalconClaw "BLU-PTT". -->
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_SCAN"
+        android:usesPermissionFlags="neverForLocation" />
+    <uses-feature android:name="android.hardware.bluetooth" android:required="false" />
+    <uses-feature android:name="android.hardware.bluetooth_le" android:required="false" />
+
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- Only Android 4.1–4.3 need this to write the app's own folder on external storage. -->
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="18" />
+
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
+    <uses-feature android:name="android.hardware.wifi" android:required="false" />
+    <!-- Also runs on an Android TV box (TV mode: map and chat on the big screen). -->
+    <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+    <uses-feature android:name="android.software.leanback" android:required="false" />
+
+    <!-- Map points can be handed to Google Maps or another map / navigation app. -->
+    <queries>
+        <package android:name="com.google.android.apps.maps" />
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="geo" />
+        </intent>
+    </queries>
+
+    <application
+        android:usesCleartextTraffic="true"
+        android:name=".CommsApp"
+        android:allowBackup="false"
+        android:icon="@drawable/ic_launcher"
+        android:label="@string/app_name"
+        android:theme="@style/AppTheme">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:windowSoftInputMode="stateHidden|adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".DryadActivity"
+            android:exported="true"
+            android:label="@string/dryad"
+            android:launchMode="singleTask">
+            <!-- Import sheets shared as text from another phone (SMS, email, file manager...). -->
+            <intent-filter android:label="Import DRYAD sheet">
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+        </activity>
+        <activity android:name=".DryadGenerateActivity" android:exported="false" />
+        <activity android:name=".DryadShareActivity" android:exported="false" />
+        <activity android:name=".QrShowActivity" android:exported="false" />
+        <activity android:name=".MapActivity" android:exported="false" />
+        <activity android:name=".StreamsActivity" android:exported="false" />
+        <activity android:name=".KeysActivity" android:exported="false" />
+        <activity android:name=".CwSettingsActivity" android:exported="false" />
+        <activity android:name=".EnigmaActivity" android:exported="false" />
+        <activity android:name=".ChallengeActivity" android:exported="false" />
+        <activity android:name=".DryadExplainedActivity" android:exported="false" />
+        <activity android:name=".VideoShareActivity" android:exported="false" android:screenOrientation="portrait" />
+        <activity android:name=".TacticalVideoActivity" android:exported="false" />
+        <activity android:name=".TvActivity" android:exported="false" />
+        <activity android:name=".GatewayActivity" android:exported="false" />
+        <activity android:name=".NomadActivity" android:exported="false" android:windowSoftInputMode="stateHidden|adjustResize" />
+        <activity android:name=".CrashActivity" android:exported="false" android:excludeFromRecents="true" />
+        <activity android:name=".IntercomActivity" android:exported="false" />
+        <activity android:name=".CompassActivity" android:exported="false" android:screenOrientation="portrait" />
+        <activity android:name=".AudioActivity" android:exported="false" />
+        <activity android:name=".AboutActivity" android:exported="false" />
+        <activity android:name=".QuickProfileActivity" android:exported="false" />
+        <activity android:name=".ContactsActivity" android:exported="false" />
+        <activity android:name=".ChannelsActivity" android:exported="false" />
+        <activity
+            android:name=".CallAlertActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:launchMode="singleTop"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true" />
+        <activity android:name=".PermissionsActivity" android:exported="false" />
+        <activity
+            android:name=".SettingsActivity"
+            android:exported="false"
+            android:windowSoftInputMode="stateHidden|adjustResize" />
+        <activity
+            android:name=".ChatActivity"
+            android:exported="false"
+            android:windowSoftInputMode="stateHidden|adjustResize" />
+        <activity android:name=".ReportsActivity" android:exported="false" />
+        <activity
+            android:name=".ReportComposeActivity"
+            android:exported="false"
+            android:windowSoftInputMode="stateVisible|adjustResize" />
+        <activity
+            android:name=".FilesActivity"
+            android:exported="true"
+            android:label="Data"
+            android:launchMode="singleTask">
+            <!-- "Share → Send on Your Community Communications" from the gallery, a screenshot, a file manager. -->
+            <intent-filter android:label="Send on Your Community Communications">
+                <action android:name="android.intent.action.SEND" />
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="image/*" />
+                <data android:mimeType="video/*" />
+                <data android:mimeType="audio/*" />
+                <data android:mimeType="application/*" />
+            </intent-filter>
+        </activity>
+
+        <provider
+            android:name=".FilesProvider"
+            android:authorities="org.communitycomms.app.files"
+            android:exported="false"
+            android:grantUriPermissions="true" />
+        <activity
+            android:name=".QrScanActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+        <activity
+            android:name=".PigpenActivity"
+            android:exported="false"
+            android:windowSoftInputMode="stateHidden|adjustResize" />
+
+        <service
+            android:name=".RadioService"
+            android:exported="false"
+            android:foregroundServiceType="microphone|location" />
+    </application>
+</manifest>

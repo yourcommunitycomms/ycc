@@ -1,0 +1,45 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'org.communitycomms.app'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'org.communitycomms.app'
+        // Jelly Bean 4.1. Everything uses framework APIs only, with version checks for newer ones.
+        minSdk 16
+        // Android 14 refuses to install anything targeting below 23; 34 keeps modern devices happy.
+        targetSdk 34
+        // Minutes since 2026-01-01 (UTC): every build is newer than the last, which LAN auto-update relies on.
+        versionCode((int) ((System.currentTimeMillis() - 1767225600000L) / 60000L))
+        versionName '0.1.' + versionCode
+        vectorDrawables.generatedDensities = ['mdpi', 'hdpi', 'xhdpi', 'xxhdpi']
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            // Sideloaded app: sign release builds with the debug key until a real keystore exists.
+            signingConfig signingConfigs.debug
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    lint {
+        abortOnError false
+    }
+}
+
+dependencies {
+    // QR encode/decode. 3.3.x is the last line that supports Android 4.1 (3.4+ needs API 19+).
+    implementation 'com.google.zxing:core:3.3.3'
+    // Pure-Java Opus (BSD-3-Clause) for the experimental OpenMANET / ATAK Vx voice mode;
+    // Android has no built-in Opus encoder before version 10.
+    implementation 'com.plasmoverse:concentus:1.0.0'
+}

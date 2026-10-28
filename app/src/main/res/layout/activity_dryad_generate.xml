@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="12dp">
+
+        <TextView style="@style/Label" android:text="@string/gen_name" />
+
+        <EditText
+            android:id="@+id/name"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="textCapWords"
+            android:maxLength="40"
+            android:singleLine="true" />
+
+        <TextView style="@style/Label" android:text="@string/gen_count" />
+
+        <EditText
+            android:id="@+id/count"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="number"
+            android:singleLine="true"
+            android:text="7" />
+
+        <TextView style="@style/Label" android:text="@string/gen_period" />
+
+        <Spinner
+            android:id="@+id/period"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
+
+        <TextView style="@style/Label" android:text="@string/gen_start" />
+
+        <Spinner
+            android:id="@+id/start"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
+
+        <TextView style="@style/Label" android:text="@string/gen_special" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/gen_space" />
+
+            <Spinner
+                android:id="@+id/space_symbol"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/gen_eol" />
+
+            <Spinner
+                android:id="@+id/eol_symbol"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1" />
+        </LinearLayout>
+
+        <TextView style="@style/Label" android:text="@string/gen_source" />
+
+        <RadioGroup
+            android:id="@+id/source"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <RadioButton
+                android:id="@+id/src_random"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:checked="true"
+                android:text="@string/gen_random" />
+
+            <RadioButton
+                android:id="@+id/src_phrase"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/gen_phrase" />
+        </RadioGroup>
+
+        <EditText
+            android:id="@+id/phrase"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="@string/gen_phrase_hint"
+            android:inputType="textVisiblePassword|textNoSuggestions"
+            android:singleLine="true"
+            android:visibility="gone" />
+
+        <CheckBox
+            android:id="@+id/big_sheet"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Huge sheet: 676 rows AA to ZZ instead of 26 (share as text or on air; too big for a QR code)" />
+
+        <CheckBox
+            android:id="@+id/shuffle_order"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Randomised row letter order (rows printed in a random order instead of A to Z)" />
+
+        <Button
+            android:id="@+id/go"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="@string/gen_go" />
+
+        <TextView
+            android:id="@+id/result"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="8dp" />
+    </LinearLayout>
+</ScrollView>

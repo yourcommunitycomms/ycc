@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Built with Claude — Your Community Communications</title>
+  <meta name="description" content="Your Community Communications was coded by Claude, Anthropic's AI, from plain-language requests. Here are the prompts to build your own.">
+  <link rel="icon" href="img/logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <a href="index.html"><img src="img/logo.svg" alt="Your Community Communications home"></a>
+    <div class="name">Your Community <span>Comms</span></div>
+    <nav>
+      <a href="index.html#features">Features</a>
+      <a href="#about">About the build</a>
+      <a href="#prompts">Prompts</a>
+      <a href="#tips">Tips</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="hero" style="grid-template-columns:1fr">
+    <div>
+      <h1>Coded by AI, directed by a person</h1>
+      <p class="lead">Every line of Your Community Communications, the app, the PC relay and this website, was
+        written by <strong>Claude</strong>, Anthropic's AI, working in Claude Code. The owner
+        described what they wanted in plain language, tested it, and steered. No code was written
+        by hand.</p>
+    </div>
+  </div>
+
+  <section id="about">
+    <h2>About the build</h2>
+    <div class="grid">
+      <div class="card"><h3>What the person did</h3><p>Set the goal, made the decisions (oldest Android, no store, offline only, DRYAD rules), asked for features as ideas came up, and tested on real phones.</p></div>
+      <div class="card"><h3>What Claude did</h3><p>Installed the Android tools and two test emulators (Android 4.1 and 14), designed the protocol and encryption, wrote all the code, and tested every feature on both emulators before handing it over.</p></div>
+      <div class="card"><h3>How it was checked</h3><p>Two emulators talked through a small relay on the PC. Duplex, acknowledgements, DRYAD transfer, QR decoding and file repair through 20% packet loss were each shown working.</p></div>
+    </div>
+    <div class="note">AI-written code can contain mistakes. The encryption design is standard (PBKDF2, AES, HMAC) but has not been independently reviewed. Test it before relying on it.</div>
+  </section>
+
+  <section id="prompts">
+    <h2>The prompts, to build your own</h2>
+    <p class="sub">These are the requests that built Your Community Communications, tidied up and in order. Give them
+      to Claude Code one at a time in an empty folder on a Windows PC, with an Android phone or the
+      emulators. Let each step finish and check it before sending the next. Swap in your own name
+      and choices.</p>
+    <p class="sub"><strong>Want it to talk to existing Your Community Communications phones?</strong> Use the
+      <a href="downloads/RECREATE-PROMPT.md">complete copy-paste prompt</a>: it describes the whole
+      app and includes the exact wire protocol and encryption, with test vectors. The protocol on its
+      own, with a plain-language explanation of how a channel name becomes the encryption keys:
+      <a href="downloads/PROTOCOL.md">PROTOCOL.md</a>.</p>
+
+    <h3 class="group">Short version, in one go</h3>
+    <ol class="prompts" style="list-style:none;padding-left:0">
+      <li><p>One request that covers the whole app. The step-by-step version below gives you more control.</p>
+<pre>Build a native Android push-to-talk radio app called Your Community Communications (plain Java, minSdk 16, no AndroidX, sideloaded, fully offline, nothing uploaded). It runs over OpenMANET meshes or any WiFi that passes broadcast/multicast. Full duplex, many to many, PTT by on-screen button, latch or a learned hardware key. No accounts: the channel name is the encryption key. Add acknowledgements with "transmission failed" and retry options; channels A, B, Public and an experimental OpenMANET/ATAK Vx mode; a network selector (WiFi, VPN, USB Ethernet); resilient file, photo and screenshot sharing; GPS location sharing with an offline tile map, compass list and shared POIs with icons and expiry; Modern DRYAD sheets (A–Z plus two chosen special symbols, random batches, sharing by text, QR and over the air, age rules) and keyed pigpen with a tap-to-decode pad; a PIN lock, a secret triple-tap wipe, red light mode and a blackout screen. Set up an old and a recent Android emulator first and test every feature on both before telling me it is done.</pre></li>
+    </ol>
+
+    <h3 class="group">Step by step</h3>
+    <ol class="prompts">
+      <li><p>Goal and ground rules.</p>
+<pre>I want an Android app (later a Windows app too) for radio-like operation on an OpenMANET mesh or any broadcast WiFi network. Duplex, many to many. PTT via an on-screen button or USB PTT. No accounts: the channel name is the passcode, so anyone on that channel name decrypts the audio. Sideloaded, not in an app store. Name it Your Community Communications. Voice is the base; it must work fully offline and nothing gets uploaded. Native Android, not Flutter. Support Android phones as old as possible, so no modern-only features. First set up a couple of Android emulators on this PC (one old, one recent), then build the voice app.</pre></li>
+
+      <li><p>Approvals. Claude will ask for the SDK licence, and you turn on Windows Hypervisor Platform yourself.</p>
+<pre>Yes, OK to accept the Android SDK licence. Windows Hypervisor Platform is on and the PC has rebooted. Make sure the audio is duplex.</pre></li>
+
+      <li><p>Code tools.</p>
+<pre>Add DRYAD-style sheets that include Z: create and share them. Add a tool that makes a pigpen message from a DRYAD row, and a screen where you tap pigpen symbols and pick the DRYAD row to decode. Make DRYAD easy: a generate page, a share page with bulk share, a drop-down for the sheet in use, age settings so sheets delete once used or expired, and a friendly name that is shared with each sheet.</pre></li>
+
+      <li><p>Randomness.</p>
+<pre>Normal DRYAD creation must be truly random and then shared. Building from a phrase is emergency only, with a warning.</pre></li>
+
+      <li><p>Channels.</p>
+<pre>Add A/B channels and a public fixed-key channel. On a DRYAD row, add buttons to make that row channel A or B. Pick sensible defaults and tell me what you chose.</pre></li>
+
+      <li><p>Offline sharing.</p>
+<pre>Let me share the current DRYAD sheets over the A/B channel, and by QR code (sheets and channel names). Give sheets random colours so they are easy to tell apart.</pre></li>
+
+      <li><p>Files.</p>
+<pre>Add file, camera picture and screenshot sharing with resiliency for lossy WiFi.</pre></li>
+
+      <li><p>Know you were heard.</p>
+<pre>Receivers acknowledge each transmission. If nobody acknowledges within 5 seconds, play a "transmission failed" message and offer to resend the same message. In that box have "Retry now" and "Retry in…" with 5 min, 15 min, 1 hour, at a set time, and 1–99 tries.</pre></li>
+
+      <li><p>More symbols.</p>
+<pre>Add two pigpen characters, space and new line, using X and X with four dots (the centres of the X figures). Add two extra characters to DRYAD rows as part of the randomiser, default @ and ., selectable from a drop-down (brackets, commas, semicolon and so on); . decodes as a space and @ as a new line. Call it Modern DRYAD. Lay the decode pad out like the figures (# # X X).</pre></li>
+
+      <li><p>Networks and OpenMANET.</p>
+<pre>Research making voice compatible with ATAK and OpenMANET (half duplex is fine for that). Add native support marked experimental, and a link to the OpenMANET node's browser page. Add an advanced network selector: WiFi, VPN, USB Ethernet.</pre></li>
+
+      <li><p>Map and data.</p>
+<pre>Rename the Files menu to Data with: send location (GPS), current location, open map and map options. Use my offline map tiles (ATAK imagery folder). Show everyone's last position with a compass list. Add POIs with location, note, expiry and an icon (person blue, red or yellow, car, truck, bus, ambulance, helicopter, plane, drone, red square, blue square); anyone can change the icon or expiry and resend; add a "Sync POIs" button.</pre></li>
+
+      <li><p>Protection and night use.</p>
+<pre>Add a PIN for the DRYAD screens and showing settings, asked when joining a new channel. Add a secret: triple-tap the callsign erases all DRYAD sheets and settings. Add a menu "Blackout" (screen dark but app open, double-tap to wake) and a red light mode with no white.</pre></li>
+
+      <li><p>Field use: reports, chat and catch-up.</p>
+<pre>Add a Reports screen to compose, send and view structured reports, with built-in SALUTE, SPOTREP, SITREP, LACE, ACE, 9-line MEDEVAC, CASEVAC, MIST, POSREP, LOCSTAT and AAR templates plus custom templates, each filled in field by field with prompts. Allow scheduling a report for a set time (a comms window) and sending a finished report as a POI. Rename "push to start, push again to stop" to "PTT toggle mode". Speak an announcement when a POI arrives (on by default, with a switch). Move the callsign and settings off the main screen: the main screen shows channel select, PTT, quick-send POI buttons and a lock button that blocks settings changes until a long press, with a landscape layout. Add a Chat button showing received messages, reports and pictures, where you can send text. Every Z minutes, swap only metadata (who sent a report, POI or picture, and when) covering the last Y minutes, so a phone that was briefly offline catches up; Z and Y configurable. Add an opt-in lost-device setting: after 2 wrong PIN entries, erase only this app's own data, sending nothing on air.</pre></li>
+
+      <li><p>Location while working.</p>
+<pre>On the main screen, add a rapid "share my location for 30 minutes" button that sends my location every 30 s. In settings, add "send location on transmit", on by default, which also resends every 30 s while transmitting. Add a message acknowledgement mode for range testing and debug, where a phone replies to each message with "acknowledge message from X", with protection against ack loops. Add a home screen option that is mostly the map and POIs, with a smaller PTT and a couple of shortcuts. When the camera is used to take a photo, also tag it in a POI with a link and a tiny icon of the picture. Add an option to send a private message to one person. While channel A is active, allow listening to channel B and saving its received recordings and messages.</pre></li>
+
+      <li><p>Field radio extras.</p>
+<pre>For A/B listening, in addition to quiet mode have a stereo mode where A is the left channel and B the right. On the map screen, if offline mode is on and it shows an area without tiles, prompt with a 10 s timer whether to enable online mode for 5 minutes. Add a radio silent toggle where it won't send any messages, data etc while enabled: receive only. Let the file send options include map tiles, importable on the receiving device. Normal radios have a "call" button that plays a loud set of ring tones: add that to the home screen and shortcuts, enabled by default, playing through the phone ringer and via speaker, Bluetooth or headphones. On the maps, show "me" with an arrow aimed by the compass. As well as satellite maps, offer topographic maps as a layer. Allow (with a warning) sending DRYAD sheets on Public. When you tap send on air, pop up a checkbox list of sheets, defaulting to all. Make the row-to-channel buttons narrower (just arrows) so the row picker fits on small phones.</pre></li>
+
+      <li><p>Map point profiles.</p>
+<pre>Add "profiles" for the quick map point buttons: Friends (I am here, toilets are here, meet me here, meet me there in 10 minutes, I am parked here), Security (the current ones), Firefighting (fire front, spot fire, fire truck, tanker truck and so on), Military (military announcements, contacts and so on) and Custom, which starts from the current profile and lets the user change the display text, the announcement sent, the duration and so on. Use matching icons, and list the selected group's icons first (but keep them all). Allow editing and deleting existing map points as they get refined, prompting whether to announce the update (default yes).</pre></li>
+
+      <li><p>Field testing: fixes and status.</p>
+<pre>Opening the camera from the Data page crashes the app; fix it. On app start, rejoin the channel it was on (with an option to turn that off). Line up the buttons on the Data and Map pages. On small phones the "transmission failed" text is only a few characters wide. A voice message received on the second channel in two-channel mode is not acknowledged. Instead of the names on the main screen, add a "Contacts (5)" button (red when nobody is online) opening a page with call sign, status, last seen, distance and bearing (tap for the map), battery % and notes kept on the phone (hidden when locked). Add an away mode (calls on the main channel saved to chat for playback, yellow in lists) and a stealth mode (volume all the way down or a button: no ringer or speaker, red, saved like away, vibrate option on by default; a received Call turns a turned-down phone back up). The app stops receiving when the phone locks: add a settings screen that checks and requests every permission or explains where to set it. Add a tiny camera shortcut on the main screens, make the connect button smaller, flag a "possible gunshots" alert (3 clips in 10 s) and USB / network cameras as untested (*). Leave a blank gap under the PTT for gloves, put a home button on every sub-page, make the Call button ask Everyone / a person / Cancel, and make an incoming call a big on-screen alert with acknowledge.</pre></li>
+
+      <li><p>Commander channels.</p>
+<pre>Move join/leave off the home screen to a Channels page (so nobody leaves by accident) with each channel listed, a key icon next to A/B for DRYAD, the public key shown, and sliders for dual channel mode and hiding OpenMANET. In dual mode allow one channel to be Public, and on the home screen mark the listen-only channel with a white centre and the active one yellow. Add 6 extra channels C–H, listened to as many as you like, with an eye for which 4 show on the home screen, "swap with A / B" and a notes button that moves with the channel. On the DRYAD page add "→ X" to put a row on any channel or Public. Then make a tablet emulator and a commander view for tablets in landscape: the map home screen with the channels and contacts at the side.</pre></li>
+
+      <li><p>Commander extras.</p>
+<pre>In the commander view add an arrow to hide the side panel, a less/more details switch so contacts become one line each, and an arrow to hide the title bar (call it "Comms" on phones). On the map, once the + is moved by hand, show its bearing and distance from me. Give every contact Message and Call buttons, group contacts into teams (channel = team) with Message team, and add a Broadcast button that talks to all selected teams. Make the commander PTT much smaller and show many more map-point buttons for the group's profile. On first start ask what the group is for (friends, security, fire, military) and pass it on with Share settings.</pre></li>
+
+      <li><p>Internet tunnel and field extras.</p>
+<pre>Create a tunnel server on one app (the commander tablet) and a client on remote phones: each remote gets its own forwarded port and a DRYAD row as its key, and sends all its traffic to the relay over UDP with TCP fallback, only for the channels it listens to. Add Exit to the menu and move About into Settings. On the mini maps, Mark asks for the X or me (X first). Let map points be moved by dragging. Add Clear mission data (leave channels first), a setting to record all voice sent and received, a black screen button (off by default, explained), and an Audio page showing the sound, mic and ringer devices and the PTT key, each with a cog. On the maps add a centre-on-me button next to the compass, and tapping the compass opens a full-screen Silva-style compass.</pre></li>
+
+      <li><p>Compass points, modes and the intercom.</p>
+<pre>On the compass show map points around the edge with distances, or as a list where tapping one gives a red arrow and bearing. Black screen after a set time without a touch, warning if the phone's own timeout is shorter. Open a map point in Google Maps for navigation. Optional internet radio streams (e.g. CFA districts), off by default. Add simple modes with just a private and public key: Scouts, Staff, 4WDing (flat tyre, rescue, share location until stopped, drop-out alert, crash detection), Friends convoy and Caravan/camping, each with its own quick buttons and a simple keys page, no DRYAD, pigpen or OpenMANET. Add an intercom mode for a wall-mounted screen: big room buttons and Everyone, hold or hands-free talk to one room, history, messages, a gate camera, blackout after 60 s, always on its private channel, no exit, coming back by itself after a minute; sideways, all buttons on the right. Add an optional start-of-transmission tone.</pre></li>
+
+      <li><p>Maps, LAN storage and the server.</p>
+<pre>Add a LAN storage location (WebDAV address, user, password, Test) where maps read and save tiles first, and LAN sync for auto updates, logs, data files, DRYAD sheets and config backups, with a home WiFi that syncs at least hourly and mission folders. Add ATAK map import/export and an ATAK compatible switch (off), aircraft (ADS-B) and ships (AIS) shareable to the channel, MGRS, map-point shapes, fake GPS for training, burst voice, camera sharing and a TV mode. Then make the LAN storage a small Python file server in Docker for Project NOMAD (host port 8647), with a /webadmin page: tidy old files and missions, a file manager, network defaults, publish updates, change the login, sync to other stores (schedule, hours, bandwidth limit, never delete there), documentation (Apache-2.0, rebuild with this prompt) and an erase-everything button for a clean snapshot. Destructive buttons ask first.</pre></li>
+
+      <li><p>Phone setup QR code.</p>
+<pre>Make a "phone setup" QR code on the admin page and on any set-up phone: the LAN storage and login, tunnel server, Public key, optional channel A, OpenMANET and home WiFi. A new phone's wizard asks for it right after the callsign ("Scan QR code" or "Skip quick set"); scanning shows what changes, checks the login, then loads the network defaults and DRYAD sheets.</pre></li>
+
+      <li><p>Website (optional).</p>
+<pre>Create a website and logo for this, with notes that it was coded by Claude and the prompts someone would need to recreate it.</pre></li>
+    </ol>
+
+    <h3 class="group">Extras for this site and the hardware</h3>
+    <ol class="prompts" start="25">
+      <li><p>The flat Pi board (a separate Claude Code session, with KiCad installed).</p>
+<pre>I want to design a circuit board for OpenManet. The Raspberry Pi, battery board and transmitter board are too thick stacked for the design I want. Make a board with male and female 40-pin connectors, as if the Raspberry Pi 4 stack has been folded open along the short edge opposite the USB and network ports. Add holes for mounting the Pi 4 and the expansion boards, and some extra holes so I can screw it onto plastic before attaching the Pi and boards. I think a 4-layer board will be enough, with the tracks routed around each other.</pre></li>
+
+      <li><p>Explain the network and the codes, and add the hardware.</p>
+<pre>Add links and a section about OpenManet, explaining how the app is planned to work over it (UDP broadcast and multicast voice on the mesh, with an optional PC relay). Add notes on what pigpen and DRYAD are and how to use them in the app. Add a page for the flat Raspberry Pi expansion board we designed earlier: find its design files on this PC, prepare them for download, and leave photo placeholders for the board, the board with headers, the board with the Pi, and the board in a case.</pre></li>
+    </ol>
+  </section>
+
+  <section id="tips">
+    <h2>Tips if you try this</h2>
+    <div class="grid">
+      <div class="card"><h3>Test as you go</h3><p>Ask Claude to prove each feature on the emulators (screenshots, logs) before moving on. Then try it on real phones.</p></div>
+      <div class="card"><h3>Let the AI set the phones up</h3><p>Turn on Developer options and USB debugging on each phone and plug it in. Claude can then install the app and grant every permission and setting with adb, instead of you tapping through each phone.</p></div>
+      <div class="card"><h3>Say your constraints early</h3><p>"Offline only", "oldest Android possible" and "no app store" shaped every design choice. Changing them later costs more.</p></div>
+      <div class="card"><h3>Let it pick defaults</h3><p>Asking Claude to "pick sensible defaults and tell me" keeps things moving. You can change any of them afterwards.</p></div>
+      <div class="card"><h3>Keep a requirements list</h3><p>The project kept a running <code>docs/REQUIREMENTS.md</code>, so new ideas never got lost between sessions.</p></div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    Your Community Communications · built with Claude by Anthropic · <a href="index.html">back to the app</a>
+  </div>
+</footer>
+<script>
+  document.querySelectorAll('ol.prompts pre').forEach(function (pre) {
+    var b = document.createElement('button');
+    b.className = 'copy';
+    b.textContent = 'Copy';
+    b.addEventListener('click', function () {
+      var text = pre.textContent.replace(/^Copy/, '');
+      if (navigator.clipboard) navigator.clipboard.writeText(text).then(function () { b.textContent = 'Copied'; });
+    });
+    pre.insertBefore(b, pre.firstChild);
+  });
+</script>
+</body>
+</html>

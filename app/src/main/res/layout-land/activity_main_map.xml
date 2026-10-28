@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Map home screen, landscape: map on the left, controls and PTT on the right. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="horizontal"
+    android:paddingLeft="4dp"
+    android:paddingRight="4dp"
+    android:paddingTop="4dp"
+    android:paddingBottom="28dp">
+
+    <FrameLayout
+        android:id="@+id/map_holder"
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="2" />
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_marginLeft="4dp"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <include layout="@layout/main_map_top" />
+
+        <include layout="@layout/main_map_bottom" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/call"
+                style="@style/SmallButton"
+                android:text="@string/call" />
+
+            <Button
+                android:id="@+id/radio_silent"
+                style="@style/SmallButton"
+                android:text="@string/radio_silent_off" />
+        </LinearLayout>
+
+        <Button
+            android:id="@+id/ptt"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_marginTop="4dp"
+            android:layout_weight="1"
+            android:background="@drawable/ptt_background"
+            android:text="@string/ptt"
+            android:textColor="#ffffff"
+            android:textSize="22sp"
+            android:textStyle="bold" />
+
+        <include layout="@layout/main_map_hidden" />
+    </LinearLayout>
+</LinearLayout>

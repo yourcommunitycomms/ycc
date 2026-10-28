@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Who heard the last transmission. The text gets the full width and the buttons go underneath,
+     so a narrow phone does not squeeze the message into a column a few letters wide. -->
+<merge xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <LinearLayout
+        android:id="@+id/ack_bar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/ack_status"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="14sp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="end"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/resend"
+                style="@style/CompactButton"
+                android:text="@string/resend"
+                android:visibility="gone" />
+
+            <Button
+                android:id="@+id/retry_later"
+                style="@style/CompactButton"
+                android:text="@string/retry_later"
+                android:visibility="gone" />
+
+            <Button
+                android:id="@+id/dismiss"
+                style="@style/CompactButton"
+                android:text="@string/dismiss"
+                android:visibility="gone" />
+        </LinearLayout>
+    </LinearLayout>
+</merge>

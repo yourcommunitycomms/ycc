@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Your Community Communications — radio over any WiFi</title>
+  <meta name="description" content="Push-to-talk radio, encrypted channels, file and location sharing, an offline map and DRYAD tools for Android, over OpenManet or any WiFi network. No internet, no accounts.">
+  <link rel="icon" href="img/logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <img src="img/logo.svg" alt="">
+    <div class="name">Your Community <span>Comms</span></div>
+    <nav>
+      <a href="#features">Features</a>
+      <a href="#screens">Screens</a>
+      <a href="#how">How it works</a>
+      <a href="#openmanet">OpenManet</a>
+      <a href="codes.html">DRYAD &amp; pigpen</a>
+      <a href="pi-board.html">Pi board</a>
+      <a href="#get">Get it</a>
+      <a href="recreate.html">Built with Claude</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="hero">
+    <div>
+      <h1>Radio over any WiFi. No towers, no internet, no accounts.</h1>
+      <p class="lead">Your Community Communications turns Android phones into encrypted push-to-talk radios on an
+        OpenManet mesh or any WiFi network. Everyone on a channel hears everyone, and the channel
+        name is the key.</p>
+      <a class="btn" href="#get">Get the app</a>
+      <a class="btn alt" href="recreate.html">How it was built</a>
+    </div>
+    <img class="logo" src="img/logo.svg" alt="Your Community Communications logo: a radio broadcasting to a ring of nodes">
+  </div>
+
+  <section id="features">
+    <h2>What it does</h2>
+    <p class="sub">Voice first, with field tools around it. Sideloaded, no accounts, fully offline, and runs on Android 4.1 (2012) through Android 14.</p>
+
+    <h3 class="group">Radio</h3>
+    <div class="grid">
+      <div class="card"><h3>Push-to-talk, full duplex</h3><p>Hold the button, latch open mic, or teach it any hardware key (USB PTT, headset button, keyboard). You keep hearing others while you talk, and overlapping voices are mixed. Echo cancelling lets duplex work on the loudspeaker.</p></div>
+      <div class="card"><h3>Channel name is the passcode</h3><p>No sign-up. Everyone who types the same channel name shares the same AES-256 key. Channels A and B, six extra channels C–H, an open Public channel, and an experimental OpenMANET* slot.</p></div>
+      <div class="card"><h3>Listen to many, talk on one</h3><p>Talk on one channel and also listen to as many others as you like (including Public). The Channels page has Talk here, Listen, a note per channel, swap with A or B, and an eye for which four channels get a button on the home screen. Listen-only channels still confirm what they heard.</p></div>
+      <div class="card"><h3>Contacts and status</h3><p>Everyone heard, with status (green available, yellow away, red stealth), battery, last seen, distance and bearing, and your own notes. Away saves voice to Chat for playback; stealth (or turning the volume all the way down) silences everything and buzzes instead.</p></div>
+      <div class="card"><h3>Commander view on tablets</h3><p>Turn a tablet sideways for a command post: the map in the middle, channel buttons and PTT on the right, and a side panel that switches between Contacts and Channels with one tap. Hide the panel or the title bar for a bigger map; Contacts can show one line per person. Contacts are grouped into teams (one per channel) with Message and Call on each person and team, <strong>Broadcast</strong> talks to several teams at once, and a long list of map-point buttons suits the group (friends, security, firefighting or military).</p></div>
+      <div class="card"><h3>Simple modes and a wall intercom</h3><p>Pick how you'll use it when you first open it. <strong>Scouts, Staff, 4WDing, Friends convoy and Caravan/camping</strong> need only a private key and have one-tap buttons for the job (first aid station, long break, flat tyre, need fuel, meal in 15 minutes…), with share-location-until-stopped, drop-out alerts and crash detection* for 4WD. <strong>Intercom</strong> turns a wall-mounted phone or tablet into an old-style house intercom: big room buttons, talk to one room or everyone, hands-free, call history, a gate camera and auto blackout.</p></div>
+      <div class="card"><h3>Reach the group over the internet</h3><p><strong>Tunnel comms</strong> lets a phone away from the group's WiFi join in through a relay (best the commander tablet) with a forwarded port and a DRYAD-row key for each remote person. UDP with TCP fallback, and everything stays end-to-end encrypted.</p></div>
+      <div class="card"><h3>Know you were heard</h3><p>Listeners confirm each transmission and you see "Heard by …". If nobody does within 5 seconds you hear a tone and "transmission failed", with <strong>Retry now</strong> or <strong>Retry in…</strong> 5 min, 15 min, 1 hour or at a set time, 1 to 99 tries. Retrying stops as soon as anyone hears it.</p></div>
+      <div class="card"><h3>Any network</h3><p>UDP broadcast or multicast. <strong>Advanced…</strong> picks WiFi, VPN, USB tethering, USB Ethernet or any other interface. "Extra peers" and a tiny PC relay join separate subnets.</p></div>
+    </div>
+
+    <h3 class="group">Data</h3>
+    <div class="grid">
+      <div class="card"><h3>Files, photos, screenshots</h3><p>Send to everyone on the channel, or use Share → Send on Your Community Communications from any app. Built for lossy WiFi: missing pieces are re-requested and repaired, and every file is checked before it's saved.</p></div>
+      <div class="card"><h3>Location and offline map</h3><p>Send your GPS position (it works even if a phone's clock is wrong). The map uses offline tile folders, such as ATAK imagery downloads, with online tiles off by default. It shows everyone's last position, plus a compass list with direction, distance and time since check-in.</p></div>
+      <div class="card"><h3>Shared points of interest</h3><p>Long-press the map to drop a POI with a note, an icon (people, vehicles, aircraft, drone, squares) and an expiry. Anyone can update, move or remove it and resend. <strong>Sync POIs</strong> swaps everyone's points, and any point opens in Google Maps for directions.</p></div>
+      <div class="card"><h3>Full-screen compass</h3><p>Tap the map's compass for a Silva-style baseplate compass: turn the bezel to set a bearing, follow "turn left/right", get the bearing to the map's X, switch true or magnetic north, and see map points around the edge or as a list with a red arrow to the one you pick.</p></div>
+    </div>
+
+    <h3 class="group">Codes</h3>
+    <div class="grid">
+      <div class="card"><h3>Modern DRYAD sheets</h3><p>26 rows of 28 shuffled symbols: A–Z plus two special symbols you choose for space and new line. Secure random batches with validity windows, names and colours. Share by text, QR or over the air, and they auto-delete when used or expired.</p></div>
+      <div class="card"><h3>Pigpen from a DRYAD row</h3><p>Turn a message into keyed pigpen, or tap symbols on a pad laid out like the real figures to decode. Space and new line have their own symbols. <a href="codes.html">What DRYAD and pigpen are, and how to use them</a>.</p></div>
+      <div class="card"><h3>QR sharing</h3><p>Share a channel or a whole batch of sheets phone to phone with the camera. Nothing touches the internet.</p></div>
+    </div>
+
+    <h3 class="group">Group setup and LAN storage</h3>
+    <div class="grid">
+      <div class="card"><h3>One QR code sets up a phone</h3><p>The second and every later phone scans a <strong>phone setup QR code</strong> in the first-start wizard: the LAN storage and its login, tunnel server, Public key, channel A, OpenMANET and home WiFi, then the group's own default settings and DRYAD sheets. Any set-up phone can show the code, or print it from the server.</p></div>
+      <div class="card"><h3>Your own LAN storage</h3><p>A tiny Docker file server, ready for Project NOMAD or a Raspberry Pi, keeps one shared offline map cache, app updates (phones update themselves), logs, missions and config backups. Its web admin page tidies old files, sets the group's defaults, publishes updates and syncs to other stores on a schedule with a bandwidth limit.</p></div>
+      <div class="card"><h3>Maps, ATAK and more</h3><p>Shared map tiles, MGRS, map-point shapes, aircraft (ADS-B) and ships (AIS) shared to the channel, ATAK map import/export and an ATAK compatible switch, fake GPS for training, burst voice, live camera pictures and a TV mode.</p></div>
+    </div>
+
+    <h3 class="group">Protection and light discipline</h3>
+    <div class="grid">
+      <div class="card"><h3>PIN lock</h3><p>A PIN guards the DRYAD and pigpen screens, showing channel names or their QR codes, and joining a new channel. It stays unlocked for 5 minutes.</p></div>
+      <div class="card"><h3>Secret wipe</h3><p>Three quick taps on your callsign erase every sheet, POI and setting.</p></div>
+      <div class="card"><h3>Red light and Blackout</h3><p>Red light mode turns every screen red at low brightness. Blackout makes the screen black at minimum backlight while the radio and hardware PTT keep working. Double-tap to wake.</p></div>
+    </div>
+
+    <div class="note"><strong>Still to come:</strong> a chat feed, automatic location sending on a timer or
+      after moving, per-person recording, PTT with the screen off, and a Windows app. Locations are
+      plain latitude and longitude.</div>
+  </section>
+
+  <section id="screens">
+    <h2>Screens</h2>
+    <p class="sub">Taken from the Android 14 and Android 4.1 test emulators, before the map, Modern DRYAD and protection features were added.</p>
+    <div class="shots">
+      <figure><img src="img/radio.png" alt="Radio screen showing Heard by JELLYBEAN"><figcaption>Radio, with acknowledgement</figcaption></figure>
+      <figure><img src="img/failed.png" alt="Transmission failed banner with Resend"><figcaption>Nobody heard: resend</figcaption></figure>
+      <figure><img src="img/dryad.png" alt="Purple DRYAD sheet"><figcaption>DRYAD sheet in use</figcaption></figure>
+      <figure><img src="img/qr.png" alt="DRYAD sheet as a QR code"><figcaption>Sheet as a QR code</figcaption></figure>
+      <figure><img src="img/pigpen-encode.png" alt="Pigpen encoding"><figcaption>Pigpen from a row</figcaption></figure>
+      <figure><img src="img/pigpen-decode.png" alt="Pigpen tap pad decoding"><figcaption>Tap to decode</figcaption></figure>
+      <figure><img src="img/files.png" alt="File transfers with repairs"><figcaption>Files, repaired through loss</figcaption></figure>
+      <figure><img src="img/old-android-import.png" alt="Android 4.1 importing sheets sent over the air"><figcaption>Android 4.1 importing sheets</figcaption></figure>
+    </div>
+  </section>
+
+  <section id="how">
+    <h2>How it works</h2>
+    <p class="sub">Plain UDP on port 47474, broadcast or multicast, so it runs on meshes and ordinary access points alike.</p>
+    <table>
+      <tr><th>Part</th><th>Design</th></tr>
+      <tr><td>Keys</td><td>PBKDF2-SHA256 (20,000 rounds) of the channel name gives an AES-256 key and an HMAC key. Packets are AES-CTR and then HMAC-SHA256.</td></tr>
+      <tr><td>Audio</td><td>8 kHz, IMA ADPCM, 40 ms frames, about 40 kbit/s per talker. Each packet decodes on its own, so a lost packet is a 40 ms gap and never corrupts what follows.</td></tr>
+      <tr><td>Mixing</td><td>A small jitter buffer per talker, all talkers summed in real time. Echo cancelling is on, so you can use duplex on the loudspeaker.</td></tr>
+      <tr><td>Acknowledgements</td><td>Listeners send an ACK when a transmission ends, or 1 s after it stops arriving. The sender waits 5 s.</td></tr>
+      <tr><td>Files</td><td>Paced 1,150-byte chunks, with gaps requested and only those re-sent, once for everyone who missed them. Checked with SHA-256 before saving. A 2 MB file survived 20% packet loss byte-for-byte in testing.</td></tr>
+      <tr><td>Location</td><td>Latitude, longitude, accuracy and the fix's age rather than a clock time, so phones with wrong clocks still show correct times since check-in. Positions are kept for 24 hours.</td></tr>
+      <tr><td>POIs</td><td>Each point carries a version number. When two edits meet, the higher version wins. Points are kept on the phone across restarts.</td></tr>
+      <tr><td>Public channel</td><td>Uses a fixed, published key. Anyone with the app can listen, so it is open, not private.</td></tr>
+      <tr><td>OpenMANET* slot</td><td>Experimental. Opus voice (48 kHz, 20 ms, 32 kbit/s) in RTP on an OpenMANET talk group's multicast address. Unencrypted, half duplex, no acknowledgements.</td></tr>
+      <tr><td>PIN</td><td>Stored as a salted PBKDF2 hash. The secret wipe removes it too.</td></tr>
+    </table>
+    <div class="note">The encryption keeps out anyone without the channel name. It has not been independently audited. Choose long channel names and treat the app as a convenience, not as approved secure communications.</div>
+  </section>
+
+  <section id="openmanet">
+    <h2>Your Community Communications on OpenManet</h2>
+    <p class="sub">OpenManet is the network Your Community Communications was designed for. This is how the two are planned to fit together.</p>
+
+    <p><a href="https://openmanet.net/">OpenManet</a> is an open-source mesh radio built from a
+      Raspberry Pi, a Wi-Fi HaLow (802.11ah) HAT and OpenWrt. HaLow runs below 1 GHz, so it reaches
+      much further than normal WiFi, and the nodes route for each other (802.11s with batman-adv), so
+      the network grows as you add radios. There are no towers and no internet involved.</p>
+
+    <div class="grid">
+      <div class="card"><h3>1. Phones join a node</h3><p>Each OpenManet node also runs an ordinary 2.4 or 5 GHz access point (or an Ethernet port). Your phone joins its nearest node's WiFi and gets an address from that node, on the mesh's shared subnet (10.41.0.0/16 by default).</p></div>
+      <div class="card"><h3>2. The mesh is one big LAN</h3><p>Each node bridges its access point, Ethernet and mesh link together. To the phones, every node is on the same network, so a broadcast or multicast packet sent near one node is carried hop by hop to all the others.</p></div>
+      <div class="card"><h3>3. Your Community Communications rides on top</h3><p>The app sends encrypted UDP voice on port 47474, either as a subnet broadcast or to the multicast group 239.47.47.47. It needs no server, no IP setup and no list of who is out there. Anyone on the mesh with the same channel name hears you.</p></div>
+      <div class="card"><h3>4. Optional PC relay</h3><p>Where broadcast can't reach (a second mesh, a different subnet, a laptop at the mesh gate, or a link over another network), run the small relay on a PC and put its <code>address:47400</code> in each phone's "Extra peers". It forwards packets without decrypting them.</p></div>
+    </div>
+
+    <h3 class="group">Talking to OpenManet's own Comms (experimental)</h3>
+    <div class="grid">
+      <div class="card"><h3>OpenMANET* channel</h3><p>A separate slot joins an OpenManet "Comms" talk group: Opus voice in RTP over multicast, which OpenManet says works with ATAK's Vx plugin. It is unencrypted, half duplex and has no acknowledgements. Use channels A and B for private, duplex calls.</p></div>
+      <div class="card"><h3>Node page in the browser</h3><p>One tap opens the node's own Comms page (port 8081) or its management page (port 8080).</p></div>
+      <div class="card"><h3>Choose the network</h3><p>If a phone has more than one connection (WiFi plus VPN, or a USB Ethernet link to a node), <strong>Advanced…</strong> lets you pick which one the radio uses.</p></div>
+    </div>
+
+    <table style="margin-top:24px">
+      <tr><th>Setting</th><th>Suggestion on OpenManet</th></tr>
+      <tr><td>Send mode</td><td>Try <strong>multicast</strong> first. OpenManet enables batman-adv multicast handling for apps like TAK, which can be gentler on the mesh than broadcast. If some phones can't hear, switch everyone to broadcast.</td></tr>
+      <tr><td>Bandwidth</td><td>HaLow gives roughly 1 to 15 Mbit/s depending on region and range. Each talker uses about 40 kbit/s, so several people at once is fine, but every hop repeats the traffic. Keep file and photo sharing small on long chains.</td></tr>
+      <tr><td>Relay</td><td><code>java UdpRelay.java 47400</code> on any PC with Java (the file is in the app source, under <code>relay/</code>). Every phone that should use it adds the PC's IP and port 47400 under Extra peers.</td></tr>
+      <tr><td>Channels</td><td>Agree channel names (or a DRYAD row) before going out. Use the Public channel only for open calls, because anyone with the app can hear it.</td></tr>
+    </table>
+
+    <div class="note">This is the planned setup. So far Your Community Communications has been tested between emulators linked by the relay. Neither the normal channels nor the OpenMANET* slot has been tested on a real OpenManet mesh or with ATAK yet, so expect to tune things on your own network. See also the <a href="pi-board.html">flat Pi expansion board</a> for building slimmer OpenManet nodes.</div>
+
+    <p><strong>OpenManet links:</strong>
+      <a href="https://openmanet.net/">openmanet.net</a> ·
+      <a href="https://openmanet.github.io/docs/">documentation</a> ·
+      <a href="https://openmanet.github.io/docs/networking">networking guide</a> ·
+      <a href="https://openmanet.github.io/docs/hardware">hardware</a> ·
+      <a href="https://github.com/OpenMANET/firmware/releases">firmware downloads</a> ·
+      <a href="https://github.com/OpenMANET">GitHub</a></p>
+  </section>
+
+  <section id="get">
+    <h2>Get it</h2>
+    <p class="sub">Your Community Communications is sideloaded. It is not in any app store.</p>
+    <div class="grid">
+      <div class="card"><h3>1. Download the APK</h3><p><a href="downloads/your-community-communications.apk">your-community-communications.apk</a> (Android 4.1 and newer).</p></div>
+      <div class="card"><h3>2. Allow the install</h3><p>Open the file and allow "install unknown apps" for your browser or file manager when asked.</p></div>
+      <div class="card"><h3>3. Pick a channel</h3><p>Join the same WiFi or mesh, type the same channel name as your group (or scan your group's phone setup QR code), and tap Channels, then Talk here. With USB debugging on, an AI assistant can install it and set every permission for you.</p></div>
+      <div class="card"><h3>Read more</h3><p><a href="downloads/YourCommunityCommunications-GettingStarted.docx">Getting started guide</a> (Word), <a href="downloads/FEATURES.md">user guide</a>, <a href="downloads/ALL-FEATURES.txt">every feature in one list</a>, <a href="downloads/NOMAD-SETUP.md">LAN storage server and desktop setup</a>, <a href="downloads/PROTOCOL.md">protocol</a> and <a href="downloads/RECREATE-PROMPT.md">the prompt to rebuild it</a>. Apache License 2.0.</p></div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    Built with Claude by Anthropic —
+    <a href="recreate.html">see how, and the prompts to make your own</a>.
+  </div>
+</footer>
+</body>
+</html>

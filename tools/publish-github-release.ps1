@@ -28,7 +28,19 @@ $headers = @{ Authorization = "Bearer $token"; Accept = "application/vnd.github+
 
 Write-Host "Creating release $tag on $Repo ..."
 $body = @{ tag_name = $tag; name = "Your Community Communications $version"; body = "App version $version (see UPDATES.md)."; make_latest = "true" } | ConvertTo-Json
-$rel = Invoke-RestMethod -Method Post -Uri "https://api.github.com/repos/$Repo/releases" -Headers $headers -Body $body -ContentType "application/json"
+try {
+    $rel = Invoke-RestMethod -Method Post -Uri "https://api.github.com/repos/$Repo/releases" -Headers $headers -Body $body -ContentType "application/json"
+} catch {
+    if ("$_" -match "already_exists") {
+        Write-Host "Release $tag is already on GitHub (nothing to do). Build a newer app first; every build gets a new version."
+        exit 0
+    }
+    if ("$_" -match "not accessible by personal access token") {
+        Write-Host "GitHub refused the token: it needs Contents: Read and write on $Repo."
+        exit 1
+    }
+    throw
+}
 
 Write-Host "Uploading YCC.apk ..."
 $up = $rel.upload_url -replace '\{\?name,label\}', ''
