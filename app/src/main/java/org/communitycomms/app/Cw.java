@@ -48,6 +48,7 @@ public final class Cw {
         p.repeats = s.getInt("repeats", 1);
         p.preMs = s.getInt("preMs", 500);
         p.postMs = s.getInt("postMs", 1000);
+        p.leadMs = s.getInt("leadMs", 0);
         return p;
     }
 

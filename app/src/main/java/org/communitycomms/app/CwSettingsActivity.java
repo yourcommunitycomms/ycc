@@ -56,7 +56,10 @@ public final class CwSettingsActivity extends Activity {
         slider(box, "wpm", 15, 5, 40, 1, "Speed: %d words a minute");
         slider(box, "tone", 700, 400, 1200, 10, "Tone: %d Hz");
         slider(box, "repeats", 1, 1, 5, 1, "Send each message %d time(s)");
-        slider(box, "preMs", 500, 0, 3000, 100, "Clear air before: %d ms (time for the radio's VOX to key up)");
+        slider(box, "leadMs", 0, 0, 2000, 100, "VOX lead-in tone: %d ms (0 = off)");
+        box.addView(note("A short higher tone (" + Morse.LEAD_HZ + " Hz) before each message so the radio's VOX keys up before "
+                + "the first letter. It is not Morse and the decoder ignores it, so the message and its encryption are unchanged."));
+        slider(box, "preMs", 500, 0, 3000, 100, "Clear air before: %d ms (after the lead-in tone, before the first letter)");
         slider(box, "postMs", 1000, 0, 3000, 100, "Clear air after: %d ms");
         slider(box, "clearAir", 3, 1, 15, 1, "Receiving: a message is done after %d s with no tone");
         tick(box, "autoChat", "Put received CW in Chat: \"CW Decoded: …\" (the plain text) when it decodes, "

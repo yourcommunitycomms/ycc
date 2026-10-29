@@ -26,6 +26,8 @@ public final class Morse {
     }
 
     public static final int RATE = 8000;
+    /** The VOX lead-in pitch: above the 300 to 1500 Hz the decoder listens to, so it never becomes a letter. */
+    public static final int LEAD_HZ = 1900;
     private static final Map<Character, String> CODE = new HashMap<Character, String>();
     private static final Map<String, Character> BACK = new HashMap<String, Character>();
 
@@ -50,6 +52,8 @@ public final class Morse {
     /** Settings for one transmission. */
     public static final class Params {
         public int wpm = 15, toneHz = 700, repeats = 1, preMs = 500, postMs = 1000;
+        /** VOX lead-in: a tone this long at LEAD_HZ before the clear air and the message (0 = none). */
+        public int leadMs;
     }
 
     /** Dots, dashes and gaps as unit counts: positive = tone on, negative = silence. */
@@ -96,7 +100,7 @@ public final class Morse {
         for (int u : timing(text)) units += Math.abs(u);
         long unitMs = 1200 / Math.max(5, p.wpm);
         int reps = Math.max(1, p.repeats);
-        return p.preMs + p.postMs + reps * units * unitMs + (reps - 1) * 14 * unitMs;
+        return p.leadMs + p.preMs + p.postMs + reps * units * unitMs + (reps - 1) * 14 * unitMs;
     }
 
     /** The tone for a message, repeated, with silence before and after. */
@@ -106,8 +110,15 @@ public final class Morse {
         int reps = Math.max(1, p.repeats);
         int total = (int) ((long) durationMs(text, p) * RATE / 1000) + RATE / 10;
         short[] pcm = new short[total];
-        int at = p.preMs * RATE / 1000;
         int ramp = Math.max(8, RATE * 5 / 1000); // 5 ms raised-cosine edges
+        int lead = p.leadMs * RATE / 1000;
+        double lw = 2 * Math.PI * LEAD_HZ / RATE;
+        for (int i = 0; i < lead && i < total; i++) { // wakes the radio's VOX; the decoder does not hear this pitch
+            double env = i < ramp ? 0.5 - 0.5 * Math.cos(Math.PI * i / ramp)
+                    : i > lead - ramp ? 0.5 - 0.5 * Math.cos(Math.PI * (lead - i) / ramp) : 1;
+            pcm[i] = (short) (Math.sin(lw * i) * env * 20000);
+        }
+        int at = lead + p.preMs * RATE / 1000;
         double w = 2 * Math.PI * p.toneHz / RATE;
         for (int r = 0; r < reps; r++) {
             if (r > 0) at += 14 * unit;

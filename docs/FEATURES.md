@@ -348,7 +348,7 @@ type ERASE). Destructive buttons ask first.
   "NAME (Fake)". Off by default with no centre: **+ Fake being here** (full map) sets the centre and the spot to the +.
 - **CW (Morse) on the DRYAD Enigma page**: Generate CW turns the cipher text into a Morse tone file using a message
   format (CW settings: %R% random letter, %SheetID%, %StartRow%, %CipherText%, %Call%, prosigns such as <AR>; speed 5–40 wpm,
-  tone, repeats, clear air before and after). The lock enters **CW mode** (stealth: PTT, VOX and voice off) for a radio
+  tone, repeats, a VOX lead-in tone (a 1900 Hz tone the decoder ignores, to key the radio up), clear air before and after). The lock enters **CW mode** (stealth: PTT, VOX and voice off) for a radio
   plugged into the phone; then **Send CW** plays a made file (newest first) and **Receive CW** listens, records and decodes
   each message (done after the set seconds of clear air), filling in the sheet ID, start row and cipher text. **CW decode**
   decodes a saved recording without a radio; ⋯ > CW files plays, decodes, joins, splits, downloads (save or share) and uploads them. CW settings can also put
