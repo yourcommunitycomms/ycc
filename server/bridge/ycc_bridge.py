@@ -182,9 +182,9 @@ class Bridge:
                 self.to_remotes(p)
             elif s is self.cli:
                 p, src = s.recvfrom(4096)
+                self.clients[src] = now  # a relay's short keep-alive poke counts too
                 if len(p) < 4:
                     continue
-                self.clients[src] = now
                 if not self.first_time(p):
                     continue
                 self.counts["client_in"] += 1

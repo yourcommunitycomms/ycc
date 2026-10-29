@@ -754,7 +754,7 @@ public final class EnigmaActivity extends Activity {
 
     private void cwMenu() {
         new AlertDialog.Builder(this).setTitle("CW")
-                .setItems(new String[]{"CW settings (format, speed, repeats, clear air)", "CW files (play, decode, join, split, delete)"},
+                .setItems(new String[]{"CW settings (format, speed, repeats, clear air)", "CW files (play, decode, join, split, upload, download, delete)"},
                         new DialogInterface.OnClickListener() {
                             @Override
                             public void onClick(DialogInterface di, int which) {
@@ -766,36 +766,131 @@ public final class EnigmaActivity extends Activity {
 
     private void cwFiles() {
         final List<java.io.File> files = Cw.files(this);
-        if (files.isEmpty()) {
-            Toast.makeText(this, "No CW files yet: Generate CW or Receive CW makes them", Toast.LENGTH_LONG).show();
-            return;
-        }
         String[] names = new String[files.size()];
         for (int i = 0; i < names.length; i++) names[i] = Cw.label(files.get(i));
-        new AlertDialog.Builder(this).setTitle("CW files (newest first)")
-                .setItems(names, new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface di, int which) {
-                        fileActions(files.get(which));
-                    }
-                })
-                .setNeutralButton("Join…", new DialogInterface.OnClickListener() {
+        AlertDialog.Builder b = new AlertDialog.Builder(this).setTitle("CW files (newest first)")
+                .setPositiveButton("Upload…", new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface di, int w) {
-                        joinFiles(files);
+                        uploadCw();
                     }
                 })
-                .setNegativeButton(android.R.string.cancel, null).show();
+                .setNegativeButton(android.R.string.cancel, null);
+        if (files.isEmpty()) {
+            b.setMessage("No CW files yet: Generate CW or Receive CW makes them, or Upload… brings in a recording "
+                    + "(WAV, or another audio file the phone can play).");
+        } else {
+            b.setItems(names, new DialogInterface.OnClickListener() {
+                @Override
+                public void onClick(DialogInterface di, int which) {
+                    fileActions(files.get(which));
+                }
+            }).setNeutralButton("Join…", new DialogInterface.OnClickListener() {
+                @Override
+                public void onClick(DialogInterface di, int w) {
+                    joinFiles(files);
+                }
+            });
+        }
+        b.show();
+    }
+
+    private static final int REQ_CW_FILE = 8;
+
+    /** Upload: a recording from the phone (WAV, or AMR / AAC / MP3 etc. the phone can decode) becomes a CW file. */
+    private void uploadCw() {
+        Intent i = new Intent(Intent.ACTION_GET_CONTENT);
+        i.setType("audio/*");
+        i.addCategory(Intent.CATEGORY_OPENABLE);
+        try {
+            startActivityForResult(Intent.createChooser(i, "A CW recording"), REQ_CW_FILE);
+        } catch (android.content.ActivityNotFoundException e) {
+            Toast.makeText(this, "No file picker on this phone", Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void uploaded(final android.net.Uri u) {
+        Toast.makeText(this, "Reading the recording…", Toast.LENGTH_SHORT).show();
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                String msg;
+                java.io.File tmp = new java.io.File(getCacheDir(), "cw-upload");
+                try {
+                    java.io.InputStream in = getContentResolver().openInputStream(u);
+                    java.io.FileOutputStream o = new java.io.FileOutputStream(tmp);
+                    byte[] buf = new byte[65536];
+                    int n;
+                    while ((n = in.read(buf)) > 0) o.write(buf, 0, n);
+                    o.close();
+                    in.close();
+                    short[] pcm;
+                    try {
+                        pcm = Morse.readWav(tmp);
+                        if (pcm.length == 0) throw new Exception("not a WAV");
+                    } catch (Exception notWav) {
+                        int[] rate = new int[1];
+                        short[] raw = org.communitycomms.app.audio.BurstCleanup.decode(tmp, rate);
+                        if (raw == null || raw.length == 0) throw new Exception("not an audio file this phone can read");
+                        pcm = new short[(int) ((long) raw.length * Morse.RATE / Math.max(1, rate[0]))];
+                        for (int i = 0; i < pcm.length; i++) pcm[i] = raw[(int) Math.min(raw.length - 1, (long) i * rate[0] / Morse.RATE)];
+                    }
+                    java.io.File f = Cw.newFile(EnigmaActivity.this, "UP", "");
+                    Morse.writeWav(f, pcm);
+                    String text = Morse.decode(pcm, 0);
+                    Cw.setNote(f, text);
+                    msg = "Uploaded (" + pcm.length / Morse.RATE + " s)" + (text.length() > 0 ? ": " + text : ", no Morse found in it")
+                            + ". It is in CW files and Send CW.";
+                } catch (Exception e) {
+                    msg = "Could not use that file: " + e.getMessage();
+                } finally {
+                    tmp.delete();
+                }
+                final String m = msg;
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        new AlertDialog.Builder(EnigmaActivity.this).setTitle("CW upload").setMessage(m)
+                                .setPositiveButton(android.R.string.ok, null).show();
+                    }
+                });
+            }
+        }, "cw-upload").start();
+    }
+
+    /** Download: share or save a CW file (WAV) with any app, e.g. Files, email or a messenger. */
+    private void downloadCw(java.io.File f) {
+        try {
+            java.io.File out = new java.io.File(FilesProvider.exportDir(this), f.getName());
+            java.io.FileInputStream in = new java.io.FileInputStream(f);
+            java.io.FileOutputStream o = new java.io.FileOutputStream(out);
+            byte[] buf = new byte[65536];
+            int n;
+            while ((n = in.read(buf)) > 0) o.write(buf, 0, n);
+            o.close();
+            in.close();
+            Intent s = new Intent(Intent.ACTION_SEND);
+            s.setType("audio/wav");
+            s.putExtra(Intent.EXTRA_STREAM, FilesProvider.export(out));
+            String note = Cw.note(f);
+            if (note.length() > 0) s.putExtra(Intent.EXTRA_TEXT, note);
+            s.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            startActivity(Intent.createChooser(s, "Save or share the CW file"));
+        } catch (Exception e) {
+            Toast.makeText(this, "Could not share it: " + e.getMessage(), Toast.LENGTH_LONG).show();
+        }
     }
 
     private void fileActions(final java.io.File f) {
         new AlertDialog.Builder(this).setTitle(Cw.label(f))
-                .setItems(new String[]{"Play", "Decode", "Split at the quiet gaps", "Delete"}, new DialogInterface.OnClickListener() {
+                .setItems(new String[]{"Play", "Decode", "Split at the quiet gaps", "Download (save or share)", "Delete"},
+                        new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface di, int which) {
                         if (which == 0) play(f, "Playing CW…");
                         else if (which == 1) decodeFile(f);
                         else if (which == 2) splitFile(f);
+                        else if (which == 3) downloadCw(f);
                         else {
                             Cw.delete(f);
                             Toast.makeText(EnigmaActivity.this, "Deleted", Toast.LENGTH_SHORT).show();
@@ -919,6 +1014,7 @@ public final class EnigmaActivity extends Activity {
     protected void onActivityResult(int req, int res, Intent data) {
         super.onActivityResult(req, res, data);
         if (req == REQ_QR && res == RESULT_OK && data != null) useQr(data.getStringExtra(QrScanActivity.EXTRA_RESULT));
+        if (req == REQ_CW_FILE && res == RESULT_OK && data != null && data.getData() != null) uploaded(data.getData());
     }
 
     /** A scanned Enigma QR: offer to switch to its sheet and row, then fill the cipher text. */

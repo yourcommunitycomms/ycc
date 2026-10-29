@@ -351,7 +351,7 @@ type ERASE). Destructive buttons ask first.
   tone, repeats, clear air before and after). The lock enters **CW mode** (stealth: PTT, VOX and voice off) for a radio
   plugged into the phone; then **Send CW** plays a made file (newest first) and **Receive CW** listens, records and decodes
   each message (done after the set seconds of clear air), filling in the sheet ID, start row and cipher text. **CW decode**
-  decodes a saved recording without a radio; ⋯ > CW files plays, decodes, joins or splits them. CW settings can also put
+  decodes a saved recording without a radio; ⋯ > CW files plays, decodes, joins, splits, downloads (save or share) and uploads them. CW settings can also put
   received CW in Chat ("CW Decoded: …" or "CW received: …") and, in CW mode, send private texts out by CW automatically
   (encoded on the last sheet used, from its next row). CW mode stays on across restarts and crashes until the lock is tapped.
 - **Clean up received bursts** (Audio page, off by default): less background noise, quiet bursts turned up and loud ones

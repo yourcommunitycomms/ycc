@@ -99,7 +99,7 @@ MAPS AND LOCATION
 - POI icons can be rotated, resized (50-1000%) and given a direction arrow; such edits sync quietly.
 - Full map Share and Ask-to-share (private channels) buttons; optional automatic accept. Chat filter by kind of item.
 - Burst voice cleanup (optional): noise reduction and level evening before playing.
-- CW (Morse) on DRYAD Enigma: message format, generate / send / receive / decode, CW mode (stealth), join and split CW files.
+- CW (Morse) on DRYAD Enigma: message format, generate / send / receive / decode, CW mode (stealth), join, split, upload and download CW files.
 - Bulk add / export map points (text, QR or file; Name, Icon, Lat, Lon, Notes), layers, repeat skipping.
 - Aircraft (ADS-B) from a MANET receiver or online feeds, and ships (AIS) from Open Waters, each
   shareable to the channel.

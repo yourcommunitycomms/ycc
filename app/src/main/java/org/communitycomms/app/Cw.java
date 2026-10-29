@@ -309,7 +309,7 @@ public final class Cw {
         String n = note(f);
         String when = new SimpleDateFormat("d MMM HH:mm", Locale.US).format(new Date(f.lastModified()));
         String kind = f.getName().startsWith("RX-") ? "Received" : f.getName().startsWith("JOIN-") ? "Joined"
-                : f.getName().startsWith("PART-") ? "Part" : "Made";
+                : f.getName().startsWith("PART-") ? "Part" : f.getName().startsWith("UP-") ? "Uploaded" : "Made";
         return kind + " " + when + " · " + sec + " s" + (n.length() > 0 ? "\n" + (n.length() > 80 ? n.substring(0, 78) + "…" : n) : "");
     }
 }

@@ -44,7 +44,7 @@ public final class BurstCleanup {
     // ---- decode (AMR, AMR-WB, AAC) to 16-bit mono ----
 
     @SuppressWarnings("deprecation")
-    static short[] decode(File f, int[] rateOut) throws Exception {
+    public static short[] decode(File f, int[] rateOut) throws Exception {
         MediaExtractor ex = new MediaExtractor();
         ex.setDataSource(f.getPath());
         int track = -1;

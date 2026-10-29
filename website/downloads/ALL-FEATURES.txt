@@ -16,7 +16,7 @@ WHAT IT IS
   the included prompt.
 
 GETTING STARTED
-- Setup wizard: callsign, then "Quick set from a QR code" or "Skip quick set", then the mode, the
+- Setup wizard: callsign, then "Quick set from a QR code" or "Skip quick set", then a short note on DRYAD sheets (Advanced) versus fixed keys (Simple), then the mode, the
   keys, and the permissions screen.
 - Phone setup QR code: one scan gives a new phone the LAN storage and its login, the tunnel server,
   the Public key, optionally channel A, OpenMANET and the home WiFi, then loads the group's default
@@ -92,6 +92,15 @@ MAPS AND LOCATION
 - Full-screen baseplate compass with bearings to points and people, true or magnetic north.
 - Navigate to a point in Google Maps or another map app.
 - Fake GPS for training: a random spot near a chosen centre, marked "Fake" for everyone.
+- Obscure location: others get a spot up to 0-10 km (2 km default) from your real position; turning Fake GPS off asks whether to keep obscuring.
+- Units: metric (default) or imperial, chosen in the wizard or Settings.
+- Share my camera: up to 15 pictures a second when Tiny; optional audio (off by default) heard only on the Tactical videos screen.
+- Emergency alerts (CAP) on the map: VicEmergency and NOAA presets or any CAP / GeoJSON feed, areas shaded by severity.
+- POI icons can be rotated, resized (50-1000%) and given a direction arrow; such edits sync quietly.
+- Full map Share and Ask-to-share (private channels) buttons; optional automatic accept. Chat filter by kind of item.
+- Burst voice cleanup (optional): noise reduction and level evening before playing.
+- CW (Morse) on DRYAD Enigma: message format, generate / send / receive / decode, CW mode (stealth), join, split, upload and download CW files.
+- Bulk add / export map points (text, QR or file; Name, Icon, Lat, Lon, Notes), layers, repeat skipping.
 - Aircraft (ADS-B) from a MANET receiver or online feeds, and ships (AIS) from Open Waters, each
   shareable to the channel.
 - ATAK: import and export map files, an ATAK map source for the LAN tiles, and an ATAK compatible
