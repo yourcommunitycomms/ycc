@@ -62,7 +62,10 @@ public final class MainActivity extends Activity implements RadioService.Ui {
             checkPendingConfig();
             if (mapHome && ++mapTicks % 7 == 0) refreshHomeMap();
             if (prefs.vox()) renderVox();
-            if (++relayTicks % 10 == 0) checkRelayPrompt();
+            if (++relayTicks % 10 == 0) {
+                checkMobileRelay();
+                checkRelayPrompt();
+            }
             handler.postDelayed(this, 300);
         }
     };
@@ -70,6 +73,61 @@ public final class MainActivity extends Activity implements RadioService.Ui {
     private int relayTicks;
     private long nobodySince;
     private android.app.AlertDialog relayDialog;
+
+    /**
+     * Remote (relay server) set up, no WiFi or Ethernet, but mobile data is up: offer to talk through
+     * the relay over mobile data (asked at most every 15 minutes). When WiFi comes back after that,
+     * offer to stop using mobile data.
+     */
+    private void checkMobileRelay() {
+        if (!joined || relayDialog != null || prefs.tunnelServer().length() == 0 || prefs.tunnelKey().length() == 0) return;
+        final android.content.SharedPreferences sp = getSharedPreferences("settings", MODE_PRIVATE);
+        long now = System.currentTimeMillis();
+        boolean wifi = NetCheck.hasLocalNetwork(this);
+        if (wifi && prefs.tunnelClientOn() && sp.getBoolean("relayViaMobile", false)) {
+            sp.edit().putBoolean("relayViaMobile", false).commit();
+            relayDialog = new android.app.AlertDialog.Builder(this)
+                    .setTitle("WiFi is back")
+                    .setMessage("You switched to the relay over mobile data. Stop using the relay and talk on this WiFi again?")
+                    .setPositiveButton("Use WiFi", new android.content.DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(android.content.DialogInterface d, int w) {
+                            prefs.setTunnelClientOn(false);
+                            rejoinIfSettingsChanged();
+                        }
+                    })
+                    .setNegativeButton("Keep the relay", null)
+                    .create();
+        } else if (!wifi && !prefs.tunnelClientOn() && NetCheck.mobileData(this)
+                && now - sp.getLong("mobileRelayPromptAt", 0) >= 15 * 60000L) {
+            sp.edit().putLong("mobileRelayPromptAt", now).commit();
+            relayDialog = new android.app.AlertDialog.Builder(this)
+                    .setTitle("No WiFi: use mobile data?")
+                    .setMessage("This phone is not on WiFi, so nobody nearby can hear it directly. Talk through the relay server ("
+                            + prefs.tunnelServer() + ") over mobile data instead? PTT, chat and positions then go over the "
+                            + "internet, encrypted as usual (voice uses roughly 1 MB for every 10 minutes of talking).")
+                    .setPositiveButton("Use mobile data", new android.content.DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(android.content.DialogInterface d, int w) {
+                            sp.edit().putBoolean("relayViaMobile", true).commit();
+                            prefs.setTunnelClientOn(true);
+                            rejoinIfSettingsChanged();
+                            Toast.makeText(MainActivity.this, "Connecting to the relay over mobile data…", Toast.LENGTH_LONG).show();
+                        }
+                    })
+                    .setNegativeButton("Not now", null)
+                    .create();
+        } else {
+            return;
+        }
+        relayDialog.setOnDismissListener(new android.content.DialogInterface.OnDismissListener() {
+            @Override
+            public void onDismiss(android.content.DialogInterface d) {
+                relayDialog = null;
+            }
+        });
+        relayDialog.show();
+    }
 
     /**
      * Nobody heard for a minute while a relay server is set up but not in use: offer to test it and

@@ -55,6 +55,26 @@ public final class NetCheck {
         return new Prefs(c).extraPeers().trim().length() > 0 && anyNetwork(c);
     }
 
+    /** Mobile data is connected (no WiFi needed). */
+    @SuppressWarnings("deprecation")
+    public static boolean mobileData(Context c) {
+        ConnectivityManager cm = (ConnectivityManager) c.getSystemService(Context.CONNECTIVITY_SERVICE);
+        if (cm == null) return false;
+        try {
+            if (Build.VERSION.SDK_INT >= 23) {
+                for (Network n : cm.getAllNetworks()) {
+                    NetworkCapabilities nc = cm.getNetworkCapabilities(n);
+                    if (nc != null && nc.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)
+                            && nc.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)) return true;
+                }
+                return false;
+            }
+            return old(cm, ConnectivityManager.TYPE_MOBILE);
+        } catch (RuntimeException e) {
+            return false;
+        }
+    }
+
     @SuppressWarnings("deprecation")
     private static boolean anyNetwork(Context c) {
         ConnectivityManager cm = (ConnectivityManager) c.getSystemService(Context.CONNECTIVITY_SERVICE);

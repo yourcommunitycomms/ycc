@@ -41,7 +41,7 @@ own group.
 
 ## First start (the wizard)
 A new phone gets a random callsign such as TANGO38 and a short wizard: confirm or change the
-callsign; **Quick set from a QR code** (scan a phone setup QR code, or Skip quick set); then confirm
+callsign; **Quick set from a QR code** (scan a phone setup QR code, or Skip quick set); **Advanced or simple** (a short note: Advanced modes use DRYAD sheets for encryption, messages and channel names, shared between trusted devices; Simple modes use fixed keys); then confirm
 the **public channel key** (default `publicchannelkey`); then either **Create
 sheet** (one never-expiring DRYAD sheet: row A becomes channel A, row B channel B, ready to share
 with your group) or **Join Public** and wait for someone to send their settings. Then the
@@ -189,7 +189,7 @@ team has **Message team** and **Call team** (for channels you talk or listen on)
   10 s send "POSSIBLE GUNSHOTS detected near …" with your position. Keeps the mic open on air.
 
 ## Settings pages
-The main Settings page has the callsign, **Update from URL** / **Edit update URL** (download and install the app from an address, e.g. the LAN storage's Updates/YCC.apk; asked and tested the first time, then kept, and network defaults can set it), Run the setup wizard again, Permissions and Mode, then links to: **Channel settings** (names, QR codes, Public key, OpenMANET, key rotation, rejoin, dual watch, catch-up, Share settings), **Audio, PTT and alerts**, **Home screen** (style, map points, my icon, black screen, TV mode), **Network and sync** (WiFi, peers, ATAK, tunnel, LAN storage, config backups), **Security** (PIN, wipe, radio silent) and **Mission and data** (mission, fake GPS, clearing data; also from the Data / files screen). About and How Modern DRYAD works are at the bottom.
+The main Settings page has the callsign, **Update from URL** / **Edit update URL** (download and install the app; by default the newest GitHub release, https://github.com/yourcommunitycomms/ycc/releases/latest/download/YCC.apk, or the LAN storage's Updates/YCC.apk; tested, then kept, and network defaults can set it), Run the setup wizard again, Permissions and Mode, then links to: **Channel settings** (names, QR codes, Public key, OpenMANET, key rotation, rejoin, dual watch, catch-up, Share settings), **Audio, PTT and alerts**, **Home screen** (style, map points, my icon, black screen, TV mode), **Network and sync** (WiFi, peers, ATAK, tunnel, LAN storage, config backups), **Security** (PIN, wipe, radio silent) and **Mission and data** (mission, fake GPS, clearing data; also from the Data / files screen). About and How Modern DRYAD works are at the bottom.
 
 ## Audio screen (menu > Audio)
 **Devices in use**, each with a cog: **Sound** (Automatic: loudspeaker unless a headset is in;
@@ -240,7 +240,7 @@ phone call volume (radio audio) and media volume, an in-app hearing boost and mi
 - **Mark…** on a map home screen asks **At the X** (default) or **At me**.
 - **Move a point:** Edit › **Move…**, drag the map under the +, **Save here**, then Send.
 - **Navigate / open in Google Maps** from a point (driving directions; any other map app works too).
-- **Sync POIs** (full map) sends all your active points and asks everyone for theirs.
+- **Sync** (full map, refresh icon) offers Sync (all your active points and asks everyone for theirs) or Resync (clears others' points first).
 - **Map points:** tap one to see, edit or remove it; you are asked whether to **announce** the change
   (default yes; if not, maps still update silently).
 - **Quick map point profiles** (Settings > Quick map points, or "Change profile" in the Mark…/More…
@@ -346,10 +346,40 @@ type ERASE). Destructive buttons ask first.
 - **Fake GPS** (Settings > Mission and data, or the full map's **Fake GPS: on / off** button): a random
   spot within 2 km of a set centre, used for everything this phone shows and sends; others see
   "NAME (Fake)". **+ Fake being here** moves it to the +.
+- **CW (Morse) on the DRYAD Enigma page**: Generate CW turns the cipher text into a Morse tone file using a message
+  format (CW settings: %R% random letter, %SheetID%, %StartRow%, %CipherText%, %Call%, prosigns such as <AR>; speed 5–40 wpm,
+  tone, repeats, clear air before and after). The lock enters **CW mode** (stealth: PTT, VOX and voice off) for a radio
+  plugged into the phone; then **Send CW** plays a made file (newest first) and **Receive CW** listens, records and decodes
+  each message (done after the set seconds of clear air), filling in the sheet ID, start row and cipher text. **CW decode**
+  decodes a saved recording without a radio; ⋯ > CW files plays, decodes, joins or splits them. CW settings can also put
+  received CW in Chat ("CW Decoded: …" or "CW received: …") and, in CW mode, send private texts out by CW automatically
+  (encoded on the last sheet used, from its next row). CW mode stays on across restarts and crashes until the lock is tapped.
+- **Clean up received bursts** (Audio page, off by default): less background noise, quiet bursts turned up and loud ones
+  evened out before playing (the original recording stays in Chat).
+- **Mobile data prompt**: with a relay server set up (Settings > Tunnel comms) and no WiFi, the app offers to talk through
+  the relay over mobile data; when WiFi is back it offers to switch back.
+- **Bulk add / export points** (full map menu): one point per line, `Name, Icon, Lat, Lon, Notes` (the position may be one
+  field; a Name,Icon header and # lines are skipped). Type or paste it, scan it from QR codes, or open a .csv / .txt file.
+  Unknown icons become a grey dot with the icon name in brackets. Then choose: send to everyone on the channel or just this
+  phone, a layer name, expiry, and skip repeats. Export (all or one layer) copies the text, shares or saves a .csv, or shows
+  QR codes in parts. Map > Points can show just one layer.
+- **Full map buttons** are icons in two rows of five (Me, All, POI, Sync / Resync, Points filter, Pad, Fake GPS,
+  Share my location, Ask to share, Tiles); long press for what each does. Landscape puts them in a column on the right.
+- **Ask to share** (full map, private channels only, not Public): everyone on the channel is asked to share their location for 30
+  minutes (Share / Not now), or shares by itself with Mission and data > Automatically accept location sharing (off by default).
+- **Chat filter** (top right of Chat): show or hide messages, voice, pictures and files, map points, reports, status changes; and which channel
+  (on air, all, A, B or Public).
+- **POI rotation, size and direction arrow** (Send / Edit POI, when drawn as the icon): turn it to match a formation,
+  50–1000% size, optional heading arrow. Only changing these is sent quietly (no spoken announcement).
+- **Units** (wizard and the top of Settings): metric (m, km; the default) or imperial (ft, mi) for every distance shown or read aloud.
 - **Obscure location** (below Fake GPS): others get a spot up to 0–10 km (2 km by default) from your
   real position, the same offset each time and shown as approximate; also the fake spot's range.
   Sharing your location while Fake GPS is on asks whether to keep the fake spot or share the real one,
   obscured or exact.
+  Turning Fake GPS off (map button or Settings) with the range above 0 asks whether to keep obscuring; No sets 0 km.
+- **Emergency alerts (CAP)** (map menu, off by default): VicEmergency (Victoria) or NOAA (USA, at the map centre)
+  presets, or any CAP 1.2 / CAP-AU XML or GeoJSON feed. Alert areas shaded red / orange / yellow / blue by
+  severity (burn areas brown); tap a marker for the full alert. Slow mode (default) checks every 10 minutes.
 - **Aircraft (ADS-B)** (map menu, off by default): a MANET receiver's aircraft.json, or adsb.lol /
   airplanes.live online (sends the map centre); slow mode by default. **Share ADS-B data** sends them
   to the channel so everyone sees them. **Ships (AIS)** the same way from Open Waters (coasts only).
@@ -367,7 +397,7 @@ type ERASE). Destructive buttons ask first.
 - **Burst voice** (Audio page): record while PTT is held, sent as one file on release, plays by
   itself on arrival (quality from AMR 4.75k to AAC 48k). For weak links. A burst that arrives while the channel is busy
   waits (up to 1 min by default, set on the Audio page) and plays once it clears, with an optional call-waiting beep.
-- **Share my camera** (phone or network camera, small pictures 1–5 per second) and **Tactical
+- **Share my camera** (phone or network camera, small pictures 1–5 per second, or 10–15 when Tiny; optional audio, off by default, heard only on the Tactical videos screen) and **Tactical
   videos** (a grid of chosen people's cameras, tap to enlarge).
 - **TV mode** (Settings): map, chat cards and cameras on a big screen; Android TV opens it by itself.
 - **Pinned announcements** in Chat (resent to newcomers), **automatic key rotation** hourly or daily

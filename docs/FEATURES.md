@@ -356,6 +356,8 @@ type ERASE). Destructive buttons ask first.
   (encoded on the last sheet used, from its next row). CW mode stays on across restarts and crashes until the lock is tapped.
 - **Clean up received bursts** (Audio page, off by default): less background noise, quiet bursts turned up and loud ones
   evened out before playing (the original recording stays in Chat).
+- **Mobile data prompt**: with a relay server set up (Settings > Tunnel comms) and no WiFi, the app offers to talk through
+  the relay over mobile data; when WiFi is back it offers to switch back.
 - **Bulk add / export points** (full map menu): one point per line, `Name, Icon, Lat, Lon, Notes` (the position may be one
   field; a Name,Icon header and # lines are skipped). Type or paste it, scan it from QR codes, or open a .csv / .txt file.
   Unknown icons become a grey dot with the icon name in brackets. Then choose: send to everyone on the channel or just this
