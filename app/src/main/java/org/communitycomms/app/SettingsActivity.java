@@ -360,7 +360,8 @@ public final class SettingsActivity extends Activity {
             @Override
             public void run() {
                 if (!org.communitycomms.app.geo.FakeGps.set(SettingsActivity.this, fake.isChecked(), fakeAt.getText().toString())) {
-                    fakeAt.setError("lat, lon (e.g. -37.94501, 145.29838)");
+                    fakeAt.setError("Type lat, lon (e.g. -33.85680, 151.21530), or use + Fake being here on the full map");
+                    fake.setChecked(false);
                 } else {
                     fakeAt.setError(null);
                 }

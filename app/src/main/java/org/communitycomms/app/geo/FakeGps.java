@@ -10,14 +10,15 @@ import java.util.Locale;
 /**
  * Fake GPS (testing and demos, Settings): every position this phone uses or sends is a spot picked
  * at random within 2 km of a chosen centre, the same spot each time until the centre changes.
- * Maps label it "Me (Fake)". On by default for now.
+ * Maps label it "Me (Fake)". Off by default, with no centre until one is typed or "+ Fake being here" sets it.
  */
 public final class FakeGps {
     private FakeGps() {
     }
 
     public static final String PROVIDER = "fake";
-    public static final String DEFAULT_CENTRE = "-37.94501, 145.29838";
+    /** No built-in centre: one is typed in Settings, or set from the map's + ("+ Fake being here"). */
+    public static final String DEFAULT_CENTRE = "";
     /** Settings > Obscure location: 0 to 10 km, 2 km by default (also the fake spot's distance from its centre). */
     public static final int OBSCURE_MAX_M = 10000, OBSCURE_DEFAULT_M = 2000;
     private static volatile Context app;
@@ -32,17 +33,21 @@ public final class FakeGps {
     }
 
     public static boolean enabled(Context c) {
-        return c != null && sp(c).getBoolean("fakeGps", true);
+        return c != null && sp(c).getBoolean("fakeGps", false) && parse(centre(c)) != null;
     }
 
     public static String centre(Context c) {
         return sp(c).getString("fakeGpsCentre", DEFAULT_CENTRE);
     }
 
-    /** Returns false if the text is not "lat, lon". */
+    /** Returns false if the text is not "lat, lon" (an empty centre is fine while turning it off). */
     public static boolean set(Context c, boolean on, String centre) {
         double[] p = parse(centre);
-        if (p == null) return false;
+        if (p == null) {
+            if (on) return false;
+            sp(c).edit().putBoolean("fakeGps", false).commit();
+            return true;
+        }
         sp(c).edit().putBoolean("fakeGps", on)
                 .putString("fakeGpsCentre", String.format(Locale.US, "%.5f, %.5f", p[0], p[1])).commit();
         return true;
@@ -84,10 +89,11 @@ public final class FakeGps {
         return l;
     }
 
-    /** "+ Fake being here": move my fake spot to this point (kept until the centre changes). */
+    /** "+ Fake being here": the fake centre becomes this point (overwriting it) and my fake spot is exactly here. */
     public static void setHere(Context c, double lat, double lon) {
-        sp(c).edit().putString("fakeGpsFor", centre(c) + "|" + obscureM(c)).putString("fakeGpsLat", Double.toString(lat))
-                .putString("fakeGpsLon", Double.toString(lon)).commit();
+        String centre = String.format(Locale.US, "%.5f, %.5f", lat, lon);
+        sp(c).edit().putBoolean("fakeGps", true).putString("fakeGpsCentre", centre).putString("fakeGpsFor", centre + "|" + obscureM(c))
+                .putString("fakeGpsLat", Double.toString(lat)).putString("fakeGpsLon", Double.toString(lon)).commit();
     }
 
     public static int obscureM(Context c) {

@@ -345,7 +345,7 @@ type ERASE). Destructive buttons ask first.
   profile; Settings > **My map icon** (how others see you).
 - **Fake GPS** (Settings > Mission and data, or the full map's **Fake GPS: on / off** button): a random
   spot within 2 km of a set centre, used for everything this phone shows and sends; others see
-  "NAME (Fake)". **+ Fake being here** moves it to the +.
+  "NAME (Fake)". Off by default with no centre: **+ Fake being here** (full map) sets the centre and the spot to the +.
 - **CW (Morse) on the DRYAD Enigma page**: Generate CW turns the cipher text into a Morse tone file using a message
   format (CW settings: %R% random letter, %SheetID%, %StartRow%, %CipherText%, %Call%, prosigns such as <AR>; speed 5–40 wpm,
   tone, repeats, clear air before and after). The lock enters **CW mode** (stealth: PTT, VOX and voice off) for a radio

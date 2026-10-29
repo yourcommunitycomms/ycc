@@ -289,7 +289,7 @@ public final class MapActivity extends Activity {
                 org.communitycomms.app.geo.FakeGps.setHere(MapActivity.this, map.centerLat(), map.centerLon());
                 myPos.stop();
                 myPos.start(); // picks up the new fake spot straight away
-                android.widget.Toast.makeText(MapActivity.this, "Fake position moved to the +", android.widget.Toast.LENGTH_SHORT).show();
+                android.widget.Toast.makeText(MapActivity.this, "Fake GPS centre and position set to the + (" + org.communitycomms.app.geo.FakeGps.centre(MapActivity.this) + ")", android.widget.Toast.LENGTH_SHORT).show();
             }
         });
         addHere.setOnClickListener(new View.OnClickListener() {
@@ -402,7 +402,9 @@ public final class MapActivity extends Activity {
             public void run() {
                 // Training / demos: a random spot near the Fake GPS centre (Settings > Mission and data).
                 boolean on = !org.communitycomms.app.geo.FakeGps.enabled(MapActivity.this);
-                org.communitycomms.app.geo.FakeGps.set(MapActivity.this, on, org.communitycomms.app.geo.FakeGps.centre(MapActivity.this));
+                String centre = org.communitycomms.app.geo.FakeGps.centre(MapActivity.this);
+                if (on && centre.trim().length() == 0) centre = Geo.latLon(map.centerLat(), map.centerLon()); // none yet: the +
+                org.communitycomms.app.geo.FakeGps.set(MapActivity.this, on, centre);
                 fakeToggle[0].setLit(on);
                 if (fakeHereButton != null) fakeHereButton.setVisibility(on ? View.VISIBLE : View.GONE);
                 if (!on) org.communitycomms.app.geo.ObscureAsk.afterFakeOff(MapActivity.this, null);

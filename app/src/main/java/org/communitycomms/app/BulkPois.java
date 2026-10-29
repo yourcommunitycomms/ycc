@@ -30,7 +30,7 @@ import java.util.Locale;
 /**
  * Map menu > Bulk add / export points. One point per line, comma separated:
  * <pre>Name, Icon, Lat, Lon, Notes</pre>
- * The position may also be one field ("-37.9 145.3") and the notes may hold commas. An icon this app
+ * The position may also be one field ("-33.86 151.21") and the notes may hold commas. An icon this app
  * does not know becomes a grey dot with its name in brackets. A header line ("Name, Icon, …") and
  * lines starting with # are skipped. Export writes the same format (plus the layer), so a list can be
  * edited in a spreadsheet and brought back.
@@ -229,8 +229,8 @@ final class BulkPois {
         box.setPadding((int) (16 * d), (int) (8 * d), (int) (16 * d), 0);
         TextView help = new TextView(a);
         help.setText("One point per line: Name, Icon, Lat, Lon, Notes. For example:\n"
-                + "Alpha Coy HQ, Friendly HQ, -37.9451, 145.2984, Main gate\n"
-                + "Water tank, Water point, -37.9502 145.3011\n"
+                + "Alpha Coy HQ, Friendly HQ, -33.8568, 151.2153, Main gate\n"
+                + "Water tank, Water point, -33.8611 151.2100\n"
                 + "An icon the app does not have becomes a grey dot with its name in brackets. "
                 + "Lines starting with # and a Name,Icon,… header are skipped.");
         help.setTextSize(12);
