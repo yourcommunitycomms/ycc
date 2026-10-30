@@ -56,3 +56,8 @@
 - 2026-10-30: Prefetch: tick which map types to get (street, satellite, topographic; several at once). The map source you are using is ticked to start with, and each type goes to its own folder here and in the LAN cache.
 - 2026-10-30: Full map: a Layer button (top left, shows the current one) to switch between street map, satellite and topographic in one tap.
 - 2026-10-30: Full map: a scale bar under the buttons (follows the Units setting), and Tools > Ruler: tap two points for the distance, the bearing and the back bearing; a third tap starts again.
+- 2026-10-30: Fix: Blackout on older Android (Nexus 7): the backlight now stays just above zero, because exactly zero could freeze touch so double tap never worked. Double tap now allows 0.7 s between taps, and it can no longer go black under a dialog. As a safety, the power button, the lock screen or leaving the app always turns Blackout off.
+- 2026-10-30: Fix: full map in landscape: the button that folds the panel away now sits in the middle of the right edge, next to the panel, not the middle of the bottom.
+- 2026-10-30: Full map in landscape: the icons now run in a single column down the right edge (a short phone scrolls them).
+- 2026-10-30: Prefetch: 50, 100 and 200 km as well, and a Detail choice (the deepest zoom, 12 to 17, with the tile count for each). Areas over 20 km start at zoom 14. The estimate now shows the time if all tiles come from the internet, and prefetch also gets zoom 8 and 9.
+- 2026-10-30: Prefetch: Super slow option (ticked by default over 20 km): one internet tile every 2 seconds, with a 30 second rest after a refused tile, so huge areas take days and are far less likely to get blocked. LAN tiles still come at full speed, and an unfinished one carries on as super slow.

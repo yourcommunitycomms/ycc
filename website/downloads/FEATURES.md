@@ -203,7 +203,7 @@ phone call volume (radio audio) and media volume, an in-app hearing boost and mi
 - **Lock**: blocks channel changes, Channels and setup; PTT, map points, chat
   and reports still work. Hold the button to unlock.
 - **Red light mode** and **Blackout** (black screen, app keeps running,
-  double-tap to wake) in the menu.
+  double-tap to wake; the power button or leaving the app also ends it) in the menu.
 - **Black screen button** on the home screen (Settings, off by default, with how to get out:
   double-tap) and **black screen after N seconds** without a touch (0 = never; Settings warns when
   the phone's own screen timeout is shorter).
@@ -356,9 +356,9 @@ type ERASE). Destructive buttons ask first.
   (encoded on the last sheet used, from its next row). CW mode stays on across restarts and crashes until the lock is tapped.
 - **Clean up received bursts** (Audio page, off by default): less background noise, quiet bursts turned up and loud ones
   evened out before playing (the original recording stays in Chat).
-- **Data Tile Management** (map menu): what is stored on this phone and in the LAN maps cache, and Prefetch 5, 10 or 20 km around
-  the + at every zoom level 10–17, for the map types you tick (street, satellite, topographic). Tiles already here are skipped, the LAN cache is used before the internet, and whatever the
-  cache is missing is added to it. Needs a fast connection; internet tiles are limited to 5 a second, so large areas take hours. It runs in the background with
+- **Data Tile Management** (map menu): what is stored on this phone and in the LAN maps cache, and Prefetch 5, 10, 20, 50, 100 or 200 km around
+  the + from zoom 8 down to the detail you pick (zoom 12 to 17, with the tile count beside each; areas over 20 km start at zoom 14), for the map types you tick (street, satellite, topographic). Tiles already here are skipped, the LAN cache is used before the internet, and whatever the
+  cache is missing is added to it. Needs a fast connection; internet tiles are limited to 5 a second, so large areas take hours. **Super slow** (ticked by default over 20 km) fetches one internet tile every 2 seconds and rests after a refused tile, so a huge area takes days but is far less likely to get blocked. It runs in the background with
   a notification (Pause / Resume, Stop); open Data Tile Management to see it, or carry on after the app was closed.
 - **Secondary map server** (Data Tile Management): a second LAN storage for map tiles only. Phones read from it when the primary
   lacks a tile, and give new tiles to it if the primary is off. **Sync the two servers** copies map tiles between them through this

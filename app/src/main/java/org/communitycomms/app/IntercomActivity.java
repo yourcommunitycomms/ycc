@@ -61,7 +61,8 @@ public final class IntercomActivity extends Activity {
     private final Runnable goBlack = new Runnable() {
         @Override
         public void run() {
-            LightDiscipline.blackout(IntercomActivity.this);
+            if (hasWindowFocus()) LightDiscipline.blackout(IntercomActivity.this); // never under a dialog, it would block the double tap
+            else restartBlackTimer();
         }
     };
 

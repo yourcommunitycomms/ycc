@@ -1557,7 +1557,8 @@ public final class MainActivity extends Activity implements RadioService.Ui {
     private final Runnable goBlack = new Runnable() {
         @Override
         public void run() {
-            LightDiscipline.blackout(MainActivity.this);
+            if (hasWindowFocus()) LightDiscipline.blackout(MainActivity.this); // never under a dialog, it would block the double tap
+            else restartBlackTimer();
         }
     };
 

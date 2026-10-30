@@ -28,7 +28,7 @@ import java.util.Locale;
 
 /**
  * Map menu > Data Tile Management: what is stored (on this phone and the LAN maps cache), and
- * prefetching every zoom level within 5, 10 or 20 km of the map's +. Each tile comes from the
+ * prefetching within 5 to 200 km of the map's +, down to a chosen zoom level. Each tile comes from the
  * first place that has it (this phone, the LAN cache and its named sets, then the internet); anything
  * the LAN cache is missing is given to it, so other phones get it there.
  */
@@ -36,10 +36,16 @@ public final class TilePrefetch {
     private TilePrefetch() {
     }
 
-    /** Zoom levels fetched: country view down to house level. */
-    public static final int MIN_Z = 10, MAX_Z = 17;
+    /** Zoom levels fetched: country view down to house level, or to a shallower level for a big area. */
+    public static final int MIN_Z = 8, MAX_Z = 17;
+    /** Default deepest level for an area bigger than this many km: every level would be millions of tiles. */
+    private static final int BIG_KM = 20, BIG_MAX_Z = 14;
+    private static final int[] DETAIL_Z = {17, 16, 15, 14, 13, 12};
+    private static final String[] DETAIL_NAMES = {"houses and footpaths", "buildings", "street names", "all roads and tracks", "main roads and towns", "highways and big towns"};
     /** Between internet requests: public tile servers do not allow fast bulk fetching. */
     private static final long NET_GAP_MS = 200;
+    /** Super slow: for huge areas, days of gentle fetching so a public server is not annoyed. After a refused tile, a long rest. */
+    private static final long SLOW_GAP_MS = 2000, SLOW_REST_S = 30;
     /** Typical size of a stored tile, for the estimate. */
     private static final int KB_PER_TILE = 12;
 
@@ -83,9 +89,9 @@ public final class TilePrefetch {
         boolean tile(int z, int x, int y) throws Exception;
     }
 
-    private static void walk(double lat, double lon, double km, Each t) throws Exception {
+    private static void walk(double lat, double lon, double km, int maxZ, Each t) throws Exception {
         double dLat = km / 111.32, dLon = km / (111.32 * Math.max(0.1, Math.cos(Math.toRadians(lat))));
-        for (int z = MIN_Z; z <= MAX_Z; z++) {
+        for (int z = MIN_Z; z <= maxZ; z++) {
             int x0 = (int) Geo.lonToX(lon - dLon, z), x1 = (int) Geo.lonToX(lon + dLon, z);
             int y0 = (int) Geo.latToY(lat + dLat, z), y1 = (int) Geo.latToY(lat - dLat, z);
             double cx = Geo.lonToX(lon, z), cy = Geo.latToY(lat, z);
@@ -101,19 +107,24 @@ public final class TilePrefetch {
         }
     }
 
-    public static int count(double lat, double lon, double km) {
-        final int[] n = {0};
-        try {
-            walk(lat, lon, km, new Each() {
-                @Override
-                public boolean tile(int z, int x, int y) {
-                    n[0]++;
-                    return true;
-                }
-            });
-        } catch (Exception ignored) {
+    /** The tiles walk would visit, a column at a time: quick even for millions of tiles. */
+    public static int count(double lat, double lon, double km, int maxZ) {
+        double dLat = km / 111.32, dLon = km / (111.32 * Math.max(0.1, Math.cos(Math.toRadians(lat))));
+        int n = 0;
+        for (int z = MIN_Z; z <= maxZ; z++) {
+            int x0 = (int) Geo.lonToX(lon - dLon, z), x1 = (int) Geo.lonToX(lon + dLon, z);
+            int y0 = (int) Geo.latToY(lat + dLat, z), y1 = (int) Geo.latToY(lat - dLat, z);
+            double cx = Geo.lonToX(lon, z), cy = Geo.latToY(lat, z);
+            double rx = cx - Geo.lonToX(lon - dLon, z), ry = cy - Geo.latToY(lat + dLat, z);
+            for (int x = x0; x <= x1; x++) {
+                double ex = (x + 0.5 - cx) / (rx + 1);
+                if (ex * ex > 1) continue;
+                double h = Math.sqrt(1 - ex * ex) * (ry + 1);
+                int top = Math.max(y0, (int) Math.ceil(cy - 0.5 - h)), bottom = Math.min(y1, (int) Math.floor(cy - 0.5 + h));
+                if (bottom >= top) n += bottom - top + 1;
+            }
         }
-        return n[0];
+        return n;
     }
 
     private static boolean haveLocal(File cache, int z, int x, int y) {
@@ -169,7 +180,7 @@ public final class TilePrefetch {
         double[] u = unfinished(c);
         if (u == null) return false;
         if (u[2] == 0) beginSync(c, saved(c).getInt("sync", 0));
-        else begin(c, u[0], u[1], (int) u[2], saved(c).getString("types", "0"));
+        else begin(c, u[0], u[1], (int) u[2], saved(c).getString("types", "0"), saved(c).getInt("maxZ", MAX_Z), saved(c).getBoolean("slow", false));
         return true;
     }
 
@@ -287,14 +298,15 @@ public final class TilePrefetch {
     static final int[] TYPE_PRESETS = {0, 1, 3};
 
     /** Runs in TilePrefetchService; one job at a time. types = presets, comma separated (e.g. "0,1"). */
-    public static Job begin(Context ctx, final double lat, final double lon, final int km, final String types) {
+    public static Job begin(Context ctx, final double lat, final double lon, final int km, final String types, final int maxZ, final boolean slow) {
         Job old = job;
         if (old != null && !old.finished) return old;
         final Context c = ctx.getApplicationContext();
         saved(c).edit().putLong("lat", Double.doubleToLongBits(lat)).putLong("lon", Double.doubleToLongBits(lon)).putInt("km", km)
-                .putString("types", types).commit();
+                .putString("types", types).putInt("maxZ", maxZ).putBoolean("slow", slow).commit();
         final String[] list = types.split(",");
-        final Job j = new Job(km, count(lat, lon, km) * list.length);
+        final Job j = new Job(km, count(lat, lon, km, maxZ) * list.length);
+        if (slow) j.title = km + " km prefetch (super slow)";
         job = j;
         new Thread(new Runnable() {
             @Override
@@ -305,7 +317,7 @@ public final class TilePrefetch {
                         int preset = Integer.parseInt(t.trim());
                         String url = mp.urlOfPreset(preset);
                         for (int i = 0; i < TYPE_PRESETS.length; i++) if (TYPE_PRESETS[i] == preset) j.where = TYPE_NAMES[i];
-                        fetchType(c, j, url, mp.cacheOf(url), lat, lon, km);
+                        fetchType(c, j, url, mp.cacheOf(url), lat, lon, km, maxZ, slow);
                         if (j.stop) break;
                     }
                 } catch (Exception e) {
@@ -319,7 +331,7 @@ public final class TilePrefetch {
     }
 
     /** One map type: each tile from this phone, the LAN cache, then the internet; the LAN cache gets what it lacks. */
-    private static void fetchType(Context c, final Job j, final String url, final File cache, double lat, double lon, int km) throws Exception {
+    private static void fetchType(Context c, final Job j, final String url, final File cache, double lat, double lon, int km, int maxZ, final boolean slow) throws Exception {
         final LanTiles lan = new LanTiles(c), second = LanTiles.secondary(c);
         final boolean useLan = lan.configured() || second != null;
         final String src = LanTiles.sourceId(url);
@@ -327,7 +339,7 @@ public final class TilePrefetch {
         if (found.isEmpty() && second != null) found = second.namedSets();
         final List<String> sets = LanTiles.isImagery(url) ? found : new ArrayList<String>(); // satellite sets only suit a satellite map
         final long[] lastNet = {0};
-        walk(lat, lon, km, new Each() {
+        walk(lat, lon, km, maxZ, new Each() {
             @Override
             public boolean tile(int z, int x, int y) throws Exception {
                 while (j.paused && !j.stop) Thread.sleep(500);
@@ -351,7 +363,7 @@ public final class TilePrefetch {
                         j.fromLan++;
                         save(cache, z, x, y, d);
                     } else {
-                        long wait = NET_GAP_MS - (System.currentTimeMillis() - lastNet[0]);
+                        long wait = (slow ? SLOW_GAP_MS : NET_GAP_MS) - (System.currentTimeMillis() - lastNet[0]);
                         if (wait > 0) Thread.sleep(wait);
                         lastNet[0] = System.currentTimeMillis();
                         try {
@@ -361,6 +373,7 @@ public final class TilePrefetch {
                         }
                         if (d == null) {
                             j.failed++;
+                            for (int i = 0; slow && i < SLOW_REST_S && !j.stop; i++) Thread.sleep(1000);
                         } else {
                             j.fromNet++;
                             save(cache, z, x, y, d);
@@ -406,10 +419,16 @@ public final class TilePrefetch {
         stats.setText("Counting the tiles…");
         box.addView(stats);
         TextView h = new TextView(a);
-        h.setText("\nPrefetch every zoom level (" + MIN_Z + " to " + MAX_Z + ") around the + (" + Geo.latLon(lat, lon) + "):");
+        h.setText("\nPrefetch around the + (" + Geo.latLon(lat, lon) + "). You choose how much detail next:");
         box.addView(h);
-        LinearLayout row = new LinearLayout(a);
-        for (final int km : new int[]{5, 10, 20}) {
+        LinearLayout row = null;
+        int[] ranges = {5, 10, 20, 50, 100, 200};
+        for (int i = 0; i < ranges.length; i++) {
+            final int km = ranges[i];
+            if (i % 3 == 0) {
+                row = new LinearLayout(a);
+                box.addView(row);
+            }
             Button b = new Button(a);
             b.setAllCaps(false);
             b.setText(km + " km");
@@ -421,7 +440,6 @@ public final class TilePrefetch {
             });
             row.addView(b, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
         }
-        box.addView(row);
         Job now = job;
         final double[] left = unfinished(a);
         if (now != null && !now.finished) {
@@ -443,7 +461,8 @@ public final class TilePrefetch {
                 @Override
                 public void onClick(View v) {
                     if (left[2] == 0) org.communitycomms.app.TilePrefetchService.startSync(a, saved(a).getInt("sync", 0));
-                    else org.communitycomms.app.TilePrefetchService.start(a, left[0], left[1], (int) left[2], saved(a).getString("types", "0"));
+                    else org.communitycomms.app.TilePrefetchService.start(a, left[0], left[1], (int) left[2], saved(a).getString("types", "0"), saved(a).getInt("maxZ", MAX_Z),
+                            saved(a).getBoolean("slow", false));
                     a.getWindow().getDecorView().postDelayed(new Runnable() {
                         @Override
                         public void run() {
@@ -627,27 +646,58 @@ public final class TilePrefetch {
             progress(a, running, after);
             return;
         }
-        final int n = count(lat, lon, km);
         float dp = a.getResources().getDisplayMetrics().density;
         LinearLayout box = new LinearLayout(a);
         box.setOrientation(LinearLayout.VERTICAL);
         box.setPadding((int) (20 * dp), (int) (8 * dp), (int) (20 * dp), 0);
         TextView top = new TextView(a);
-        top.setText("High speed connection required: this will cause a lot of data from the LAN cache and the internet.\n\nMap types to get:");
+        top.setText("High speed connection required: this will cause a lot of data from the LAN cache and the internet.\n\nDetail (the deepest zoom level to get):");
         box.addView(top);
+        final android.widget.RadioGroup detail = new android.widget.RadioGroup(a);
+        final int wanted = km > BIG_KM ? BIG_MAX_Z : MAX_Z;
+        for (int i = 0; i < DETAIL_Z.length; i++) {
+            android.widget.RadioButton r = new android.widget.RadioButton(a);
+            r.setId(DETAIL_Z[i]);
+            r.setText(String.format(Locale.US, "Zoom %d: %s (%,d tiles)", DETAIL_Z[i], DETAIL_NAMES[i], count(lat, lon, km, DETAIL_Z[i])));
+            detail.addView(r);
+        }
+        detail.check(wanted);
+        box.addView(detail);
+        TextView types = new TextView(a);
+        types.setText("\nMap types to get:");
+        box.addView(types);
         final android.widget.CheckBox[] ticks = new android.widget.CheckBox[TYPE_NAMES.length];
         final TextView size = new TextView(a);
+        final android.widget.CheckBox slow = new android.widget.CheckBox(a);
+        slow.setText("Super slow: one internet tile every 2 seconds, resting after a refused tile. Huge areas take days, far less likely to get blocked. Keep it on charge.");
+        slow.setChecked(km > BIG_KM);
         final Runnable showSize = new Runnable() {
             @Override
             public void run() {
                 int kinds = 0;
                 for (android.widget.CheckBox b : ticks) if (b.isChecked()) kinds++;
-                size.setText("\nUp to " + n * kinds + " tiles, about " + n * kinds * (long) KB_PER_TILE / 1024 + " MB (satellite tiles are larger), every "
-                        + "zoom level " + MIN_Z + " to " + MAX_Z + ". Tiles already on this phone or in the LAN cache are not downloaded again, and anything the "
-                        + "LAN cache is missing is added to it.\n\nInternet tiles are fetched slowly (at most 5 a second) because public map servers do "
-                        + "not allow fast bulk downloads, so a large area can take hours. Stay on WiFi; it can stop and carry on later.");
+                int z = detail.getCheckedRadioButtonId();
+                long n = (long) count(lat, lon, km, z) * kinds;
+                double hours = n * (slow.isChecked() ? SLOW_GAP_MS : NET_GAP_MS) / 3600000.0;
+                size.setText(String.format(Locale.US, "\nUp to %,d tiles, about %,d MB (satellite tiles are larger), zoom levels %d to %d. All from the internet "
+                        + "would take about %s. Tiles already on this phone or in the LAN cache are not downloaded again, and anything the "
+                        + "LAN cache is missing is added to it.\n\nInternet tiles are fetched slowly (at most 5 a second, or 1 every 2 seconds on super slow) because public map servers do "
+                        + "not allow fast bulk downloads, and a very large fetch can get this phone blocked by them. Stay on WiFi; it can stop and carry on later.",
+                        n, n * KB_PER_TILE / 1024, MIN_Z, z, hours >= 48 ? String.format(Locale.US, "%.1f days", hours / 24) : String.format(Locale.US, "%.1f hours", hours)));
             }
         };
+        slow.setOnCheckedChangeListener(new android.widget.CompoundButton.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(android.widget.CompoundButton b, boolean on) {
+                showSize.run();
+            }
+        });
+        detail.setOnCheckedChangeListener(new android.widget.RadioGroup.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(android.widget.RadioGroup g, int id) {
+                showSize.run();
+            }
+        });
         int cur = new MapPrefs(a).onlinePreset();
         boolean any = false;
         for (int i = 0; i < ticks.length; i++) {
@@ -664,6 +714,7 @@ public final class TilePrefetch {
             box.addView(ticks[i]);
         }
         if (!any) ticks[0].setChecked(true);
+        box.addView(slow);
         box.addView(size);
         showSize.run();
         ScrollView sv = new ScrollView(a);
@@ -672,15 +723,15 @@ public final class TilePrefetch {
                 .setPositiveButton("Prefetch", new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface di, int w) {
-                        StringBuilder types = new StringBuilder();
+                        StringBuilder chosen = new StringBuilder();
                         for (int i = 0; i < ticks.length; i++) {
-                            if (ticks[i].isChecked()) types.append(types.length() > 0 ? "," : "").append(TYPE_PRESETS[i]);
+                            if (ticks[i].isChecked()) chosen.append(chosen.length() > 0 ? "," : "").append(TYPE_PRESETS[i]);
                         }
-                        if (types.length() == 0) {
+                        if (chosen.length() == 0) {
                             Toast.makeText(a, "Tick at least one map type", Toast.LENGTH_SHORT).show();
                             return;
                         }
-                        org.communitycomms.app.TilePrefetchService.start(a, lat, lon, km, types.toString());
+                        org.communitycomms.app.TilePrefetchService.start(a, lat, lon, km, chosen.toString(), detail.getCheckedRadioButtonId(), slow.isChecked());
                         a.getWindow().getDecorView().postDelayed(new Runnable() {
                             @Override
                             public void run() {

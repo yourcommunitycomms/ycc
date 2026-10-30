@@ -291,9 +291,13 @@ public final class MapActivity extends Activity {
         }, android.view.Gravity.BOTTOM | android.view.Gravity.LEFT);
         final android.widget.Button fold = overMap("▼");
         fold.setTextSize(22);
+        // The panel folds towards the edge it sits on: bottom in portrait, right in landscape.
+        boolean foldRight = getResources().getConfiguration().orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE;
         android.widget.FrameLayout.LayoutParams fl = new android.widget.FrameLayout.LayoutParams(
-                (int) (52 * d), (int) (44 * d), android.view.Gravity.BOTTOM | android.view.Gravity.CENTER_HORIZONTAL);
-        fl.bottomMargin = (int) (6 * d);
+                (int) (52 * d), (int) (44 * d), foldRight ? android.view.Gravity.RIGHT | android.view.Gravity.CENTER_VERTICAL
+                : android.view.Gravity.BOTTOM | android.view.Gravity.CENTER_HORIZONTAL);
+        if (foldRight) fl.rightMargin = (int) (6 * d);
+        else fl.bottomMargin = (int) (6 * d);
         mapBox.addView(fold, fl);
         android.widget.Button addHere = overMap("+ POI");
         android.widget.FrameLayout.LayoutParams al = new android.widget.FrameLayout.LayoutParams(
@@ -432,9 +436,17 @@ public final class MapActivity extends Activity {
         });
         if (land) sideRow.addView(panel, new LinearLayout.LayoutParams((int) (236 * d), LinearLayout.LayoutParams.MATCH_PARENT));
         else root.addView(panel, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1));
-        root = panel; // everything below folds away with ▼ (▶ in landscape)
+        // Everything below folds away with ▼ (▶ in landscape). Landscape: the text, then the icons in a column.
+        if (land) {
+            panel.setOrientation(LinearLayout.HORIZONTAL);
+            root = new LinearLayout(this);
+            root.setOrientation(LinearLayout.VERTICAL);
+            panel.addView(root, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1));
+        } else {
+            root = panel;
+        }
 
-        // Icon buttons (long press says what each does): one row in portrait, a 4 x 2 block in landscape.
+        // Icon buttons (long press says what each does): two rows in portrait, one column in landscape.
         List<MapIconButton> keys = new ArrayList<MapIconButton>();
         keys.add(new MapIconButton(this, MapIconButton.ME, "Me", "Centre the map on me", new Runnable() {
             @Override
@@ -533,15 +545,27 @@ public final class MapActivity extends Activity {
                 syncTiles();
             }
         }));
-        int perRow = 5; // two rows of five, in portrait and in the landscape column
-        LinearLayout row = null;
-        for (int i = 0; i < keys.size(); i++) {
-            if (i % perRow == 0) {
-                row = new LinearLayout(this);
-                row.setPadding((int) (2 * d), 0, (int) (2 * d), 0);
-                root.addView(row);
+        if (land) {
+            LinearLayout column = new LinearLayout(this);
+            column.setOrientation(LinearLayout.VERTICAL);
+            for (MapIconButton key : keys) {
+                column.addView(key, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, (int) (46 * d)));
             }
-            row.addView(keys.get(i), new LinearLayout.LayoutParams(0, (int) (54 * d), 1));
+            ScrollView keysScroll = new ScrollView(this); // a short phone in landscape scrolls them
+            keysScroll.setVerticalScrollBarEnabled(false);
+            keysScroll.addView(column);
+            panel.addView(keysScroll, new LinearLayout.LayoutParams((int) (56 * d), LinearLayout.LayoutParams.MATCH_PARENT));
+        } else {
+            int perRow = 5; // two rows of five
+            LinearLayout row = null;
+            for (int i = 0; i < keys.size(); i++) {
+                if (i % perRow == 0) {
+                    row = new LinearLayout(this);
+                    row.setPadding((int) (2 * d), 0, (int) (2 * d), 0);
+                    root.addView(row);
+                }
+                row.addView(keys.get(i), new LinearLayout.LayoutParams(0, (int) (54 * d), 1));
+            }
         }
         root.addView(sourceLabel);
 
