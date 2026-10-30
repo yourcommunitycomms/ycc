@@ -886,6 +886,7 @@ public final class MapActivity extends Activity {
     @Override
     public boolean onCreateOptionsMenu(android.view.Menu m) {
         m.add(0, 2, 0, "Online map tiles…");
+        m.add(0, 10, 0, "Data Tile Management…");
         m.add(0, 1, 0, "Aircraft (ADS-B)…");
         m.add(0, 3, 0, "Ships (AIS)…");
         m.add(0, 7, 0, "Emergency alerts (CAP)…");
@@ -920,6 +921,16 @@ public final class MapActivity extends Activity {
         }
         if (item.getItemId() == 6) {
             atakMapSource();
+            return true;
+        }
+        if (item.getItemId() == 10) {
+            org.communitycomms.app.geo.TilePrefetch.show(this, map.centerLat(), map.centerLon(), new Runnable() {
+                @Override
+                public void run() {
+                    map.retryMissing();
+                    refresh();
+                }
+            });
             return true;
         }
         if (item.getItemId() == 8) {

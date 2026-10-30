@@ -681,9 +681,9 @@ public final class TileMapView extends View {
                 // The LAN storage location (shared maps cache) before going online.
                 String lu = base ? lanBaseUrl : lanOvUrl;
                 String src = lu == null || lu.length() == 0 ? null : LanTiles.sourceId(lu);
-                if (b == null && lan != null && src != null) b = fromLan(src, cacheDir, t);
+                if (b == null && (lan != null || lan2 != null) && src != null) b = fromLan(src, cacheDir, t);
                 // Then any named set in the LAN maps cache (e.g. "ATAK Home") before going online.
-                if (b == null && base && lan != null) {
+                if (b == null && base && (lan != null || lan2 != null)) {
                     for (String set : namedSets) {
                         b = fromLan(set, cacheDir, t);
                         if (b != null) break;
@@ -719,7 +719,7 @@ public final class TileMapView extends View {
         return null;
     }
 
-    private volatile LanTiles lan;
+    private volatile LanTiles lan, lan2;
     /** LAN storage use since the app started: tiles read from it, given to it, and tries that failed (map label). */
     public static final java.util.concurrent.atomic.AtomicInteger lanGot = new java.util.concurrent.atomic.AtomicInteger(),
             lanSent = new java.util.concurrent.atomic.AtomicInteger(), lanFailed = new java.util.concurrent.atomic.AtomicInteger();
@@ -736,12 +736,15 @@ public final class TileMapView extends View {
 
     public void setLan(LanTiles l, String baseTileUrl, String overlayTileUrl) {
         lan = l != null && l.configured() ? l : null;
-        final LanTiles found = lan;
+        lan2 = LanTiles.secondary(getContext()); // the secondary map server, for when the primary is off
+        final LanTiles found = lan != null ? lan : lan2;
         if (found != null) {
             new Thread(new Runnable() {
                 @Override
                 public void run() {
                     java.util.List<String> sets = found.namedSets();
+                    LanTiles two = lan2;
+                    if (sets.isEmpty() && two != null && two != found) sets = two.namedSets();
                     android.util.Log.i("TileMapView", "named LAN tile sets: " + sets);
                     namedSets = sets;
                     if (!sets.isEmpty()) {
@@ -769,7 +772,9 @@ public final class TileMapView extends View {
     }
 
     private Bitmap fromLan(String source, File cacheDir, int[] t) {
-        byte[] data = lan.get(source, t[0], t[1], t[2]);
+        LanTiles a = lan, b2 = lan2;
+        byte[] data = a == null ? null : a.get(source, t[0], t[1], t[2]);
+        if (data == null && b2 != null) data = b2.get(source, t[0], t[1], t[2]);
         if (data == null) return null;
         lanGot.incrementAndGet();
         Bitmap b = BitmapFactory.decodeByteArray(data, 0, data.length);
@@ -816,7 +821,7 @@ public final class TileMapView extends View {
                 os.write(data);
                 os.close();
             }
-            final LanTiles l = lan;
+            final LanTiles l = lan != null ? lan : lan2, second = lan2;
             if (b != null && l != null && !onlineUrl.startsWith(l.base() + "/")) {
                 // Copy it to the LAN storage location too (not when it came from there, e.g. a map
                 // set kept on the LAN store and used as a custom URL), so other phones need not fetch it online.
@@ -828,8 +833,12 @@ public final class TileMapView extends View {
                 lanUploads.execute(new Runnable() {
                     @Override
                     public void run() {
-                        if (l.put(src, tt[0], tt[1], tt[2], dd)) lanSent.incrementAndGet();
-                        else lanFailed.incrementAndGet();
+                        // The primary, or the secondary map server if the primary is off.
+                        if (l.put(src, tt[0], tt[1], tt[2], dd) || (second != null && second != l && second.put(src, tt[0], tt[1], tt[2], dd))) {
+                            lanSent.incrementAndGet();
+                        } else {
+                            lanFailed.incrementAndGet();
+                        }
                     }
                 });
             }

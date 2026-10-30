@@ -53,7 +53,7 @@ public final class ConfigShare {
             "myIcon", "intercomRooms", "intercomCamera", "streams", "fakeGpsFor", "fakeGpsLat", "fakeGpsLon",
             // LAN sync is chosen per phone (e.g. auto update only on the test phone); relay switch per phone
             "lanAutoUpdate", "lanSyncEvery", "lanSyncLogs", "lanSyncData", "lanSyncDryad", "lanSyncConfig", "lanSyncLast",
-            "lanSyncResult", "lanUpdateFile", "lanUpdateCode", "swapLR", "tunnelClientOn", "relayPromptAt", "homeNetOn", "homeNetSsid", "atakOn", "atakUid"));
+            "lanSyncResult", "lanUpdateFile", "lanUpdateCode", "lan2Url", "lan2User", "lan2Pass", "swapLR", "tunnelClientOn", "relayPromptAt", "homeNetOn", "homeNetSsid", "atakOn", "atakUid"));
 
     /** LAN storage location: sent only if the user chose to share it; received ones are offered separately. */
     private static final Set<String> LAN_KEYS = new HashSet<String>(Arrays.asList("lanUrl", "lanUser", "lanPass", "lanShare"));

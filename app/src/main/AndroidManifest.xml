@@ -12,6 +12,7 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Permissions screen: ask to be left out of battery optimisation so the radio keeps hearing when locked. -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
@@ -95,6 +96,7 @@
         <activity android:name=".MapActivity" android:exported="false" />
         <activity android:name=".StreamsActivity" android:exported="false" />
         <activity android:name=".KeysActivity" android:exported="false" />
+        <service android:name=".TilePrefetchService" android:exported="false" android:foregroundServiceType="dataSync" />
         <activity android:name=".CwSettingsActivity" android:exported="false" />
         <activity android:name=".EnigmaActivity" android:exported="false" />
         <activity android:name=".ChallengeActivity" android:exported="false" />

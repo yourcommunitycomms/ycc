@@ -86,6 +86,10 @@ Files dropped into `/opt/project-nomad/storage/ycc-files/YCC/` appear straight a
 `Maps cache` folder copied from an older store). A tile set put in `YCC/Maps cache/<any name>/z/x/y.jpg` (e.g. one
 made for ATAK) is read by every phone before it goes online.
 
+### A second map server in the field
+Any second copy of this server can hold map tiles only: on a phone, Map menu > Data Tile Management > Secondary server, then
+Sync the two servers copies the Maps cache across through the phone with no internet. Mission data is not copied.
+
 ### Updating the server
 Copy the new files to `~/ycc-files`, rebuild with the same tag (`sudo docker build -t ycc-files:1.1 .`)
 and restart the app in NOMAD (or reinstall it with the same settings). The data volume is untouched.

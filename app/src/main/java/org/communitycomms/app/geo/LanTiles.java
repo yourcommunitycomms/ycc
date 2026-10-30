@@ -31,7 +31,17 @@ public final class LanTiles {
     /** Folders known to exist on the server (so MKCOL is not repeated). */
     private static final Set<String> made = Collections.synchronizedSet(new HashSet<String>());
     /** After a connection failure, leave the server alone for a minute (offline LAN, wrong address). */
-    private static volatile long downUntil;
+    private static final java.util.Map<String, Long> downUntil = new java.util.concurrent.ConcurrentHashMap<String, Long>();
+
+    /** Each server has its own quiet minute (the primary being down must not stop the secondary). */
+    private long down() {
+        Long d = downUntil.get(base());
+        return d == null ? 0 : d;
+    }
+
+    private void setDown(long until) {
+        downUntil.put(base(), until);
+    }
 
     /** Typed-in values to try (the Test button) without saving them; null = use the saved ones. */
     private String tryUrl, tryUser, tryPass;
@@ -48,6 +58,58 @@ public final class LanTiles {
         tryPass = pass;
     }
 
+    /** The secondary map server (map tiles only, Data Tile Management), or null if none is set. */
+    public static LanTiles secondary(Context c) {
+        SharedPreferences s = c.getSharedPreferences("settings", Context.MODE_PRIVATE);
+        String u = s.getString("lan2Url", "").trim();
+        if (u.length() == 0) return null;
+        return new LanTiles(c, u, s.getString("lan2User", ""), s.getString("lan2Pass", ""));
+    }
+
+    /** pass == null keeps the saved password; an empty url removes the secondary server. */
+    public static void saveSecondary(Context c, String url, String user, String pass) {
+        SharedPreferences.Editor e = c.getSharedPreferences("settings", Context.MODE_PRIVATE).edit()
+                .putString("lan2Url", url.trim()).putString("lan2User", user.trim());
+        if (pass != null) e.putString("lan2Pass", pass);
+        e.commit();
+    }
+
+    /**
+     * Names in a folder under the maps cache ("" = the top), folders ending in /, from the server's
+     * folder listing. Empty for a folder that is not there; null if the server could not be asked.
+     */
+    public java.util.List<String> listMaps(String rel) {
+        java.util.List<String> out = new java.util.ArrayList<String>();
+        if (!up()) return null;
+        HttpURLConnection c = null;
+        try {
+            String path = base() + "/" + enc(FOLDER) + "/" + (rel.length() > 0 ? enc(rel) + "/" : "");
+            c = open(path, "GET");
+            int code = c.getResponseCode();
+            ok();
+            if (code == 404) return out;
+            if (code != 200) return null;
+            InputStream in = c.getInputStream();
+            ByteArrayOutputStream bo = new ByteArrayOutputStream();
+            byte[] buf = new byte[16384];
+            int n;
+            while ((n = in.read(buf)) > 0 && bo.size() < 8 * 1024 * 1024) bo.write(buf, 0, n);
+            java.util.regex.Matcher m = java.util.regex.Pattern.compile("href=\"([^\"?#:]+)\"").matcher(new String(bo.toByteArray(), "UTF-8"));
+            while (m.find()) {
+                String name = java.net.URLDecoder.decode(m.group(1), "UTF-8");
+                if (name.equals("../") || name.startsWith("/") || name.startsWith(".")) continue;
+                if (name.indexOf('/') >= 0 && name.indexOf('/') != name.length() - 1) continue;
+                if (!out.contains(name)) out.add(name);
+            }
+            return out;
+        } catch (Exception e) {
+            markDown();
+            return null;
+        } finally {
+            if (c != null) c.disconnect();
+        }
+    }
+
     public String base() {
         String b = (tryUrl != null ? tryUrl : sp.getString("lanUrl", "")).trim();
         while (b.endsWith("/")) b = b.substring(0, b.length() - 1);
@@ -60,6 +122,11 @@ public final class LanTiles {
 
     private String pass() {
         return tryPass != null ? tryPass : sp.getString("lanPass", "");
+    }
+
+    /** For testing a secondary server whose password box was left empty (the saved one is used). */
+    String passwordForTest() {
+        return pass();
     }
 
     public boolean hasPassword() {
@@ -81,7 +148,7 @@ public final class LanTiles {
         if (pass != null) e.putString("lanPass", pass);
         e.commit();
         made.clear();
-        downUntil = 0;
+        setDown(0);
     }
 
     /** A tile source's folder name: host plus a short hash, e.g. "mt1.google.com-3fa2c1". */
@@ -147,7 +214,7 @@ public final class LanTiles {
     }
 
     private boolean up() {
-        return configured() && System.currentTimeMillis() >= downUntil;
+        return configured() && System.currentTimeMillis() >= down();
     }
 
     private static final java.util.concurrent.atomic.AtomicInteger failures = new java.util.concurrent.atomic.AtomicInteger();
@@ -155,7 +222,7 @@ public final class LanTiles {
     /** Several network failures in a row (not one slow answer from a small server): leave it a minute. */
     private void markDown() {
         if (failures.incrementAndGet() >= 5) {
-            downUntil = System.currentTimeMillis() + 60000;
+            setDown(System.currentTimeMillis() + 60000);
             failures.set(0);
         }
     }
@@ -291,7 +358,7 @@ public final class LanTiles {
     /** "OK" or why the LAN store cannot be used (for the settings screen's Test button). */
     public String test() {
         if (!configured()) return "Enter an address starting http:// or https://";
-        downUntil = 0;
+        setDown(0);
         try {
             HttpURLConnection c = open(base() + "/", "GET");
             int code = c.getResponseCode();
@@ -475,7 +542,7 @@ public final class LanTiles {
     public String syncArea(final String source, final File cacheDir, double north, double west, double south, double east,
                            int zFrom, int zTo, final Progress p) {
         if (!configured()) return "No LAN storage location set";
-        downUntil = 0;
+        setDown(0);
         final java.util.List<int[]> tiles = new java.util.ArrayList<int[]>();
         for (int z = zFrom; z <= zTo; z++) {
             int x0 = (int) Math.floor(Geo.lonToX(west, z)), x1 = (int) Math.floor(Geo.lonToX(east, z));
@@ -494,7 +561,7 @@ public final class LanTiles {
                 public void run() {
                     int i;
                     while ((i = next.getAndIncrement()) < total && !Thread.currentThread().isInterrupted()
-                            && System.currentTimeMillis() >= downUntil) {
+                            && System.currentTimeMillis() >= down()) {
                         int[] t = tiles.get(i);
                         File local = new File(cacheDir, t[0] + "/" + t[1] + "/" + t[2] + ".jpg");
                         if (local.isFile()) {
@@ -526,7 +593,7 @@ public final class LanTiles {
             for (Thread w : workers) w.interrupt();
             return "Stopped: " + down.get() + " from the LAN, " + upCount.get() + " to the LAN";
         }
-        if (System.currentTimeMillis() < downUntil) return "The LAN storage location stopped answering ("
+        if (System.currentTimeMillis() < down()) return "The LAN storage location stopped answering ("
                 + down.get() + " from the LAN, " + upCount.get() + " to the LAN)";
         return "Sync done: " + down.get() + " tile(s) from the LAN, " + upCount.get() + " to the LAN (" + total + " checked)";
     }
