@@ -105,8 +105,14 @@ MAPS AND LOCATION
 - Map search for suburbs, towns and streets, offline (GeoNames + OpenStreetMap lists, shared via LAN storage) or online.
 - Data Tile Management: tile stats and prefetch 1 to 200 km around the +, or the whole world at low zoom, at the zoom levels you tick, with a super slow mode for huge areas (phone, LAN cache, then internet; fills the LAN cache).
 - Secondary map server for tiles, and a manual sync between the two servers through the phone.
+- After Exit, asks whether to reconnect the last channels and shows their remote state.
+- Asks to turn remote off on the home network, and on when away from it.
+- Power and sleep settings: Normal, Power saver, Ultra low (4 minute check-ins, sound for missed messages) and Off line, with battery levels that ask to change.
+- Normal running for 3 minutes after PTT in the saving modes.
+- Option for the black screen to come back on for calls and voice.
+- Red light on a schedule.
 - Blackout with no light at all, and a legacy setting (lowest backlight) for older devices.
-- Map layer button: street, satellite or topographic.
+- Map layer button: street, satellite or topographic, with ticks for ships, aircraft and emergency alerts.
 - Map scale bar and a two-point ruler: distance, bearing and back bearing.
 - Aircraft (ADS-B) from a MANET receiver or online feeds, and ships (AIS) from Open Waters, each
   shareable to the channel.

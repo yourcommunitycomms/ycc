@@ -71,6 +71,19 @@ public final class CapFeed {
         return source() != OFF;
     }
 
+    /** Layer button: off, or back on with the source used before. False if none has been chosen yet. */
+    public boolean setOn(boolean on) {
+        int s = source();
+        if (!on) {
+            if (s != OFF) sp.edit().putInt("lastSource", s).putInt("source", OFF).commit();
+        } else if (s == OFF) {
+            int last = sp.getInt("lastSource", OFF);
+            if (last == OFF) return false;
+            sp.edit().putInt("source", last).commit();
+        }
+        restart();
+        return true;
+    }
     public String customUrl() {
         return sp.getString("url", "").trim();
     }
@@ -113,7 +126,7 @@ public final class CapFeed {
             listeners.add(mine);
         }
         synchronized (CapFeed.class) {
-            if (!enabled() || thread != null) return;
+            if (!enabled() || thread != null || !org.communitycomms.app.PowerMode.feedsOn()) return;
             thread = new Thread(new Runnable() {
                 @Override
                 public void run() {

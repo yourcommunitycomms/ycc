@@ -69,6 +69,19 @@ public final class AdsbFeed {
         return sp.getInt("source", OFF);
     }
 
+    /** Layer button: off, or back on with the source used before. False if none has been chosen yet. */
+    public boolean setOn(boolean on) {
+        int s = source();
+        if (!on) {
+            if (s != OFF) sp.edit().putInt("lastSource", s).putInt("source", OFF).commit();
+        } else if (s == OFF) {
+            int last = sp.getInt("lastSource", OFF);
+            if (last == OFF) return false;
+            sp.edit().putInt("source", last).commit();
+        }
+        restart();
+        return true;
+    }
     public String localUrl() {
         return sp.getString("url", "http://10.41.0.1:8080/data/aircraft.json");
     }
@@ -149,7 +162,7 @@ public final class AdsbFeed {
             listeners.add(mine);
         }
         synchronized (AdsbFeed.class) {
-            if (source() == OFF || thread != null) return;
+            if (source() == OFF || thread != null || !org.communitycomms.app.PowerMode.feedsOn()) return;
             thread = new Thread(new Runnable() {
                 @Override
                 public void run() {

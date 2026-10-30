@@ -203,7 +203,7 @@ phone call volume (radio audio) and media volume, an in-app hearing boost and mi
 - **Lock**: blocks channel changes, Channels and setup; PTT, map points, chat
   and reports still work. Hold the button to unlock.
 - **Red light mode** and **Blackout** (black screen, app keeps running,
-  double-tap to wake; the power button or leaving the app also ends it) in the menu. Blackout gives no light at all. On an older device where double-tap does not wake it, tick **Legacy support, non zero brightness** in Settings > Home screen.
+  double-tap to wake; the power button or leaving the app also ends it) in the menu. Blackout gives no light at all. On an older device where double-tap does not wake it, tick **Legacy support, non zero brightness** in Settings > Power and sleep.
 - **Black screen button** on the home screen (Settings, off by default, with how to get out:
   double-tap) and **black screen after N seconds** without a touch (0 = never; Settings warns when
   the phone's own screen timeout is shorter).
@@ -273,7 +273,13 @@ the callsign for the same wipe.
   You must leave every channel first ("Leave and clear").
 - **Clear all data and exit** (Settings): erases everything and closes; the next start runs the setup
   wizard.
-- **Exit** (menu): off air, service stopped, app closed (rejoin on start still applies next time).
+- **Power and sleep** (Settings): the power mode, levels that ask to change it, the black screen settings and red light.
+  **Normal**. **Power saver**: check-ins and GPS every 30 seconds, no map feeds or LAN sync with the screen off, and the screen sleeps normally; live voice still works.
+  **Ultra low**: with the screen off the radio, sound and GPS rest and wake about every 4 minutes to check in and catch up; a sound plays if messages came in; live voice is missed. Android can stretch this when the phone is idle unless the app is exempt from battery optimisation.
+  **Off line**: for no network: no remote prompts, sync or tunnel; with nobody around and the screen off, GPS and map feeds stop and check-ins slow to a minute.
+  After PTT, Power saver and Ultra low work as normal for 3 minutes so a reply is heard. Battery levels (20 % and 10 % to start, 0 = never) ask once each, not on charge or in Off line.
+  Others do not count a phone in a power mode as lost between its check-ins. The nobody heard and lost contact warnings wait longer in the saving modes (3 minutes in Power saver, 10 in Ultra low). Black screen: Screen on during radio calls (on by default, never in Stealth) brings it back on for a call or voice, then it goes black again; with it off or in Stealth, the call screen does not open over a black screen (the call still buzzes and shows a notification). Red light can be on a schedule; turning it on or off by hand lasts until the next set time.
+- **Exit** (menu): off air, service stopped, app closed. If it was on air, opening it again asks **Reconnect last channels?**, listing them and their remote state.
 
 ## Keeping it running with the screen locked
 Permissions screen: battery optimisation off for this app, and the phone maker's power saving
@@ -309,7 +315,7 @@ or just its Broadcastify feed number; one plays at a time until Stop. Nothing is
   files** (received files, recordings, photos) to `Data/<callsign>/<day>/`, **DRYAD sheets** merged
   both ways, **config backup** to `Configs/<callsign>.ucconfig`. On demand, weekly, daily or every
   minute (testing), and **Sync now**.
-- **Home network** (same dialog): on this WiFi (SSID) everything but logs syncs at least hourly.
+- **Home network** (same dialog): on this WiFi (SSID) everything but logs syncs at least hourly. With a tunnel set up, the app also asks once on each change of network: on the home network with the tunnel on for every channel, whether to disable remote; on another WiFi with it off, whether to enable it.
 - **Config backups** (Settings): **Load defaults** (the app's own, or the server's **network
   defaults**; callsign, keys, PIN and this phone's own settings stay), **Save my config** / **Read my
   config** (a full backup on the phone, never the PIN).
@@ -367,7 +373,7 @@ type ERASE). Destructive buttons ask first.
 - **Named LAN tile sets**: a tile set copied into the LAN storage's Maps cache folder under its own name (e.g. "ATAK Home",
   z/x/y.jpg) is used by every phone on a satellite map source (it would not match a street map), after its own saved tiles and before going online. The map's tiles line
   counts tiles read from and given to the LAN maps cache.
-- **Map layer** (full map, top left, under Search): street map, satellite or topographic in one tap; each keeps its own saved tiles.
+- **Map layer** (full map, top left, under Search): street map, satellite or topographic in one tap, and ticks to turn ships, aircraft and emergency alerts on or off (if not set up yet, the tick opens their settings); each keeps its own saved tiles.
 - **Scale and ruler** (full map, top left): a scale bar in your units, and **Tools > Ruler**: tap two points for the distance and bearing
   (and the bearing back); a third tap starts again, Tools > Ruler off clears it.
 - **Map search** (full map, top left): suburbs, towns and streets. Offline lists are offered the first time in a country

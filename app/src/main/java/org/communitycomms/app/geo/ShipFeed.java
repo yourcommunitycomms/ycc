@@ -64,6 +64,15 @@ public final class ShipFeed {
         return sp.getBoolean("enabled", false);
     }
 
+    /** Layer button: off or on. False if it has never been set up (the key may be empty, but it has been asked). */
+    public boolean setOn(boolean on) {
+        if (on && !sp.contains("key")) return false;
+        sp.edit().putBoolean("enabled", on).commit();
+        autoOffNote = null;
+        restart();
+        return true;
+    }
+
     public String key() {
         return sp.getString("key", "").trim();
     }
@@ -133,7 +142,7 @@ public final class ShipFeed {
             listeners.add(mine);
         }
         synchronized (ShipFeed.class) {
-            if (!enabled() || thread != null) return;
+            if (!enabled() || thread != null || !org.communitycomms.app.PowerMode.feedsOn()) return;
             thread = new Thread(new Runnable() {
                 @Override
                 public void run() {

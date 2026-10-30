@@ -65,6 +65,10 @@ public final class MainActivity extends Activity implements RadioService.Ui {
             if (++relayTicks % 10 == 0) {
                 checkMobileRelay();
                 checkRelayPrompt();
+                checkRemoteNetwork();
+                checkBatteryAsk();
+                checkBlackWake();
+                LightDiscipline.checkRedSchedule(MainActivity.this);
             }
             handler.postDelayed(this, 300);
         }
@@ -80,7 +84,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
      * offer to stop using mobile data.
      */
     private void checkMobileRelay() {
-        if (!joined || relayDialog != null || prefs.tunnelServer().length() == 0 || prefs.tunnelKey().length() == 0) return;
+        if (PowerMode.offline() || !joined || relayDialog != null || prefs.tunnelServer().length() == 0 || prefs.tunnelKey().length() == 0) return;
         final android.content.SharedPreferences sp = getSharedPreferences("settings", MODE_PRIVATE);
         long now = System.currentTimeMillis();
         boolean wifi = NetCheck.hasLocalNetwork(this);
@@ -135,19 +139,19 @@ public final class MainActivity extends Activity implements RadioService.Ui {
      */
     private void checkRelayPrompt() {
         long now = System.currentTimeMillis();
-        if (!joined || shownOnline != 0) {
+        if (PowerMode.offline() || !joined || shownOnline != 0) {
             nobodySince = 0;
             return;
         }
         if (nobodySince == 0) nobodySince = now;
-        if (now - nobodySince < 60000 || relayDialog != null) return;
+        if (now - nobodySince < PowerMode.quietMs() || relayDialog != null) return;
         if (prefs.tunnelServer().length() == 0 || prefs.tunnelKey().length() == 0 || prefs.tunnelClientOn()) return;
         android.content.SharedPreferences sp = getSharedPreferences("settings", MODE_PRIVATE);
         if (now - sp.getLong("relayPromptAt", 0) < 15 * 60000L) return;
         sp.edit().putLong("relayPromptAt", now).commit();
         relayDialog = new android.app.AlertDialog.Builder(this)
                 .setTitle("Nobody heard")
-                .setMessage("No one has been heard for a minute. A relay server is set up (" + prefs.tunnelServer()
+                .setMessage("No one has been heard for " + (PowerMode.quietMs() <= 60000 ? "a minute" : PowerMode.quietMs() / 60000 + " minutes") + ". A relay server is set up (" + prefs.tunnelServer()
                         + ") but not in use.\n\nTest and enter relay server mode?")
                 .setPositiveButton("Test and use it", new android.content.DialogInterface.OnClickListener() {
                     @Override
@@ -208,6 +212,11 @@ public final class MainActivity extends Activity implements RadioService.Ui {
                     }
                     if (service.engine() == null) requestJoin();
                     startActivity(new Intent(MainActivity.this, TvActivity.class));
+                    return;
+                }
+                // Left with Exit while on air: ask first.
+                if (service.engine() == null && service.compat() == null && prefs.exitSlots().length() > 0) {
+                    askReconnect();
                     return;
                 }
                 // App start: back on the channel it was on (the same one stays main with dual watch).
@@ -461,6 +470,8 @@ public final class MainActivity extends Activity implements RadioService.Ui {
             recreate(); // home screen style changed in Settings
             return;
         }
+        if (PowerMode.letScreenSleep()) getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        else getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         View black = findViewById(R.id.black_screen);
         if (black != null) black.setVisibility(prefs.blackScreenButton() ? View.VISIBLE : View.GONE);
         View reports = findViewById(R.id.reports);
@@ -956,7 +967,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
     protected void onStop() {
         stoppedAt = System.currentTimeMillis();
         handler.removeCallbacks(rosterTick);
-        if (service != null) service.setUi(null);
+        if (service != null) service.clearUi(this); // a new copy of this screen may already be showing
         unbindService(conn);
         service = null;
         super.onStop();
@@ -1571,6 +1582,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
     @Override
     public void onUserInteraction() {
         super.onUserInteraction();
+        wokeForVoice = false;
         restartBlackTimer();
     }
 
@@ -1583,6 +1595,9 @@ public final class MainActivity extends Activity implements RadioService.Ui {
                     @Override
                     public void onClick(DialogInterface d, int w) {
                         RadioService s = RadioService.instance();
+                        boolean onAir = s != null && (s.engine() != null || s.compat() != null);
+                        prefs.setExitSlots(onAir ? s.slotsOnAir() : "");
+                        startupRejoinDone = false; // the next open asks, even if Android keeps this process
                         if (s != null) s.stopEverything();
                         finishAffinity();
                     }
@@ -1591,10 +1606,111 @@ public final class MainActivity extends Activity implements RadioService.Ui {
                 .show();
     }
 
+    /** Opened again after Exit: which channels it was on, and their remote state, then reconnect or stay off air. */
+    private void askReconnect() {
+        String[] slots = prefs.exitSlots().split(",");
+        prefs.setExitSlots("");
+        StringBuilder list = new StringBuilder();
+        for (int i = 0; i < slots.length; i++) {
+            int s;
+            try {
+                s = Integer.parseInt(slots[i].trim());
+            } catch (NumberFormatException e) {
+                continue;
+            }
+            list.append(label(s)).append(i == 0 ? " (talking)" : " (listening)");
+            if (prefs.tunnelSetUp() && s != Prefs.SLOT_OPENMANET) {
+                list.append(": remote ").append(prefs.tunnelClientOn() || prefs.tunnelSlot(s) ? "on" : "off");
+            }
+            list.append('\n');
+        }
+        new AlertDialog.Builder(this).setTitle("Reconnect last channels?").setMessage(list.toString().trim())
+                .setCancelable(false)
+                .setPositiveButton("Reconnect", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface d, int w) {
+                        requestJoin();
+                    }
+                })
+                .setNegativeButton("Stay off air", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface d, int w) {
+                        prefs.setWasOnAir(false);
+                    }
+                }).show();
+    }
+
+    /**
+     * Home network set up (Settings > LAN storage) and the tunnel for every channel: on reaching home with it
+     * on, or another WiFi with it off, asks once whether to change it. Never over a dialog or the black screen.
+     */
+    private void checkRemoteNetwork() {
+        if (PowerMode.offline() || !prefs.tunnelSetUp() || !LanSync.homeEnabled(this) || LanSync.homeSsid(this).length() == 0) return;
+        if (!hasWindowFocus() || LightDiscipline.blackedOut(this)) return;
+        String now = LanSync.currentSsid(this);
+        if (now.length() == 0) return;
+        final boolean home = LanSync.atHome(this);
+        String where = home ? "home" : now;
+        if (where.equals(prefs.remoteNetSeen())) return;
+        prefs.setRemoteNetSeen(where);
+        if (home != prefs.tunnelClientOn()) return; // already right for this network
+        new AlertDialog.Builder(this)
+                .setMessage(home ? "You are on your home network, do you want to disable remote?"
+                        : "You appear away from your home network, enable remote?")
+                .setPositiveButton(home ? "Disable remote" : "Enable remote", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface d, int w) {
+                        prefs.setTunnelClientOn(!home);
+                        RadioService rs = RadioService.instance();
+                        if (rs != null) rs.applyTunnelNow();
+                    }
+                })
+                .setNegativeButton(android.R.string.cancel, null).show();
+    }
+
+    /** Asks once as the battery passes each level set in Power and sleep. Never in Off line or on charge. */
+    private void checkBatteryAsk() {
+        int pct = RadioEngine.myBattery, saver = prefs.powerAskSaver(), ultra = prefs.powerAskUltra();
+        if (pct < 0 || PowerMode.charging || pct > Math.max(saver, ultra) + 5) {
+            if (prefs.powerAsked() != 0) prefs.setPowerAsked(0);
+            return;
+        }
+        if (PowerMode.offline() || !hasWindowFocus() || LightDiscipline.blackedOut(this)) return;
+        final int want = ultra > 0 && pct <= ultra ? PowerMode.ULTRA : saver > 0 && pct <= saver ? PowerMode.SAVER : PowerMode.NORMAL;
+        if (want <= PowerMode.mode() || want <= prefs.powerAsked()) return;
+        prefs.setPowerAsked(want);
+        new AlertDialog.Builder(this).setTitle("Battery " + pct + "%")
+                .setMessage(want == PowerMode.ULTRA ? "Switch to Ultra low? With the screen off the radio sleeps and checks in every 4 minutes, "
+                        + "so live voice is missed until you use it, and a sound plays for missed messages."
+                        : "Switch to Power saver? Slower check-ins and GPS and no background data. Live voice still works.")
+                .setPositiveButton("Switch", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface d, int w) {
+                        PowerMode.set(MainActivity.this, want);
+                        getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+                    }
+                })
+                .setNegativeButton("Not now", null).show();
+    }
+
+    private boolean wokeForVoice;
+
+    /** Power and sleep: the black screen comes back while someone is heard, and goes black again after. */
+    private void checkBlackWake() {
+        RadioService s = RadioService.instance();
+        if (s == null || !s.blackWakes()) return;
+        if (shownTalker != null && LightDiscipline.blackedOut(this)) {
+            LightDiscipline.endBlackout(this);
+            wokeForVoice = true;
+        } else if (shownTalker == null && wokeForVoice) {
+            wokeForVoice = false;
+            LightDiscipline.blackout(this);
+        }
+    }
+
     private void showChannelQr() {
         showChannelQr(this, slot);
     }
-
     /** Shows the QR that carries a channel's name (the passcode). Also used from Settings. */
     static void showChannelQr(Activity a, int slot) {
         String name = new Prefs(a).channel(slot);
@@ -1951,7 +2067,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         setupAsk = new android.app.AlertDialog.Builder(this)
                 .setTitle("Keep the app on screen (black screen)")
                 .setMessage("For live voice and messages, leave this app open on screen. The black screen turns the "
-                        + "display black at the lowest backlight while the app stays in front and on air; double-tap "
+                        + "display black with the backlight off while the app stays in front and on air; double-tap "
                         + "to wake it.\n\nIf the app is closed, or another app is in front, Android may pause it and "
                         + "live voice and messages might not arrive reliably. When you come back, the app asks the "
                         + "others for what was sent meanwhile (messages, reports, map points, files) and shows it "

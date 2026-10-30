@@ -71,21 +71,141 @@ public final class MapActivity extends Activity {
         return p == 1 ? "Satellite" : p == 3 ? "Topo" : p == 0 ? "Street" : "Layer";
     }
 
+    /** One of the feeds that can be ticked under Layer. */
+    private interface LayerFeed {
+        /** False if it has to be set up first. */
+        boolean set(boolean on);
+
+        void setUp();
+    }
+
+    /** The map type, and ticks for what is drawn over it. */
     private void chooseLayer() {
-        int cur = -1;
-        for (int i = 0; i < LAYER_PRESETS.length; i++) if (LAYER_PRESETS[i] == mp.onlinePreset()) cur = i;
-        new android.app.AlertDialog.Builder(this).setTitle("Map layer")
-                .setSingleChoiceItems(LAYER_NAMES, cur, new android.content.DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(android.content.DialogInterface d, int which) {
-                        mp.setOnline(LAYER_PRESETS[which], mp.customUrl());
-                        tilePrompt.apply();
-                        layerButton.setText(layerWord());
-                        refresh();
-                        d.dismiss();
-                    }
-                })
-                .setNegativeButton(android.R.string.cancel, null).show();
+        if (ships == null) ships = new org.communitycomms.app.geo.ShipFeed(this);
+        if (adsb == null) adsb = new org.communitycomms.app.geo.AdsbFeed(this);
+        if (alerts == null) alerts = new org.communitycomms.app.geo.CapFeed(this);
+        float d = getResources().getDisplayMetrics().density;
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding((int) (20 * d), (int) (8 * d), (int) (20 * d), 0);
+        android.widget.RadioGroup types = new android.widget.RadioGroup(this);
+        for (int i = 0; i < LAYER_PRESETS.length; i++) {
+            android.widget.RadioButton r = new android.widget.RadioButton(this);
+            r.setId(i + 1);
+            r.setText(LAYER_NAMES[i]);
+            types.addView(r);
+            if (LAYER_PRESETS[i] == mp.onlinePreset()) types.check(r.getId());
+        }
+        types.setOnCheckedChangeListener(new android.widget.RadioGroup.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(android.widget.RadioGroup g, int id) {
+                mp.setOnline(LAYER_PRESETS[id - 1], mp.customUrl());
+                tilePrompt.apply();
+                layerButton.setText(layerWord());
+                refresh();
+            }
+        });
+        box.addView(types);
+        TextView over = new TextView(this);
+        over.setText("\nOver the map:");
+        box.addView(over);
+        final android.app.AlertDialog[] dlg = new android.app.AlertDialog[1];
+        layerTick(box, "Ships and boats (AIS)", ships.enabled(), dlg, new LayerFeed() {
+            @Override
+            public boolean set(boolean on) {
+                return ships.setOn(on);
+            }
+
+            @Override
+            public void setUp() {
+                setUpShips();
+            }
+        });
+        layerTick(box, "Aircraft (ADS-B)", adsb.source() != org.communitycomms.app.geo.AdsbFeed.OFF, dlg, new LayerFeed() {
+            @Override
+            public boolean set(boolean on) {
+                return adsb.setOn(on);
+            }
+
+            @Override
+            public void setUp() {
+                setUpAdsb();
+            }
+        });
+        layerTick(box, "Emergency alerts", alerts.enabled(), dlg, new LayerFeed() {
+            @Override
+            public boolean set(boolean on) {
+                return alerts.setOn(on);
+            }
+
+            @Override
+            public void setUp() {
+                setUpAlerts();
+            }
+        });
+        dlg[0] = new android.app.AlertDialog.Builder(this).setTitle("Map layer").setView(box)
+                .setPositiveButton(android.R.string.ok, null).show();
+    }
+
+    private void layerTick(LinearLayout box, String name, boolean on, final android.app.AlertDialog[] dlg, final LayerFeed feed) {
+        android.widget.CheckBox tick = new android.widget.CheckBox(this);
+        tick.setText(name);
+        tick.setChecked(on);
+        tick.setOnCheckedChangeListener(new android.widget.CompoundButton.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(android.widget.CompoundButton b, boolean now) {
+                if (feed.set(now)) {
+                    feedsChanged();
+                } else {
+                    dlg[0].dismiss();
+                    feed.setUp();
+                }
+            }
+        });
+        box.addView(tick);
+    }
+
+    /** A feed was turned on or off, or set up. */
+    private void feedsChanged() {
+        RadioService rs = RadioService.instance();
+        if (rs != null) {
+            rs.applyAisShare();
+            rs.applyAdsbShare();
+        }
+        startShips();
+        startAdsb();
+        startAlerts();
+        refresh();
+    }
+
+    private void setUpAlerts() {
+        if (alerts == null) alerts = new org.communitycomms.app.geo.CapFeed(this);
+        alerts.choose(this, new Runnable() {
+            @Override
+            public void run() {
+                feedsChanged();
+            }
+        });
+    }
+
+    private void setUpShips() {
+        if (ships == null) ships = new org.communitycomms.app.geo.ShipFeed(this);
+        ships.choose(this, new Runnable() {
+            @Override
+            public void run() {
+                feedsChanged();
+            }
+        });
+    }
+
+    private void setUpAdsb() {
+        if (adsb == null) adsb = new org.communitycomms.app.geo.AdsbFeed(this);
+        adsb.choose(this, new Runnable() {
+            @Override
+            public void run() {
+                feedsChanged();
+            }
+        });
     }
 
     /** The word under the points filter icon: the channel letter, or All. */
@@ -1035,40 +1155,15 @@ public final class MapActivity extends Activity {
             return true;
         }
         if (item.getItemId() == 7) {
-            if (alerts == null) alerts = new org.communitycomms.app.geo.CapFeed(this);
-            alerts.choose(this, new Runnable() {
-                @Override
-                public void run() {
-                    startAlerts();
-                    refresh();
-                }
-            });
+            setUpAlerts();
             return true;
         }
         if (item.getItemId() == 3) {
-            if (ships == null) ships = new org.communitycomms.app.geo.ShipFeed(this);
-            ships.choose(this, new Runnable() {
-                @Override
-                public void run() {
-                    RadioService rs = RadioService.instance();
-                    if (rs != null) rs.applyAisShare();
-                    startShips();
-                    refresh();
-                }
-            });
+            setUpShips();
             return true;
         }
         if (item.getItemId() == 1) {
-            if (adsb == null) adsb = new org.communitycomms.app.geo.AdsbFeed(this);
-            adsb.choose(this, new Runnable() {
-                @Override
-                public void run() {
-                    RadioService rs = RadioService.instance();
-                    if (rs != null) rs.applyAdsbShare();
-                    startAdsb();
-                    refresh();
-                }
-            });
+            setUpAdsb();
             return true;
         }
         return super.onOptionsItemSelected(item);

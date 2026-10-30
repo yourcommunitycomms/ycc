@@ -52,6 +52,7 @@ public final class RadioService extends Service implements RadioEngine.Listener 
     }
 
     public static final String ACTION_RESEND = "org.communitycomms.app.RESEND";
+    private static final String ACTION_CHECK_IN = "org.communitycomms.app.CHECK_IN";
     private static final long RESEND_REMINDER_MS = 5 * 60000;
     private static final int NOTIF_FAILED = 2;
     private android.speech.tts.TextToSpeech tts;
@@ -210,6 +211,11 @@ public final class RadioService extends Service implements RadioEngine.Listener 
     /** The stream the radio plays on is at its lowest setting. */
     private boolean volumeZero;
 
+    /** A call or voice brings the black screen back: the setting, never in stealth. */
+    public boolean blackWakes() {
+        return new Prefs(this).blackWake() && curStatus != RadioEngine.STATUS_STEALTH;
+    }
+
     public int radioStatus() {
         return curStatus;
     }
@@ -226,7 +232,9 @@ public final class RadioService extends Service implements RadioEngine.Listener 
             readBattery();
             checkStatus();
             mergeContacts();
-            if (++statusTicks % 30 == 0) LanSync.maybeRun(RadioService.this); // once a minute: due LAN sync / update check
+            if (++statusTicks % 30 == 0 && PowerMode.lanSyncOn()) LanSync.maybeRun(RadioService.this); // once a minute: due LAN sync / update check
+            PowerMode.alone = Contacts.get(RadioService.this).onlineCount() == 0;
+            applyPower();
             AtakBridge.apply(RadioService.this); // Settings: ATAK compatible on / off
         }
     };
@@ -505,6 +513,7 @@ public final class RadioService extends Service implements RadioEngine.Listener 
             int level = i.getIntExtra(android.os.BatteryManager.EXTRA_LEVEL, -1);
             int scale = i.getIntExtra(android.os.BatteryManager.EXTRA_SCALE, 100);
             if (level >= 0 && scale > 0) RadioEngine.myBattery = level * 100 / scale;
+            PowerMode.charging = i.getIntExtra(android.os.BatteryManager.EXTRA_PLUGGED, 0) != 0;
         } catch (RuntimeException ignored) {
         }
     }
@@ -579,7 +588,9 @@ public final class RadioService extends Service implements RadioEngine.Listener 
         java.util.Iterator<java.util.Map.Entry<String, Long>> it = dropWatch.entrySet().iterator();
         while (it.hasNext()) {
             java.util.Map.Entry<String, Long> en = it.next();
-            if (now - en.getValue() < DROP_MS) continue;
+            long grace = 0;
+            for (RadioEngine.Station s : e.stations()) if (en.getKey().equals(s.name)) grace = s.checkInMs * 2;
+            if (now - en.getValue() < Math.max(Math.max(DROP_MS, PowerMode.quietMs()), grace)) continue;
             it.remove();
             org.communitycomms.app.msg.MessageLog.Entry m = new org.communitycomms.app.msg.MessageLog.Entry();
             m.id = new java.security.SecureRandom().nextLong();
@@ -587,7 +598,7 @@ public final class RadioService extends Service implements RadioEngine.Listener 
             m.time = now;
             m.creator = en.getKey();
             m.channelTag = e.channelTag();
-            m.body = "Lost contact with " + en.getKey() + " (not heard for " + DROP_MS / 60000 + " minutes)";
+            m.body = "Lost contact with " + en.getKey() + " (not heard for " + Math.max(DROP_MS, PowerMode.quietMs()) / 60000 + " minutes)";
             m.local = true;
             org.communitycomms.app.msg.MessageLog.get(this).put(m);
             buzz(true);
@@ -739,6 +750,7 @@ public final class RadioService extends Service implements RadioEngine.Listener 
     private void showCallScreen(String from, String where) {
         lastCallFrom = from;
         lastCallWhere = where;
+        if (LightDiscipline.covered && !blackWakes()) return; // the black screen stays black
         try {
             startActivity(callScreen(from, where));
         } catch (RuntimeException e) {
@@ -1288,6 +1300,7 @@ public final class RadioService extends Service implements RadioEngine.Listener 
     @Override
     public void onCreate() {
         super.onCreate();
+        watchScreen();
         instance = this;
         restoreRapidShare(); // still sharing after a crash: carries on once back on a channel
         messages =new org.communitycomms.app.msg.MessageCenter(this, new org.communitycomms.app.msg.MessageCenter.Air() {
@@ -1367,6 +1380,10 @@ public final class RadioService extends Service implements RadioEngine.Listener 
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        if (intent != null && ACTION_CHECK_IN.equals(intent.getAction())) {
+            checkIn();
+            return START_STICKY;
+        }
         if (intent != null && ACTION_RESEND.equals(intent.getAction())) {
             if (engine != null) {
                 resendLast();
@@ -1379,6 +1396,9 @@ public final class RadioService extends Service implements RadioEngine.Listener 
 
     @Override
     public void onDestroy() {
+        unregisterReceiver(screenWatch);
+        cancelCheckIn();
+        main.removeCallbacks(endCheckIn);
         if (instance == this) instance = null;
         rapidShareUntil = 0; // a deliberate stop (Exit) ends sharing; a crash never gets here
         saveRapidShare();
@@ -1389,6 +1409,10 @@ public final class RadioService extends Service implements RadioEngine.Listener 
         if (tts != null) tts.shutdown();
         leave();
         super.onDestroy();
+    }
+
+    public void clearUi(Ui old) {
+        if (ui == old) ui = null;
     }
 
     public void setUi(Ui ui) {
@@ -1535,6 +1559,20 @@ public final class RadioService extends Service implements RadioEngine.Listener 
         int[] out = new int[ms.size()];
         for (int i = 0; i < out.length; i++) out[i] = ms.get(i).channelTag();
         return out;
+    }
+
+    /** The channels on air now, main first, as slots ("0,1"). */
+    public String slotsOnAir() {
+        Prefs pr = new Prefs(this);
+        StringBuilder out = new StringBuilder().append(pr.activeSlot());
+        RadioEngine e = engine;
+        if (e != null) {
+            for (RadioEngine m : e.monitors()) {
+                int s = slotNamed(pr, m.channelName());
+                if (s >= 0) out.append(',').append(s);
+            }
+        }
+        return out.toString();
     }
 
     // ---- teams (a channel is a team): message, call and broadcast to channels only listened to ----
@@ -1838,7 +1876,7 @@ public final class RadioService extends Service implements RadioEngine.Listener 
         for (int i = 0; i < t.length; i++) t[i] = tl.get(i);
         org.communitycomms.app.net.Tunnel.tags = t;
         org.communitycomms.app.net.Tunnel.onlyTags = !all;
-        if (pr.tunnelSetUp() && (all || t.length > 0)) {
+        if (pr.tunnelSetUp() && (all || t.length > 0) && !PowerMode.offline()) {
             org.communitycomms.app.net.Tunnel.Relay.stopRelay();
             if (restart || org.communitycomms.app.net.Tunnel.client == null) {
                 org.communitycomms.app.net.Tunnel.Client.start(pr.tunnelServer(), pr.tunnelKey());
@@ -2332,23 +2370,152 @@ public final class RadioService extends Service implements RadioEngine.Listener 
                 return;
             }
             sendFix();
-            main.postDelayed(this, LOCATION_EVERY_MS);
+            main.postDelayed(this, PowerMode.locationMs(LOCATION_EVERY_MS));
         }
     };
 
     private boolean locationWanted() {
-        return engine != null && hasLocationPermission() && (txLocationOn || rapidShareUntil > System.currentTimeMillis());
+        return engine != null && hasLocationPermission()
+                && ((txLocationOn && !PowerMode.idle()) || rapidShareUntil > System.currentTimeMillis());
     }
 
+    // ---- Settings > Power and sleep ----
+
+    private boolean asleep, feedsWere = true, offlineWere;
+    private long asleepSince;
+    private String locationWas = "";
+    private int checkInUnread;
+
+    private final android.content.BroadcastReceiver screenWatch = new android.content.BroadcastReceiver() {
+        @Override
+        public void onReceive(Context c, Intent i) {
+            PowerMode.screenOn = Intent.ACTION_SCREEN_ON.equals(i.getAction());
+            applyPower();
+        }
+    };
+
+    private void watchScreen() {
+        IntentFilter f = new IntentFilter(Intent.ACTION_SCREEN_ON);
+        f.addAction(Intent.ACTION_SCREEN_OFF);
+        registerReceiver(screenWatch, f);
+    }
+
+    /** The mode, PTT or the screen changed. Any thread. */
+    public void powerChanged() {
+        main.post(new Runnable() {
+            @Override
+            public void run() {
+                applyPower();
+            }
+        });
+    }
+
+    private void applyPower() {
+        boolean feeds = PowerMode.feedsOn();
+        if (feeds != feedsWere) {
+            feedsWere = feeds;
+            org.communitycomms.app.geo.AdsbFeed.restart();
+            org.communitycomms.app.geo.ShipFeed.restart();
+            org.communitycomms.app.geo.CapFeed.restart();
+        }
+        boolean onAir = engine != null || compat != null;
+        boolean sleep = onAir && PowerMode.sleeping();
+        if (sleep != asleep) {
+            asleep = sleep;
+            org.communitycomms.app.audio.Mixer.resting = sleep;
+            main.removeCallbacks(endCheckIn);
+            if (sleep) {
+                asleepSince = System.currentTimeMillis();
+                releaseLocks();
+                scheduleCheckIn();
+            } else {
+                cancelCheckIn();
+                if (onAir) {
+                    acquireLocks();
+                    RadioEngine e = engine;
+                    if (e != null) e.sendPresenceNow();
+                    catchUpAfterAway(System.currentTimeMillis() - asleepSince);
+                }
+            }
+        }
+        if (PowerMode.offline() != offlineWere) {
+            offlineWere = PowerMode.offline();
+            applyTunnelNow();
+        }
+        String location = locationWanted() + ":" + PowerMode.locationMs(LOCATION_EVERY_MS);
+        if (!location.equals(locationWas)) {
+            locationWas = location;
+            updateLocationLoop();
+        }
+    }
+
+    private android.app.PendingIntent checkInIntent() {
+        int fl = Build.VERSION.SDK_INT >= 23 ? android.app.PendingIntent.FLAG_IMMUTABLE | android.app.PendingIntent.FLAG_UPDATE_CURRENT
+                : android.app.PendingIntent.FLAG_UPDATE_CURRENT;
+        return android.app.PendingIntent.getService(this, 41, new Intent(this, RadioService.class).setAction(ACTION_CHECK_IN), fl);
+    }
+
+    private void scheduleCheckIn() {
+        android.app.AlarmManager am = (android.app.AlarmManager) getSystemService(ALARM_SERVICE);
+        if (am == null) return;
+        long at = android.os.SystemClock.elapsedRealtime() + PowerMode.ULTRA_CHECK_IN_MS;
+        if (Build.VERSION.SDK_INT >= 31 ? am.canScheduleExactAlarms() : Build.VERSION.SDK_INT >= 23) am.setExactAndAllowWhileIdle(android.app.AlarmManager.ELAPSED_REALTIME_WAKEUP, at, checkInIntent());
+        else if (Build.VERSION.SDK_INT >= 23) am.setAndAllowWhileIdle(android.app.AlarmManager.ELAPSED_REALTIME_WAKEUP, at, checkInIntent());
+        else am.set(android.app.AlarmManager.ELAPSED_REALTIME_WAKEUP, at, checkInIntent());
+    }
+
+    private void cancelCheckIn() {
+        android.app.AlarmManager am = (android.app.AlarmManager) getSystemService(ALARM_SERVICE);
+        if (am != null) am.cancel(checkInIntent());
+    }
+
+    /** Ultra low: awake for a moment to say hello and ask for what was missed. */
+    private void checkIn() {
+        RadioEngine e = engine;
+        if (!asleep || e == null) return;
+        Log.i(TAG, "power: check-in");
+        acquireLocks();
+        e.sendPresenceNow();
+        if (locationWanted()) sendFix();
+        checkInUnread = org.communitycomms.app.msg.MessageLog.unread;
+        catchUpAfterAway(PowerMode.ULTRA_CHECK_IN_MS + 60000);
+        main.postDelayed(endCheckIn, 20000);
+    }
+
+    private final Runnable endCheckIn = new Runnable() {
+        @Override
+        public void run() {
+            if (org.communitycomms.app.msg.MessageLog.unread > checkInUnread) missedTone();
+            if (asleep) {
+                releaseLocks();
+                scheduleCheckIn();
+            }
+        }
+    };
+
+    /** A sound for messages that came in at a check-in (silent when stealth). */
+    private void missedTone() {
+        if (curStatus == RadioEngine.STATUS_STEALTH) return;
+        try {
+            final android.media.ToneGenerator t = new android.media.ToneGenerator(android.media.AudioManager.STREAM_NOTIFICATION, 100);
+            t.startTone(android.media.ToneGenerator.TONE_PROP_ACK, 500);
+            main.postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    t.release();
+                }
+            }, 1000);
+        } catch (RuntimeException ignored) {
+            // no tone generator free
+        }
+    }
     @SuppressLint("MissingPermission")
     private void updateLocationLoop() {
         android.location.LocationManager lm = (android.location.LocationManager) getSystemService(Context.LOCATION_SERVICE);
         main.removeCallbacks(locationTick);
-        if (!locationWanted()) {
-            if (fixListener != null && lm != null) lm.removeUpdates(fixListener);
-            fixListener = null;
-            return;
-        }
+        if (fixListener != null && lm != null) lm.removeUpdates(fixListener); // the rate may have changed
+        fixListener = null;
+        if (!locationWanted()) return;
         if (fixListener == null && lm != null) {
             fixListener = new android.location.LocationListener() {
                 @Override
@@ -2370,7 +2537,7 @@ public final class RadioService extends Service implements RadioEngine.Listener 
             };
             try {
                 for (String p : new String[]{android.location.LocationManager.GPS_PROVIDER, android.location.LocationManager.NETWORK_PROVIDER}) {
-                    if (lm.getAllProviders().contains(p)) lm.requestLocationUpdates(p, 5000, 0, fixListener, Looper.getMainLooper());
+                    if (lm.getAllProviders().contains(p)) lm.requestLocationUpdates(p, PowerMode.locationMs(5000), 0, fixListener, Looper.getMainLooper());
                 }
             } catch (RuntimeException ignored) {
                 // no permission or provider

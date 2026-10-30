@@ -566,6 +566,70 @@ public final class Prefs {
         sp.edit().putBoolean("blackScreenButton", on).commit();
     }
 
+    // ---- Settings > Power and sleep ----
+
+    public int powerMode() {
+        return sp.getInt("powerMode", PowerMode.NORMAL);
+    }
+
+    public void setPowerMode(int m) {
+        sp.edit().putInt("powerMode", m).commit();
+    }
+
+    /** Battery percent at which to ask about Power saver; 0 = never. */
+    public int powerAskSaver() {
+        return sp.getInt("powerAskSaver", 20);
+    }
+
+    public void setPowerAskSaver(int pct) {
+        sp.edit().putInt("powerAskSaver", pct).commit();
+    }
+
+    /** Battery percent at which to ask about Ultra low; 0 = never. */
+    public int powerAskUltra() {
+        return sp.getInt("powerAskUltra", 10);
+    }
+
+    public void setPowerAskUltra(int pct) {
+        sp.edit().putInt("powerAskUltra", pct).commit();
+    }
+
+    /** The lowest level asked about since the battery was last above it, so each is asked once. */
+    public int powerAsked() {
+        return sp.getInt("powerAsked", 0);
+    }
+
+    public void setPowerAsked(int level) {
+        sp.edit().putInt("powerAsked", level).commit();
+    }
+
+    /** Black screen: comes back on for an incoming call or voice, then goes black again. On by default, never in stealth. */
+    public boolean blackWake() {
+        return sp.getBoolean("blackWake", true);
+    }
+
+    public void setBlackWake(boolean on) {
+        sp.edit().putBoolean("blackWake", on).commit();
+    }
+
+    /** Set by Exit while on air: the slots then, main first, so the next start can ask before reconnecting. */
+    public String exitSlots() {
+        return sp.getString("exitSlots", "");
+    }
+
+    public void setExitSlots(String s) {
+        sp.edit().putString("exitSlots", s).commit();
+    }
+
+    /** The network last asked about for remote: "home", or a WiFi name. Asked once for each change. */
+    public String remoteNetSeen() {
+        return sp.getString("remoteNetSeen", "");
+    }
+
+    public void setRemoteNetSeen(String s) {
+        sp.edit().putString("remoteNetSeen", s).commit();
+    }
+
     public boolean blackoutLegacy() {
         return sp.getBoolean("blackoutLegacy", false);
     }

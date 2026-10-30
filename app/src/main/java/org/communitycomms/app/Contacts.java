@@ -34,9 +34,11 @@ public final class Contacts {
         /** Channel it was last heard on: "A", "B", "Public", "OpenMANET". */
         public String heardOn = "";
         public String address = "";
+        /** How often they check in when in a power mode, or 0 (not saved). */
+        public long checkInMs;
 
         public boolean online(long now) {
-            return now - lastSeenMs < ONLINE_MS;
+            return now - lastSeenMs < checkInMs + ONLINE_MS;
         }
 
         public boolean hasFix() {

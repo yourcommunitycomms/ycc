@@ -38,6 +38,36 @@ public final class LightDiscipline implements Application.ActivityLifecycleCallb
         apply(a);
     }
 
+    /** Settings > Power and sleep: red light on from one time of day until another (minutes after midnight). */
+    public static boolean redAuto(Context c) {
+        return c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean("redAuto", false);
+    }
+
+    public static int redFrom(Context c) {
+        return c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getInt("redFrom", 19 * 60);
+    }
+
+    public static int redTo(Context c) {
+        return c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getInt("redTo", 7 * 60);
+    }
+
+    public static void setRedSchedule(Context c, boolean on, int from, int to) {
+        c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean("redAuto", on).putInt("redFrom", from).putInt("redTo", to).commit();
+    }
+
+    /** Changes red light only as a set time passes, so turning it on or off by hand lasts until then. */
+    public static void checkRedSchedule(Activity a) {
+        if (!redAuto(a)) return;
+        java.util.Calendar cal = java.util.Calendar.getInstance();
+        int now = cal.get(java.util.Calendar.HOUR_OF_DAY) * 60 + cal.get(java.util.Calendar.MINUTE);
+        int from = redFrom(a), to = redTo(a);
+        boolean inside = from <= to ? now >= from && now < to : now >= from || now < to;
+        android.content.SharedPreferences sp = a.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        if (sp.contains("redAutoWas") && inside == sp.getBoolean("redAutoWas", false)) return;
+        sp.edit().putBoolean("redAutoWas", inside).commit();
+        setRedMode(a, inside);
+    }
+
     /** Applies or removes the red filter on an activity's window. */
     public static void apply(Activity a) {
         View root = a.getWindow().getDecorView();
@@ -110,10 +140,12 @@ public final class LightDiscipline implements Application.ActivityLifecycleCallb
         IntentFilter f = new IntentFilter(Intent.ACTION_SCREEN_OFF);
         f.addAction(Intent.ACTION_USER_PRESENT);
         a.registerReceiver(screen, f);
+        covered = true;
         cover.setTag(new Runnable() {
             @Override
             public void run() {
                 a.unregisterReceiver(screen);
+                covered = false;
                 decor.removeView(cover);
                 lp.screenBrightness = oldBrightness;
                 a.getWindow().setAttributes(lp);
@@ -143,6 +175,13 @@ public final class LightDiscipline implements Application.ActivityLifecycleCallb
         decor.addView(cover, new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
     }
 
+    /** Any screen is black now. */
+    public static volatile boolean covered;
+
+    public static boolean blackedOut(Activity a) {
+        return a.getWindow().getDecorView().findViewById(BLACKOUT_ID) != null;
+    }
+
     /** Takes the black cover off, if there is one. */
     public static void endBlackout(Activity a) {
         View cover = a.getWindow().getDecorView().findViewById(BLACKOUT_ID);
@@ -161,6 +200,7 @@ public final class LightDiscipline implements Application.ActivityLifecycleCallb
 
     @Override
     public void onActivityResumed(Activity a) {
+        checkRedSchedule(a);
         apply(a);
     }
 

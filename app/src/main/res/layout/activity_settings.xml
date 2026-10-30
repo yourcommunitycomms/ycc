@@ -20,6 +20,7 @@
             <Button android:id="@+id/link_channels" style="@style/SmallButton" android:text="@string/page_channels" android:layout_width="match_parent" android:layout_weight="0" />
             <Button android:id="@+id/link_audio" style="@style/SmallButton" android:text="@string/page_audio" android:layout_width="match_parent" android:layout_weight="0" />
             <Button android:id="@+id/link_home" style="@style/SmallButton" android:text="@string/page_home" android:layout_width="match_parent" android:layout_weight="0" />
+            <Button android:id="@+id/link_power" style="@style/SmallButton" android:text="@string/page_power" android:layout_width="match_parent" android:layout_weight="0" />
             <Button android:id="@+id/link_network" style="@style/SmallButton" android:text="@string/page_network" android:layout_width="match_parent" android:layout_weight="0" />
             <Button android:id="@+id/link_security" style="@style/SmallButton" android:text="@string/page_security" android:layout_width="match_parent" android:layout_weight="0" />
             <Button android:id="@+id/link_data" style="@style/SmallButton" android:text="@string/page_data" android:layout_width="match_parent" android:layout_weight="0" />
@@ -120,6 +121,28 @@
                 <Button android:id="@+id/quick_custom" style="@style/SmallButton" android:text="@string/quick_custom" />
             </LinearLayout>
             <Button android:id="@+id/my_icon" android:layout_width="match_parent" android:layout_height="wrap_content" android:textAllCaps="false" />
+            <CheckBox android:id="@+id/offer_missed" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/offer_missed" />
+            <Button android:id="@+id/tv_mode" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="16dp" android:text="TV mode (map and chat on a big screen)" />
+        </LinearLayout>
+        <LinearLayout android:id="@+id/sec_power" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical">
+            <TextView style="@style/Label" android:text="Power mode" />
+            <RadioGroup android:id="@+id/power_mode" android:layout_width="match_parent" android:layout_height="wrap_content">
+                <RadioButton android:id="@+id/power_normal" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Normal" />
+                <RadioButton android:id="@+id/power_saver" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Power saver: check-ins and GPS every 30 seconds, no background data, screen sleeps normally. Live voice still works." />
+                <RadioButton android:id="@+id/power_ultra" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Ultra low: with the screen off the radio sleeps and wakes every 4 minutes to check in. Live voice is missed; a sound plays for missed messages." />
+                <RadioButton android:id="@+id/power_offline" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Off line: for no network. No remote prompts, sync or tunnel. With nobody around and the screen off, GPS and check-ins rest." />
+            </RadioGroup>
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="After PTT, Power saver and Ultra low work as normal for 3 minutes so a reply is heard." android:textSize="12sp" />
+            <TextView style="@style/Label" android:text="Ask to change at battery level" />
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical" android:orientation="horizontal">
+                <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Ask about Power saver at (%, 0 = never)" />
+                <EditText android:id="@+id/power_ask_saver" android:layout_width="80dp" android:layout_height="wrap_content" android:inputType="number" android:maxLength="3" android:singleLine="true" />
+            </LinearLayout>
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical" android:orientation="horizontal">
+                <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Ask about Ultra low at (%, 0 = never)" />
+                <EditText android:id="@+id/power_ask_ultra" android:layout_width="80dp" android:layout_height="wrap_content" android:inputType="number" android:maxLength="3" android:singleLine="true" />
+            </LinearLayout>
+            <TextView style="@style/Label" android:text="@string/black_screen" />
             <CheckBox android:id="@+id/black_screen_button" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/black_screen_button" />
             <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/black_screen_note" android:textColor="#ffb74d" android:textSize="12sp" />
             <CheckBox android:id="@+id/black_legacy" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/black_legacy" />
@@ -129,8 +152,14 @@
                 <EditText android:id="@+id/black_after" android:layout_width="80dp" android:layout_height="wrap_content" android:inputType="number" android:maxLength="4" android:singleLine="true" />
             </LinearLayout>
             <TextView android:id="@+id/black_after_note" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="12sp" />
-            <CheckBox android:id="@+id/offer_missed" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/offer_missed" />
-            <Button android:id="@+id/tv_mode" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="16dp" android:text="TV mode (map and chat on a big screen)" />
+            <CheckBox android:id="@+id/black_wake" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Screen on during radio calls: comes back on for a call or voice, then goes black again (never in Stealth)" />
+            <TextView style="@style/Label" android:text="Red light" />
+            <CheckBox android:id="@+id/red_mode" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Red light mode" />
+            <CheckBox android:id="@+id/red_auto" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Turn it on and off automatically at these times" />
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
+                <Button android:id="@+id/red_from" style="@style/SmallButton" android:textAllCaps="false" />
+                <Button android:id="@+id/red_to" style="@style/SmallButton" android:textAllCaps="false" />
+            </LinearLayout>
         </LinearLayout>
         <LinearLayout android:id="@+id/sec_network" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical">
             <TextView style="@style/Label" android:text="@string/network" />

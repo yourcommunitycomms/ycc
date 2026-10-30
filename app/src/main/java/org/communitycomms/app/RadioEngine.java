@@ -321,6 +321,8 @@ public final class RadioEngine {
         public int status = -1;
         /** Battery percent from their presence, or -1 when unknown. */
         public int battery = -1;
+        /** From their presence: how often they check in when slower than normal (a power mode), or 0. */
+        public long checkInMs;
 
         Station(long id) {
             this.id = id;
@@ -411,7 +413,11 @@ public final class RadioEngine {
         timer.schedule(new TimerTask() {
             @Override
             public void run() {
-                sendPresence();
+                long now = System.currentTimeMillis();
+                if (now - lastPresenceMs >= PowerMode.presenceMs() - 500) {
+                    lastPresenceMs = now;
+                    sendPresence();
+                }
                 pruneStations();
             }
         }, 200, 5000);
@@ -659,6 +665,7 @@ public final class RadioEngine {
             toneLeft = startTone ? TONE_FRAMES : 0;
             tonePhase = 0;
             micToAir = true;
+            PowerMode.pttUsed();
             capture.start();
             listener.onTransmitChanged(true);
         } else {
@@ -991,10 +998,13 @@ public final class RadioEngine {
      * Presence payload after the name: status(1) battery(1, 0-100, 255 = unknown). Older apps send
      * only the name and ignore the extra bytes, so both directions still work.
      */
+    private long lastPresenceMs;
+
     private void sendPresence() {
-        byte[] p = namePayload(2);
-        p[p.length - 2] = (byte) myStatus;
-        p[p.length - 1] = (byte) (myBattery < 0 || myBattery > 100 ? 255 : myBattery);
+        byte[] p = namePayload(3);
+        p[p.length - 3] = (byte) myStatus;
+        p[p.length - 2] = (byte) (myBattery < 0 || myBattery > 100 ? 255 : myBattery);
+        p[p.length - 1] = (byte) PowerMode.checkInByte();
         send(Packet.TYPE_PRESENCE, p, p.length);
     }
 
@@ -1213,6 +1223,7 @@ public final class RadioEngine {
                 if (st != s.status) changed = true;
                 s.status = st;
                 s.battery = bat > 100 ? -1 : bat;
+                s.checkInMs = p.payload.length - off >= 3 ? (p.payload[off + 2] & 0xff) * 10000L : 0;
             } else if (p.type == Packet.TYPE_VOICE && p.payload.length - off >= 7) {
                 changed |= !s.isTalking(now);
                 s.lastVoiceMs = now;
@@ -1321,7 +1332,7 @@ public final class RadioEngine {
                 Station st = it.next();
                 // Keep anyone who advertised a position for a day, so "plot last advertised" works.
                 boolean hasFix = !Double.isNaN(st.lat) && now - st.lastSeenMs < 24 * 3600000L;
-                if (now - st.lastSeenMs > 60000 && !hasFix) {
+                if (now - st.lastSeenMs > Math.max(60000, st.checkInMs * 2) && !hasFix) {
                     it.remove();
                     changed = true;
                 }

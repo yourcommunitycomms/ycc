@@ -17,6 +17,7 @@ public final class CommsApp extends Application {
         Cw.restore(this); // CW mode survives a restart or a crash
         org.communitycomms.app.geo.Geo.loadUnits(this);
         registerActivityLifecycleCallbacks(new LightDiscipline());
+        PowerMode.load(this);
         registerActivityLifecycleCallbacks(new HomeButton());
         Prefs p = new Prefs(this);
         RadioEngine.radioSilent = p.radioSilent(); // a silent phone stays silent after a restart

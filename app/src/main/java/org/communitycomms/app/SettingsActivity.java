@@ -827,6 +827,7 @@ public final class SettingsActivity extends Activity {
                 prefs.setBlackoutLegacy(on);
             }
         });
+        setUpPower();
         final EditText blackAfter = (EditText) findViewById(R.id.black_after);
         blackAfter.setText(String.valueOf(prefs.blackAfterSec()));
         renderBlackAfter();
@@ -1110,12 +1111,12 @@ public final class SettingsActivity extends Activity {
 
     /** Which settings page this is (null = the main page, which links to the others). */
     public static final String EXTRA_SECTION = "section";
-    private static final int[] SECTIONS = {R.id.sec_channels, R.id.sec_audio, R.id.sec_home, R.id.sec_network,
+    private static final int[] SECTIONS = {R.id.sec_channels, R.id.sec_audio, R.id.sec_home, R.id.sec_power, R.id.sec_network,
             R.id.sec_security, R.id.sec_data};
-    private static final int[] LINKS = {R.id.link_channels, R.id.link_audio, R.id.link_home, R.id.link_network,
+    private static final int[] LINKS = {R.id.link_channels, R.id.link_audio, R.id.link_home, R.id.link_power, R.id.link_network,
             R.id.link_security, R.id.link_data};
-    private static final String[] NAMES = {"channels", "audio", "home", "network", "security", "data"};
-    private static final int[] TITLES = {R.string.page_channels, R.string.page_audio, R.string.page_home,
+    private static final String[] NAMES = {"channels", "audio", "home", "power", "network", "security", "data"};
+    private static final int[] TITLES = {R.string.page_channels, R.string.page_audio, R.string.page_home, R.string.page_power,
             R.string.page_network, R.string.page_security, R.string.page_data};
     private int section = -1;
 
@@ -1167,9 +1168,85 @@ public final class SettingsActivity extends Activity {
         if (!recreateFresh) super.onSaveInstanceState(out);
     }
 
+    private static final int[] POWER_RADIOS = {R.id.power_normal, R.id.power_saver, R.id.power_ultra, R.id.power_offline};
+
+    /** Settings > Power and sleep (the black screen settings there are set up with the others). */
+    private void setUpPower() {
+        ((RadioGroup) findViewById(R.id.power_mode)).check(POWER_RADIOS[PowerMode.mode()]);
+        ((RadioGroup) findViewById(R.id.power_mode)).setOnCheckedChangeListener(new RadioGroup.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(RadioGroup g, int id) {
+                for (int i = 0; i < POWER_RADIOS.length; i++) if (POWER_RADIOS[i] == id) PowerMode.set(SettingsActivity.this, i);
+            }
+        });
+        ((EditText) findViewById(R.id.power_ask_saver)).setText(String.valueOf(prefs.powerAskSaver()));
+        ((EditText) findViewById(R.id.power_ask_ultra)).setText(String.valueOf(prefs.powerAskUltra()));
+        CheckBox wake = (CheckBox) findViewById(R.id.black_wake);
+        wake.setChecked(prefs.blackWake());
+        wake.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(CompoundButton bt, boolean on) {
+                prefs.setBlackWake(on);
+            }
+        });
+        CheckBox red = (CheckBox) findViewById(R.id.red_mode);
+        red.setChecked(LightDiscipline.redMode(this));
+        red.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(CompoundButton bt, boolean on) {
+                LightDiscipline.setRedMode(SettingsActivity.this, on);
+            }
+        });
+        CheckBox auto = (CheckBox) findViewById(R.id.red_auto);
+        auto.setChecked(LightDiscipline.redAuto(this));
+        auto.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(CompoundButton bt, boolean on) {
+                LightDiscipline.setRedSchedule(SettingsActivity.this, on, LightDiscipline.redFrom(SettingsActivity.this), LightDiscipline.redTo(SettingsActivity.this));
+                LightDiscipline.checkRedSchedule(SettingsActivity.this);
+            }
+        });
+        redTime(R.id.red_from, "Red light on at ", true);
+        redTime(R.id.red_to, "Red light off at ", false);
+    }
+
+    private void redTime(int id, final String word, final boolean from) {
+        final android.widget.Button b = (android.widget.Button) findViewById(id);
+        int t = from ? LightDiscipline.redFrom(this) : LightDiscipline.redTo(this);
+        b.setText(word + String.format(java.util.Locale.US, "%02d:%02d", t / 60, t % 60));
+        b.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                int now = from ? LightDiscipline.redFrom(SettingsActivity.this) : LightDiscipline.redTo(SettingsActivity.this);
+                new android.app.TimePickerDialog(SettingsActivity.this, new android.app.TimePickerDialog.OnTimeSetListener() {
+                    @Override
+                    public void onTimeSet(android.widget.TimePicker p, int h, int m) {
+                        int at = h * 60 + m;
+                        boolean on = LightDiscipline.redAuto(SettingsActivity.this);
+                        LightDiscipline.setRedSchedule(SettingsActivity.this, on, from ? at : LightDiscipline.redFrom(SettingsActivity.this),
+                                from ? LightDiscipline.redTo(SettingsActivity.this) : at);
+                        b.setText(word + String.format(java.util.Locale.US, "%02d:%02d", h, m));
+                    }
+                }, now / 60, now % 60, true).show();
+            }
+        });
+    }
+
+    private static int percent(EditText e) {
+        try {
+            return Math.max(0, Math.min(100, Integer.parseInt(e.getText().toString().trim())));
+        } catch (NumberFormatException x) {
+            return 0;
+        }
+    }
+
     private void save() {
         if (recreateFresh) return; // being rebuilt with fresh values: nothing typed here to keep
-        if (here(callsign)) prefs.setCallsign(callsign.getText().toString().trim());
+        EditText askSaver = (EditText) findViewById(R.id.power_ask_saver), askUltra = (EditText) findViewById(R.id.power_ask_ultra);
+        if (here(askSaver)) {
+            prefs.setPowerAskSaver(percent(askSaver));
+            prefs.setPowerAskUltra(percent(askUltra));
+        }        if (here(callsign)) prefs.setCallsign(callsign.getText().toString().trim());
         if (here(channelA)) prefs.setChannel(Prefs.SLOT_A, channelA.getText().toString().trim());
         if (here(channelB)) prefs.setChannel(Prefs.SLOT_B, channelB.getText().toString().trim());
         if (here(openManet)) prefs.setChannel(Prefs.SLOT_OPENMANET, openManet.getText().toString().trim());

@@ -59,6 +59,9 @@ public final class Mixer {
         gain = g;
     }
 
+    /** Ultra low power with the screen off: no sound until the radio is awake again. */
+    public static volatile boolean resting;
+
     /** Queue a decoded frame from a talker. Out-of-order or duplicate frames are dropped. */
     public void push(long sender, int seq, short[] pcm) {
         synchronized (streams) {
@@ -104,6 +107,12 @@ public final class Mixer {
         short[] lr = new short[frameSamples * 2];
         try {
             while (running) {
+                if (resting) {
+                    track.pause(); // a playing track keeps the phone awake
+                    while (resting && running) Thread.sleep(200);
+                    track.play();
+                    continue;
+                }
                 java.util.Arrays.fill(acc, 0);
                 long now = System.currentTimeMillis();
                 synchronized (streams) {
@@ -138,6 +147,8 @@ public final class Mixer {
                     track.write(out, 0, frameSamples);
                 }
             }
+        } catch (InterruptedException e) {
+            Log.w(TAG, "mixer stopped", e);
         } finally {
             track.stop();
             track.release();

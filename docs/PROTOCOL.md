@@ -110,7 +110,7 @@ below are what follows it.
 |---|---|---|
 | 1 | VOICE | txId(4) + one IMA-ADPCM frame (section 4) |
 | 2 | VOICE_END | txId(4). Sent 3 times when the talker releases PTT |
-| 3 | PRESENCE | status(1: 0 available, 1 away, 2 stealth) battery(1: 0-100 %, 255 unknown); every 5 s while on a channel and at once when the status changes. Old phones sent nothing here: treat a missing status as unknown |
+| 3 | PRESENCE | status(1: 0 available, 1 away, 2 stealth) battery(1: 0-100 %, 255 unknown) checkin(1: tens of seconds between presences when slower than normal, 0 = normal; older phones send none); every 5 s while on a channel and at once when the status changes. Old phones sent nothing here: treat a missing status as unknown |
 | 4 | ACK | txId(4) targetSenderId(8) framesHeard(2) |
 | 10 | CHAT | messages, reports, catch-up sync, private messages (section 6) |
 | 11 | LOCATION | lat(8 double) lon(8 double) accuracyM(4 float) fixAgeMs(8) labelLen(1) label. Sent twice |
