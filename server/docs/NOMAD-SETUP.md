@@ -83,7 +83,8 @@ turn on Settings > Tunnel comms > **Use the relay now** when away.
 
 ### Moving or copying files in
 Files dropped into `/opt/project-nomad/storage/ycc-files/YCC/` appear straight away (for example a
-`Maps cache` folder copied from an older store).
+`Maps cache` folder copied from an older store). A tile set put in `YCC/Maps cache/<any name>/z/x/y.jpg` (e.g. one
+made for ATAK) is read by every phone before it goes online.
 
 ### Updating the server
 Copy the new files to `~/ycc-files`, rebuild with the same tag (`sudo docker build -t ycc-files:1.1 .`)

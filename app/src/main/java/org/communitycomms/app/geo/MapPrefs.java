@@ -211,11 +211,11 @@ public final class MapPrefs {
 
     // Last map view, so it reopens where you left it.
     public double centerLat() {
-        return Double.longBitsToDouble(sp.getLong("cLat", Double.doubleToLongBits(-38.37)));
+        return Double.longBitsToDouble(sp.getLong("cLat", Double.doubleToLongBits(-33.8568)));
     }
 
     public double centerLon() {
-        return Double.longBitsToDouble(sp.getLong("cLon", Double.doubleToLongBits(145.57)));
+        return Double.longBitsToDouble(sp.getLong("cLon", Double.doubleToLongBits(151.2153)));
     }
 
     public int zoom() {

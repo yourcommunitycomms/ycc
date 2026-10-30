@@ -94,6 +94,37 @@ public final class LanTiles {
         return host + "-" + Integer.toHexString(tileUrl.hashCode() & 0xffffff);
     }
 
+    /**
+     * Named tile sets in the maps cache folder (e.g. "ATAK Home", a set made for ATAK or copied in), as
+     * opposed to the per-source folders the app fills itself (name-hash, e.g. tile.openstreetmap.org-3d0cdf)
+     * and helper folders starting with _. Read from the server's folder listing; empty if it has none.
+     */
+    public java.util.List<String> namedSets() {
+        java.util.List<String> out = new java.util.ArrayList<String>();
+        if (!up()) return out;
+        HttpURLConnection c = null;
+        try {
+            c = open(base() + "/" + enc(FOLDER) + "/", "GET");
+            if (c.getResponseCode() != 200) return out;
+            InputStream in = c.getInputStream();
+            ByteArrayOutputStream bo = new ByteArrayOutputStream();
+            byte[] buf = new byte[8192];
+            int n;
+            while ((n = in.read(buf)) > 0 && bo.size() < 512 * 1024) bo.write(buf, 0, n);
+            java.util.regex.Matcher m = java.util.regex.Pattern.compile("href=\"([^\"?#/]+)/\"").matcher(new String(bo.toByteArray(), "UTF-8"));
+            while (m.find()) {
+                String name = java.net.URLDecoder.decode(m.group(1), "UTF-8");
+                if (name.startsWith("_") || name.startsWith(".") || name.matches("[A-Za-z0-9.\\-]+-[0-9a-f]{6}")) continue;
+                if (!out.contains(name)) out.add(name);
+            }
+        } catch (Exception ignored) {
+            // A store without folder listings: no named sets.
+        } finally {
+            if (c != null) c.disconnect();
+        }
+        return out;
+    }
+
     private String url(String source, int z, int x, int y) {
         return base() + "/" + enc(FOLDER) + "/" + enc(source) + "/" + z + "/" + x + "/" + y + ".jpg";
     }

@@ -356,6 +356,9 @@ type ERASE). Destructive buttons ask first.
   (encoded on the last sheet used, from its next row). CW mode stays on across restarts and crashes until the lock is tapped.
 - **Clean up received bursts** (Audio page, off by default): less background noise, quiet bursts turned up and loud ones
   evened out before playing (the original recording stays in Chat).
+- **Named LAN tile sets**: a tile set copied into the LAN storage's Maps cache folder under its own name (e.g. "ATAK Home",
+  z/x/y.jpg) is used by every phone automatically, after its own saved tiles and before going online. The map's tiles line
+  counts tiles read from and given to the LAN maps cache.
 - **Map search** (full map, top left): suburbs, towns and streets. Offline lists are offered the first time in a country
   (Australia and the USA by their outline; others looked up online): suburbs and towns from GeoNames (also shared through the
   LAN storage) and streets from OpenStreetMap around the map centre (5–40 km). With internet, OpenStreetMap's search adds the

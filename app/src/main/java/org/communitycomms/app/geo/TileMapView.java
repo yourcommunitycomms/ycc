@@ -682,6 +682,13 @@ public final class TileMapView extends View {
                 String lu = base ? lanBaseUrl : lanOvUrl;
                 String src = lu == null || lu.length() == 0 ? null : LanTiles.sourceId(lu);
                 if (b == null && lan != null && src != null) b = fromLan(src, cacheDir, t);
+                // Then any named set in the LAN maps cache (e.g. "ATAK Home") before going online.
+                if (b == null && base && lan != null) {
+                    for (String set : namedSets) {
+                        b = fromLan(set, cacheDir, t);
+                        if (b != null) break;
+                    }
+                }
                 if (b == null && url != null) b = fromNet(url, cacheDir, t);
             }
             boolean idle;
@@ -713,6 +720,9 @@ public final class TileMapView extends View {
     }
 
     private volatile LanTiles lan;
+    /** LAN storage use since the app started: tiles read from it, given to it, and tries that failed (map label). */
+    public static final java.util.concurrent.atomic.AtomicInteger lanGot = new java.util.concurrent.atomic.AtomicInteger(),
+            lanSent = new java.util.concurrent.atomic.AtomicInteger(), lanFailed = new java.util.concurrent.atomic.AtomicInteger();
     private final java.util.concurrent.ExecutorService lanUploads = java.util.concurrent.Executors.newSingleThreadExecutor();
 
     private volatile String lanBaseUrl, lanOvUrl;
@@ -721,8 +731,35 @@ public final class TileMapView extends View {
      * The LAN storage location (null = none): read before going online (and while offline), and given
      * every online tile. The URLs name the tile sources even while online tiles are off.
      */
+    /** Named tile sets found in the LAN maps cache (looked up when the LAN storage is set). */
+    private volatile java.util.List<String> namedSets = new java.util.ArrayList<String>();
+
     public void setLan(LanTiles l, String baseTileUrl, String overlayTileUrl) {
         lan = l != null && l.configured() ? l : null;
+        final LanTiles found = lan;
+        if (found != null) {
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    java.util.List<String> sets = found.namedSets();
+                    android.util.Log.i("TileMapView", "named LAN tile sets: " + sets);
+                    namedSets = sets;
+                    if (!sets.isEmpty()) {
+                        synchronized (missing) {
+                            missing.clear(); // they may hold tiles that were missing
+                        }
+                        main.post(new Runnable() {
+                            @Override
+                            public void run() {
+                                invalidate();
+                            }
+                        });
+                    }
+                }
+            }, "lan-sets").start();
+        } else {
+            namedSets = new java.util.ArrayList<String>();
+        }
         lanBaseUrl = baseTileUrl;
         lanOvUrl = overlayTileUrl;
         synchronized (missing) {
@@ -734,6 +771,7 @@ public final class TileMapView extends View {
     private Bitmap fromLan(String source, File cacheDir, int[] t) {
         byte[] data = lan.get(source, t[0], t[1], t[2]);
         if (data == null) return null;
+        lanGot.incrementAndGet();
         Bitmap b = BitmapFactory.decodeByteArray(data, 0, data.length);
         if (b != null && cacheDir != null) {
             try {
@@ -790,7 +828,8 @@ public final class TileMapView extends View {
                 lanUploads.execute(new Runnable() {
                     @Override
                     public void run() {
-                        l.put(src, tt[0], tt[1], tt[2], dd);
+                        if (l.put(src, tt[0], tt[1], tt[2], dd)) lanSent.incrementAndGet();
+                        else lanFailed.incrementAndGet();
                     }
                 });
             }

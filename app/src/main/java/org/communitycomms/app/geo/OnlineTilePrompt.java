@@ -121,8 +121,11 @@ public final class OnlineTilePrompt {
         handler.postAtTime(count, left, android.os.SystemClock.uptimeMillis() + 1000);
     }
 
-    private static String text(int s) {
-        return "This area has no offline tiles. Fetch map tiles from the internet?\n\nStaying offline in " + s + " s";
+    private String text(int s) {
+        boolean lan = new LanTiles(activity).configured();
+        return (lan ? "Neither this phone nor the LAN maps cache has map tiles here (the cache is already used without going online). "
+                + "Fetch them from the internet? They are added to the LAN maps cache for everyone."
+                : "This area has no offline tiles. Fetch map tiles from the internet?") + "\n\nStaying offline in " + s + " s";
     }
 
     private static final String[] LABELS = {"Online for 5 min", "Online for 1 hour", "Online for 1 day", "Online permanently"};

@@ -991,6 +991,7 @@ public final class MapActivity extends Activity {
                 + (mp.onlineEnabled() ? " always" : mins >= 120 ? " for " + (mins + 59) / 60 + " h" : mins > 0 ? " for " + mins + " min" : "")
                 : ", online off") + " (tap to change)"
                 + (new Prefs(this).radioSilent() ? " (radio silent)" : "")
+                + lanStatus()
                 // OSM's servers only accept ciphers Android 4.x does not have; Google's still work.
                 + (online && mp.usingOldAndroidFallback()
                 ? "\nAndroid 4.x cannot reach " + MapPrefs.ONLINE_NAMES[mp.onlinePreset()].split(" \\(")[0]
@@ -998,6 +999,14 @@ public final class MapActivity extends Activity {
                 + (online && android.os.Build.VERSION.SDK_INT < 20 && (mp.overlay().equals("web:3") || mp.overlay().equals("web:5"))
                 ? "\nThe OpenTopoMap / Esri overlay needs Android 5 or newer." : "")
                 + adsbStatus());
+    }
+
+    /** The shared maps cache at work: tiles read from the LAN storage and given to it since the app started. */
+    private String lanStatus() {
+        if (!new org.communitycomms.app.geo.LanTiles(this).configured()) return "\nLAN maps cache: not set up (Settings > Network and sync)";
+        int got = TileMapView.lanGot.get(), sent = TileMapView.lanSent.get(), failed = TileMapView.lanFailed.get();
+        return "\nLAN maps cache: " + got + " tile(s) from it, " + sent + " given to it"
+                + (failed > 0 ? ", " + failed + " could not be given (check the address and login)" : "");
     }
 
     private String adsbStatus() {
