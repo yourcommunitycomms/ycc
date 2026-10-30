@@ -61,3 +61,5 @@
 - 2026-10-30: Full map in landscape: the icons now run in a single column down the right edge (a short phone scrolls them).
 - 2026-10-30: Prefetch: 50, 100 and 200 km as well, and a Detail choice (the deepest zoom, 12 to 17, with the tile count for each). Areas over 20 km start at zoom 14. The estimate now shows the time if all tiles come from the internet, and prefetch also gets zoom 8 and 9.
 - 2026-10-30: Prefetch: Super slow option (ticked by default over 20 km): one internet tile every 2 seconds, with a 30 second rest after a refused tile, so huge areas take days and are far less likely to get blocked. LAN tiles still come at full speed, and an unfinished one carries on as super slow.
+- 2026-10-30: Prefetch: zoom levels are tick boxes, so any mix can be fetched (8 to 11 are always included). Over 20 km, 12 to 14 start ticked and 16 and 17 cannot be picked. Data Tile Management now updates itself while open: the job running, its progress and the stored tile counts.
+- 2026-10-30: Prefetch: 1 km and World added. World gets every tile of zoom 8 and 9 (327,680 tiles, about 3.8 GB) and always runs super slow, about 8 days from the internet.

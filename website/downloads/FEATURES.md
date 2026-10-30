@@ -356,10 +356,10 @@ type ERASE). Destructive buttons ask first.
   (encoded on the last sheet used, from its next row). CW mode stays on across restarts and crashes until the lock is tapped.
 - **Clean up received bursts** (Audio page, off by default): less background noise, quiet bursts turned up and loud ones
   evened out before playing (the original recording stays in Chat).
-- **Data Tile Management** (map menu): what is stored on this phone and in the LAN maps cache, and Prefetch 5, 10, 20, 50, 100 or 200 km around
-  the + from zoom 8 down to the detail you pick (zoom 12 to 17, with the tile count beside each; areas over 20 km start at zoom 14), for the map types you tick (street, satellite, topographic). Tiles already here are skipped, the LAN cache is used before the internet, and whatever the
+- **Data Tile Management** (map menu): what is stored on this phone and in the LAN maps cache, and Prefetch 1, 5, 10, 20, 50, 100 or 200 km around
+  the + at the zoom levels you tick (12 to 17, with the tile count beside each; 8 to 11 are always included; over 20 km, 12 to 14 start ticked and 16 and 17 are not offered; **World** gets the whole world at zoom 8 and 9 only, always super slow, about 8 days), for the map types you tick (street, satellite, topographic). Tiles already here are skipped, the LAN cache is used before the internet, and whatever the
   cache is missing is added to it. Needs a fast connection; internet tiles are limited to 5 a second, so large areas take hours. **Super slow** (ticked by default over 20 km) fetches one internet tile every 2 seconds and rests after a refused tile, so a huge area takes days but is far less likely to get blocked. It runs in the background with
-  a notification (Pause / Resume, Stop); open Data Tile Management to see it, or carry on after the app was closed.
+  a notification (Pause / Resume, Stop); Data Tile Management shows it live while open, or carries on after the app was closed.
 - **Secondary map server** (Data Tile Management): a second LAN storage for map tiles only. Phones read from it when the primary
   lacks a tile, and give new tiles to it if the primary is off. **Sync the two servers** copies map tiles between them through this
   phone with no internet (either way or both), only what is missing, never deleting; handy for filling a new server in the field.
