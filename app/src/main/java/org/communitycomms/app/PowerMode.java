@@ -4,7 +4,7 @@ import android.content.Context;
 
 /**
  * Settings > Power and sleep. Normal; Power saver (slower check-ins and GPS, no background data); Ultra low
- * (with the screen off the radio sleeps and wakes every 4 minutes to check in); Off line (no network expected:
+ * (with the screen off the radio sleeps and wakes every 4 minutes to check in); Offline (no network expected:
  * no remote prompts or sync, and GPS and check-ins rest while nobody is around and the screen is off).
  * After PTT, Power saver and Ultra low work as normal for a few minutes so a reply is heard.
  */
@@ -49,7 +49,7 @@ public final class PowerMode {
         return (m == SAVER || m == ULTRA) && System.currentTimeMillis() < awakeUntil ? NORMAL : m;
     }
 
-    /** Off line, nobody around and the screen off: nothing to keep up to date. */
+    /** Offline, nobody around and the screen off: nothing to keep up to date. */
     static boolean idle() {
         return now() == OFFLINE && alone && !screenOn;
     }

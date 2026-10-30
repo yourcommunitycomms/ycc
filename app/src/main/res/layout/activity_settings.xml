@@ -98,6 +98,7 @@
             <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/request_missed" android:textSize="12sp" />
             <TextView style="@style/Label" android:text="@string/alerts" />
             <CheckBox android:id="@+id/call_enabled" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/call_enabled" />
+            <CheckBox android:id="@+id/call_reminder" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Remind me every 5 minutes about a call I have not acknowledged" />
             <CheckBox android:id="@+id/announce_poi" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/announce_poi" />
             <CheckBox android:id="@+id/auto_ack" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/auto_ack" />
             <TextView style="@style/Label" android:text="@string/status_heading" />
@@ -130,7 +131,7 @@
                 <RadioButton android:id="@+id/power_normal" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Normal" />
                 <RadioButton android:id="@+id/power_saver" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Power saver: check-ins and GPS every 30 seconds, no background data, screen sleeps normally. Live voice still works." />
                 <RadioButton android:id="@+id/power_ultra" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Ultra low: with the screen off the radio sleeps and wakes every 4 minutes to check in. Live voice is missed; a sound plays for missed messages." />
-                <RadioButton android:id="@+id/power_offline" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Off line: for no network. No remote prompts, sync or tunnel. With nobody around and the screen off, GPS and check-ins rest." />
+                <RadioButton android:id="@+id/power_offline" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Offline: for no network. No remote prompts, sync or tunnel. With nobody around and the screen off, GPS and check-ins rest." />
             </RadioGroup>
             <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="After PTT, Power saver and Ultra low work as normal for 3 minutes so a reply is heard." android:textSize="12sp" />
             <TextView style="@style/Label" android:text="Ask to change at battery level" />

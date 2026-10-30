@@ -77,6 +77,8 @@ public final class CallAlertActivity extends Activity {
             @Override
             public void onClick(View v) {
                 CallRinger.stopNow(CallAlertActivity.this);
+                RadioService rs = RadioService.instance();
+                if (rs != null) rs.callSeen();
                 finish();
             }
         });

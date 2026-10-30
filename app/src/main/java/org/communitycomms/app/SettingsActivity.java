@@ -191,6 +191,12 @@ public final class SettingsActivity extends Activity {
                 prefs.setStealthVibrate(on);
             }
         });
+        bindCheck(R.id.call_reminder, prefs.callReminder(), new Toggle() {
+            @Override
+            public void set(boolean on) {
+                prefs.setCallReminder(on);
+            }
+        });
         bindCheck(R.id.call_wakes_volume, prefs.callWakesVolume(), new Toggle() {
             @Override
             public void set(boolean on) {

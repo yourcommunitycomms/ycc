@@ -394,6 +394,15 @@ public final class Prefs {
     }
 
     /** Call button on the home screen, and ringing when someone calls. On by default. */
+    /** A call not acknowledged: remind every 5 minutes. On by default. */
+    public boolean callReminder() {
+        return sp.getBoolean("callReminder", true);
+    }
+
+    public void setCallReminder(boolean on) {
+        sp.edit().putBoolean("callReminder", on).commit();
+    }
+
     public boolean callEnabled() {
         return sp.getBoolean("callEnabled", true);
     }

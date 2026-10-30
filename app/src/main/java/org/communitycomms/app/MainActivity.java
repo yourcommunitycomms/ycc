@@ -1668,7 +1668,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
                 .setNegativeButton(android.R.string.cancel, null).show();
     }
 
-    /** Asks once as the battery passes each level set in Power and sleep. Never in Off line or on charge. */
+    /** Asks once as the battery passes each level set in Power and sleep. Never in Offline or on charge. */
     private void checkBatteryAsk() {
         int pct = RadioEngine.myBattery, saver = prefs.powerAskSaver(), ultra = prefs.powerAskUltra();
         if (pct < 0 || PowerMode.charging || pct > Math.max(saver, ultra) + 5) {
@@ -2461,6 +2461,12 @@ public final class MainActivity extends Activity implements RadioService.Ui {
             if (!t.contentEquals(ptt.getText())) ptt.setText(t);
             return;
         }
+        if (PowerMode.offline() && joined) {
+            String t = pttWord();
+            if (!isTransmitting() && !t.contentEquals(ptt.getText())) ptt.setText(t);
+            shownNetDown = true; // back to the normal words when Offline ends
+            return;
+        }
         // No WiFi / Ethernet (no MANET) and no working tunnel: say so on the PTT button.
         if (++netTicks % 7 == 0 || netDown == null) netDown = shownOnline <= 0 && !NetCheck.canReachAnyone(this);
         if (netDown && joined && !isTransmitting()) {
@@ -2471,13 +2477,20 @@ public final class MainActivity extends Activity implements RadioService.Ui {
             shownNetDown = false;
             RadioEngine e = engine();
             if (e != null && e.voxOn()) applyVox();
-            else if (!isTransmitting()) ptt.setText(R.string.ptt);
+            else if (!isTransmitting()) ptt.setText(pttWord());
         }
     }
 
     private int netTicks;
     private Boolean netDown;
     private boolean shownNetDown;
+
+    /** Offline: PTT records a message, shown with how many are waiting to send. */
+    private String pttWord() {
+        if (!PowerMode.offline()) return getString(R.string.ptt);
+        int n = org.communitycomms.app.audio.BurstVoice.waiting(this);
+        return "RECORD OFFLINE MESSAGE" + (n > 0 ? "\n" + n + " waiting to send" : "");
+    }
 
     private void pttPressed() {
         if (prefs.radioSilent()) {
@@ -2514,19 +2527,20 @@ public final class MainActivity extends Activity implements RadioService.Ui {
                     Toast.LENGTH_LONG).show();
             return;
         }
-        if (prefs.burstVoice()) {
-            // Burst mode: record while held, send the recording as one file on release.
+        boolean offline = PowerMode.offline();
+        if (prefs.burstVoice() || offline) {
+            // Burst mode: record while held, send the recording as one file on release. Offline: keep it to send later.
             if (on && !org.communitycomms.app.audio.BurstVoice.recording()) {
                 if (org.communitycomms.app.audio.BurstVoice.start(this, prefs.burstQuality())) {
-                    ptt.setText("RECORDING BURST…\nlet go to send");
+                    ptt.setText(offline ? "RECORDING…\nlet go to save" : "RECORDING BURST…\nlet go to send");
                     ptt.setSelected(true);
                 } else {
                     Toast.makeText(this, "The microphone is busy", Toast.LENGTH_SHORT).show();
                 }
             } else if (!on && org.communitycomms.app.audio.BurstVoice.recording()) {
-                String r = org.communitycomms.app.audio.BurstVoice.stopAndSend(this);
+                String r = offline ? org.communitycomms.app.audio.BurstVoice.stopAndKeep(this) : org.communitycomms.app.audio.BurstVoice.stopAndSend(this);
                 ptt.setSelected(false);
-                ptt.setText(R.string.ptt);
+                ptt.setText(pttWord());
                 if (r != null) Toast.makeText(this, r, Toast.LENGTH_SHORT).show();
             }
             return;
@@ -2681,7 +2695,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         renderBroadcast();
         ptt.setEnabled(isJoined);
         if (isJoined) applyVox();
-        else ptt.setText(R.string.ptt);
+        else ptt.setText(pttWord());
         renderRoster();
     }
 
@@ -2877,7 +2891,8 @@ public final class MainActivity extends Activity implements RadioService.Ui {
             ptt.setText(on ? "VOX: TRANSMITTING" : "VOX: listening");
         } else {
             ptt.setEnabled(joined);
-            ptt.setText(on ? R.string.ptt_tx : R.string.ptt);
+            if (on) ptt.setText(R.string.ptt_tx);
+        else ptt.setText(pttWord());
         }
     }
 

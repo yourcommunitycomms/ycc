@@ -239,7 +239,7 @@ public final class ChatActivity extends Activity {
         }
         int h = hidden();
         int hiddenKinds = Integer.bitCount(h);
-        filterBtn.setText(h == 0 && pick == -2 ? "Filter" : "Filter (" + (pick == -2 ? "" : pick == -1 ? "all ch" : Prefs.letter(pick))
+        filterBtn.setText((h == 0 || h == DEFAULT_HIDDEN) && pick == -2 ? "Filter" : "Filter (" + (pick == -2 ? "" : pick == -1 ? "all ch" : Prefs.letter(pick))
                 + (pick != -2 && hiddenKinds > 0 ? ", " : "") + (hiddenKinds > 0 ? hiddenKinds + " hidden" : "") + ")");
         pinnedCount = pins.size();
         if (!pins.isEmpty()) showPins(pins);
@@ -258,11 +258,15 @@ public final class ChatActivity extends Activity {
         if (m.type == MessageLog.TYPE_REPORT) return 4;
         if (m.type == MessageLog.TYPE_POI) return 3;
         if (m.type == MessageLog.TYPE_FILE) return m.mime != null && m.mime.startsWith("audio/") ? 1 : 2;
+        if (m.local && m.body != null && m.body.startsWith("MISSED CALL")) return 1; // someone tried to reach you: never hidden as a notice
         return m.ack || m.local ? 5 : 0;
     }
 
+    /** Status changes and notices start hidden. */
+    private static final int DEFAULT_HIDDEN = 1 << 5;
+
     private int hidden() {
-        return getSharedPreferences("settings", MODE_PRIVATE).getInt("chatHidden", 0);
+        return getSharedPreferences("settings", MODE_PRIVATE).getInt("chatHidden", DEFAULT_HIDDEN);
     }
 
     /** Chat > Filter > Channel: -2 the channel on air (and those listened to), -1 all, or a slot. */

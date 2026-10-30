@@ -175,6 +175,67 @@ public final class RadioService extends Service implements RadioEngine.Listener 
         ringFor(fromName, "");
     }
 
+    // ---- a call nobody acknowledged: a Missed call line (under Voice in Chat) and a reminder every 5 minutes ----
+
+    private static final long CALL_MISSED_MS = 30000, CALL_REMIND_MS = 300000;
+    private static final int CALL_REMINDERS = 12;
+    private String unanswered, unansweredWhere = "";
+    private boolean unansweredLogged;
+    private long nextReminder;
+    private int reminders;
+
+    private void callWaiting(String from, String where) {
+        unanswered = from;
+        unansweredWhere = where;
+        unansweredLogged = false;
+        reminders = 0;
+        nextReminder = System.currentTimeMillis() + CALL_REMIND_MS;
+        main.removeCallbacks(markMissed);
+        main.postDelayed(markMissed, CALL_MISSED_MS);
+    }
+
+    /** The call screen was answered. */
+    public void callSeen() {
+        unanswered = null;
+        main.removeCallbacks(markMissed);
+    }
+
+    private final Runnable markMissed = new Runnable() {
+        @Override
+        public void run() {
+            if (unanswered == null || unansweredLogged) return;
+            unansweredLogged = true;
+            org.communitycomms.app.msg.MessageLog.Entry m = new org.communitycomms.app.msg.MessageLog.Entry();
+            m.id = new java.security.SecureRandom().nextLong();
+            m.type = org.communitycomms.app.msg.MessageLog.TYPE_TEXT;
+            m.time = System.currentTimeMillis();
+            m.creator = unanswered;
+            m.channelTag = tagNow();
+            m.body = "MISSED CALL from " + unanswered + unansweredWhere;
+            m.local = true;
+            org.communitycomms.app.msg.MessageLog.get(RadioService.this).put(m);
+            notifyMessage(m);
+        }
+    };
+
+    private void checkCallReminder() {
+        if (unanswered == null || System.currentTimeMillis() < nextReminder) return;
+        Prefs pr = new Prefs(this);
+        if (!pr.callReminder() || ++reminders > CALL_REMINDERS) {
+            callSeen();
+            return;
+        }
+        nextReminder += CALL_REMIND_MS;
+        notifyCall("Missed call from " + unanswered + ": tap to acknowledge");
+        if (curStatus == RadioEngine.STATUS_STEALTH) {
+            if (pr.stealthVibrate()) buzz(true);
+            return;
+        }
+        missedTone();
+        buzz(true);
+        showCallScreen(unanswered, "");
+    }
+
     private void ringFor(final String fromName, final String where) {
         final Prefs pr = new Prefs(this);
         if (!pr.callEnabled()) return;
@@ -182,6 +243,7 @@ public final class RadioService extends Service implements RadioEngine.Listener 
             @Override
             public void run() {
                 String text = "CALL from " + fromName + where;
+                callWaiting(fromName, where);
                 if (curStatus == RadioEngine.STATUS_STEALTH) {
                     if (volumeZero && pr.status() != RadioEngine.STATUS_STEALTH && pr.callWakesVolume()) {
                         // Volume was only turned all the way down: a Call brings the sound back for the
@@ -191,7 +253,9 @@ public final class RadioService extends Service implements RadioEngine.Listener 
                         // Stealth chosen on purpose: no ring, no sound, just a buzz and a note.
                         if (pr.stealthVibrate()) buzz(true);
                         notifyCall(text + " (stealth: not rung)");
-                        logLocal(fromName, "Call from " + fromName + where + " while you were in stealth", tagNow());
+                        unansweredWhere = where + " while you were in stealth";
+                        main.removeCallbacks(markMissed);
+                        markMissed.run();
                         return;
                     }
                 }
@@ -235,6 +299,8 @@ public final class RadioService extends Service implements RadioEngine.Listener 
             if (++statusTicks % 30 == 0 && PowerMode.lanSyncOn()) LanSync.maybeRun(RadioService.this); // once a minute: due LAN sync / update check
             PowerMode.alone = Contacts.get(RadioService.this).onlineCount() == 0;
             applyPower();
+            checkCallReminder();
+            if (statusTicks % 5 == 0 && !PowerMode.alone && !RadioEngine.radioSilent) org.communitycomms.app.audio.BurstVoice.sendWaiting(RadioService.this);
             AtakBridge.apply(RadioService.this); // Settings: ATAK compatible on / off
         }
     };
@@ -760,6 +826,7 @@ public final class RadioService extends Service implements RadioEngine.Listener 
 
     /** Acknowledge on the call screen: the caller (and the channel) see it was heard. */
     public void acknowledgeCall(String from) {
+        callSeen();
         RadioEngine e = engine;
         if (e == null || RadioEngine.radioSilent) return;
         messages.sendText(new Prefs(this).callsign() + " heard the call from " + from);
@@ -1418,7 +1485,7 @@ public final class RadioService extends Service implements RadioEngine.Listener 
     public void setUi(Ui ui) {
         this.ui = ui;
         if (ui != null) {
-            ui.onJoinState(status, engine != null);
+            ui.onJoinState(airWords(status), engine != null);
             for (String[] o : pendingOffers) ui.onDryadOffer(o[0], o[1]);
             pendingOffers.clear();
         }
@@ -1929,13 +1996,18 @@ public final class RadioService extends Service implements RadioEngine.Listener 
         stopSelf();
     }
 
+    /** Offline: never says on air. */
+    private static String airWords(String s) {
+        return PowerMode.offline() ? s.replace("On air", "Offline") : s;
+    }
+
     private void publishState(final String s, final boolean joined) {
         status = s;
         main.post(new Runnable() {
             @Override
             public void run() {
                 Ui u = ui;
-                if (u != null) u.onJoinState(s, joined);
+                if (u != null) u.onJoinState(airWords(s), joined);
             }
         });
     }
@@ -2097,6 +2169,16 @@ public final class RadioService extends Service implements RadioEngine.Listener 
             Toast.makeText(this, "Radio silent: not transmitting", Toast.LENGTH_SHORT).show();
             return;
         }
+        if (PowerMode.offline()) { // no live voice: the button records a message
+            boolean recording = org.communitycomms.app.audio.BurstVoice.recording();
+            if (down && !recording) {
+                org.communitycomms.app.audio.BurstVoice.start(this, pr.burstQuality());
+            } else if (recording && (down || !pr.latch())) {
+                String r = org.communitycomms.app.audio.BurstVoice.stopAndKeep(this);
+                if (r != null) Toast.makeText(this, r, Toast.LENGTH_SHORT).show();
+            }
+            return;
+        }
         boolean on;
         CompatVoice c = compat;
         RadioEngine e = engine;
@@ -2144,7 +2226,7 @@ public final class RadioService extends Service implements RadioEngine.Listener 
     }
 
     private void goForeground(String text) {
-        Notification n = buildNotification(text);
+        Notification n = buildNotification(airWords(text));
         if (Build.VERSION.SDK_INT >= 29) {
             startForegroundTyped(n);
         } else {
@@ -2441,6 +2523,10 @@ public final class RadioService extends Service implements RadioEngine.Listener 
         if (PowerMode.offline() != offlineWere) {
             offlineWere = PowerMode.offline();
             applyTunnelNow();
+            if (onAir) {
+                goForeground(status);
+                publishState(status, true);
+            }
         }
         String location = locationWanted() + ":" + PowerMode.locationMs(LOCATION_EVERY_MS);
         if (!location.equals(locationWas)) {
@@ -2486,6 +2572,7 @@ public final class RadioService extends Service implements RadioEngine.Listener 
         @Override
         public void run() {
             if (org.communitycomms.app.msg.MessageLog.unread > checkInUnread) missedTone();
+            checkCallReminder();
             if (asleep) {
                 releaseLocks();
                 scheduleCheckIn();

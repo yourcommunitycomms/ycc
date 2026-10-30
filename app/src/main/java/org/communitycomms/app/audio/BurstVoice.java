@@ -77,22 +77,83 @@ public final class BurstVoice {
         }
     }
 
-    /** Stops and sends. Returns a short result for the screen. */
-    public static synchronized String stopAndSend(Context c) {
+    private static long recordedMs;
+
+    /** Stops recording. False if there is nothing worth keeping. */
+    private static boolean finish() {
         MediaRecorder r = rec;
         rec = null;
-        if (r == null) return null;
-        long ms = System.currentTimeMillis() - startedMs;
+        recordedMs = System.currentTimeMillis() - startedMs;
         try {
             r.stop();
         } catch (RuntimeException e) {
             // Released too quickly: nothing was recorded.
             r.release();
             if (file != null) file.delete();
-            return "Too short: hold PTT while you speak";
+            return false;
         }
         r.release();
-        if (ms < 400 || file == null || file.length() == 0) return "Too short: hold PTT while you speak";
+        return recordedMs >= 400 && file != null && file.length() > 0;
+    }
+
+    // ---- Offline: recordings wait in a folder until someone is heard ----
+
+    private static volatile int waiting = -1;
+
+    private static File outbox(Context c) {
+        File d = new File(c.getFilesDir(), "offline-voice");
+        d.mkdirs();
+        return d;
+    }
+
+    /** Recordings waiting to be sent. */
+    public static int waiting(Context c) {
+        if (waiting < 0) {
+            String[] names = outbox(c).list();
+            waiting = names == null ? 0 : names.length;
+        }
+        return waiting;
+    }
+
+    /** Stops and keeps the recording, sending it straight away if someone is around. */
+    public static synchronized String stopAndKeep(Context c) {
+        if (rec == null) return null;
+        if (!finish()) return "Too short: hold PTT while you speak";
+        File kept = new File(outbox(c), file.getName());
+        if (!file.renameTo(kept)) return "Could not save the message";
+        waiting = -1;
+        return "Saved (" + Math.max(1, recordedMs / 1000) + " s). It sends when someone is heard.";
+    }
+
+    /** Someone is around: sends what was recorded, oldest first. */
+    public static synchronized void sendWaiting(Context c) {
+        if (waiting(c) == 0) return;
+        FileTransfer ft = RadioService.files();
+        File[] all = outbox(c).listFiles();
+        if (ft == null || all == null) return;
+        java.util.Arrays.sort(all);
+        File dir = new File(c.getCacheDir(), "burst");
+        dir.mkdirs();
+        for (File f : all) {
+            String n = f.getName();
+            String type = n.endsWith(".m4a") ? "audio/mp4" : n.endsWith(".awb") ? "audio/amr-wb" : "audio/amr";
+            File out = new File(dir, n);
+            if (!f.renameTo(out)) continue;
+            try {
+                RadioService.logFileSent(c, ft.send(out, n, type), type, out);
+            } catch (Exception e) {
+                out.renameTo(f); // try again next time
+                break;
+            }
+        }
+        waiting = -1;
+    }
+
+    /** Stops and sends. Returns a short result for the screen. */
+    public static synchronized String stopAndSend(Context c) {
+        if (rec == null) return null;
+        if (!finish()) return "Too short: hold PTT while you speak";
+        long ms = recordedMs;
         FileTransfer ft = RadioService.files();
         if (ft == null) return "Not on a channel: not sent";
         try {

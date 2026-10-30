@@ -276,8 +276,8 @@ the callsign for the same wipe.
 - **Power and sleep** (Settings): the power mode, levels that ask to change it, the black screen settings and red light.
   **Normal**. **Power saver**: check-ins and GPS every 30 seconds, no map feeds or LAN sync with the screen off, and the screen sleeps normally; live voice still works.
   **Ultra low**: with the screen off the radio, sound and GPS rest and wake about every 4 minutes to check in and catch up; a sound plays if messages came in; live voice is missed. Android can stretch this when the phone is idle unless the app is exempt from battery optimisation.
-  **Off line**: for no network: no remote prompts, sync or tunnel; with nobody around and the screen off, GPS and map feeds stop and check-ins slow to a minute.
-  After PTT, Power saver and Ultra low work as normal for 3 minutes so a reply is heard. Battery levels (20 % and 10 % to start, 0 = never) ask once each, not on charge or in Off line.
+  **Offline**: for no network: the channel says Offline instead of On air, and PTT says **Record offline message**: it records while held (hardware PTT too) and sends by itself when someone is heard, oldest first, surviving a restart. No remote prompts, sync or tunnel; with nobody around and the screen off, GPS and map feeds stop and check-ins slow to a minute.
+  After PTT, Power saver and Ultra low work as normal for 3 minutes so a reply is heard. Battery levels (20 % and 10 % to start, 0 = never) ask once each, not on charge or in Offline.
   Others do not count a phone in a power mode as lost between its check-ins. The nobody heard and lost contact warnings wait longer in the saving modes (3 minutes in Power saver, 10 in Ultra low). Black screen: Screen on during radio calls (on by default, never in Stealth) brings it back on for a call or voice, then it goes black again; with it off or in Stealth, the call screen does not open over a black screen (the call still buzzes and shows a notification). Red light can be on a schedule; turning it on or off by hand lasts until the next set time.
 - **Exit** (menu): off air, service stopped, app closed. If it was on air, opening it again asks **Reconnect last channels?**, listing them and their remote state.
 
@@ -394,7 +394,8 @@ type ERASE). Destructive buttons ask first.
   Share my location, Ask to share, Tiles); long press for what each does. Landscape puts them in a column on the right.
 - **Ask to share** (full map, private channels only, not Public): everyone on the channel is asked to share their location for 30
   minutes (Share / Not now), or shares by itself with Mission and data > Automatically accept location sharing (off by default).
-- **Chat filter** (top right of Chat): show or hide messages, voice, pictures and files, map points, reports, status changes; and which channel
+- **Missed calls**: a call not acknowledged after 30 seconds shows as an unread Missed call line in Chat (under Voice) with a notification. It reminds every 5 minutes with a beep, buzz, notification and the call screen until Acknowledge or Stop ringing is tapped, for up to an hour. In Stealth it only buzzes and notifies. Audio, PTT and alerts has the on / off tick (on by default).
+- **Chat filter** (top right of Chat): show or hide messages, voice, pictures and files, map points, reports, status changes (hidden to start with; a missed call counts as Voice, so it still shows); and which channel
   (on air, all, A, B or Public).
 - **POI rotation, size and direction arrow** (Send / Edit POI, when drawn as the icon): turn it to match a formation,
   50–1000% size, optional heading arrow. Only changing these is sent quietly (no spoken announcement).
