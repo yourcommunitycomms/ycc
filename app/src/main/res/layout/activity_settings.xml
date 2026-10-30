@@ -122,6 +122,8 @@
             <Button android:id="@+id/my_icon" android:layout_width="match_parent" android:layout_height="wrap_content" android:textAllCaps="false" />
             <CheckBox android:id="@+id/black_screen_button" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/black_screen_button" />
             <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/black_screen_note" android:textColor="#ffb74d" android:textSize="12sp" />
+            <CheckBox android:id="@+id/black_legacy" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/black_legacy" />
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/black_legacy_note" android:textSize="12sp" />
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical" android:orientation="horizontal">
                 <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="@string/black_after" />
                 <EditText android:id="@+id/black_after" android:layout_width="80dp" android:layout_height="wrap_content" android:inputType="number" android:maxLength="4" android:singleLine="true" />

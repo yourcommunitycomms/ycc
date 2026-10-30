@@ -194,7 +194,7 @@ except the callsign and phone-specific settings (audio devices, tunnel, PTT keyâ
 
 **Protection and housekeeping:** PIN for DRYAD, pigpen, channel names / QR and Settings; lost-device
 option (2 wrong PINs erase all of the app's own data, sending nothing); secret triple-tap wipe on
-the callsign; red light mode; blackout (double-tap to wake). Clear mission data (chat, reports,
+the callsign; red light mode; blackout (double-tap to wake; backlight exactly 0 and no hint text, with a Settings option for 0.01 on old devices where 0 stops touch; power button or pausing ends it). Clear mission data (chat, reports,
 files, recordings, map points, contacts' positions; keeps sheets, channels, settings, maps; must
 leave every channel first). Clear all data and exit (next start runs the wizard).
 

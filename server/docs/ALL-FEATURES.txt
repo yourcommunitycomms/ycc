@@ -105,6 +105,7 @@ MAPS AND LOCATION
 - Map search for suburbs, towns and streets, offline (GeoNames + OpenStreetMap lists, shared via LAN storage) or online.
 - Data Tile Management: tile stats and prefetch 1 to 200 km around the +, or the whole world at low zoom, at the zoom levels you tick, with a super slow mode for huge areas (phone, LAN cache, then internet; fills the LAN cache).
 - Secondary map server for tiles, and a manual sync between the two servers through the phone.
+- Blackout with no light at all, and a legacy setting (lowest backlight) for older devices.
 - Map layer button: street, satellite or topographic.
 - Map scale bar and a two-point ruler: distance, bearing and back bearing.
 - Aircraft (ADS-B) from a MANET receiver or online feeds, and ships (AIS) from Open Waters, each

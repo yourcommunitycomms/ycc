@@ -203,7 +203,7 @@ phone call volume (radio audio) and media volume, an in-app hearing boost and mi
 - **Lock**: blocks channel changes, Channels and setup; PTT, map points, chat
   and reports still work. Hold the button to unlock.
 - **Red light mode** and **Blackout** (black screen, app keeps running,
-  double-tap to wake; the power button or leaving the app also ends it) in the menu.
+  double-tap to wake; the power button or leaving the app also ends it) in the menu. Blackout gives no light at all. On an older device where double-tap does not wake it, tick **Legacy support, non zero brightness** in Settings > Home screen.
 - **Black screen button** on the home screen (Settings, off by default, with how to get out:
   double-tap) and **black screen after N seconds** without a touch (0 = never; Settings warns when
   the phone's own screen timeout is shorter).

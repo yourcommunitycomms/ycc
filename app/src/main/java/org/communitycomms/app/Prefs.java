@@ -566,6 +566,14 @@ public final class Prefs {
         sp.edit().putBoolean("blackScreenButton", on).commit();
     }
 
+    public boolean blackoutLegacy() {
+        return sp.getBoolean("blackoutLegacy", false);
+    }
+
+    public void setBlackoutLegacy(boolean on) {
+        sp.edit().putBoolean("blackoutLegacy", on).commit();
+    }
+
     // ---- automatic key rotation: the channel key changes every hour or day by itself ----
 
     public static final int ROTATE_OFF = 0, ROTATE_HOURLY = 1, ROTATE_DAILY = 2;

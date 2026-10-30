@@ -198,7 +198,7 @@ except the callsign and phone-specific settings (audio devices, tunnel, PTT keyâ
 
 **Protection and housekeeping:** PIN for DRYAD, pigpen, channel names / QR and Settings; lost-device
 option (2 wrong PINs erase all of the app's own data, sending nothing); secret triple-tap wipe on
-the callsign; red light mode; blackout (double-tap to wake). Clear mission data (chat, reports,
+the callsign; red light mode; blackout (double-tap to wake; backlight exactly 0 and no hint text, with a Settings option for 0.01 on old devices where 0 stops touch; power button or pausing ends it). Clear mission data (chat, reports,
 files, recordings, map points, contacts' positions; keeps sheets, channels, settings, maps; must
 leave every channel first). Clear all data and exit (next start runs the wizard).
 
@@ -848,3 +848,5 @@ router and the internet, internet radio streams.
 - 2026-10-30: Prefetch: Super slow option (ticked by default over 20 km): one internet tile every 2 seconds, with a 30 second rest after a refused tile, so huge areas take days and are far less likely to get blocked. LAN tiles still come at full speed, and an unfinished one carries on as super slow.
 - 2026-10-30: Prefetch: zoom levels are tick boxes, so any mix can be fetched (8 to 11 are always included). Over 20 km, 12 to 14 start ticked and 16 and 17 cannot be picked. Data Tile Management now updates itself while open: the job running, its progress and the stored tile counts.
 - 2026-10-30: Prefetch: 1 km and World added. World gets every tile of zoom 8 and 9 (327,680 tiles, about 3.8 GB) and always runs super slow, about 8 days from the internet.
+- 2026-10-30: Blackout is back to no light at all (backlight fully off, no hint text or reminder pop-up), so it cannot be seen with night vision. Settings > Home screen has Legacy support, non zero brightness (off by default) for older devices such as a Nexus 7 where double-tap does not wake it otherwise.
+- 2026-10-30: Fix: a tick box changed on a Settings page could go back to how it was on returning to the main Settings page. Data Tile Management: a bigger, clearer OK button.

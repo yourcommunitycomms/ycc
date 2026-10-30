@@ -520,6 +520,12 @@ public final class TilePrefetch {
         sv.addView(box);
         final AlertDialog dlg = new AlertDialog.Builder(a).setTitle("Data Tile Management").setView(sv)
                 .setPositiveButton(android.R.string.ok, null).show();
+        Button ok = dlg.getButton(AlertDialog.BUTTON_POSITIVE);
+        ok.setBackgroundColor(0xff2e7d32);
+        ok.setTextColor(0xffffffff);
+        ok.setTextSize(18);
+        ok.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        ok.setMinWidth((int) (140 * d));
         readStats(a, mp, stats);
         // Live while open: what is running, and the stored tile counts now and then.
         final android.os.Handler live = new android.os.Handler();

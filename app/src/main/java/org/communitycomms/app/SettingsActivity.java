@@ -819,6 +819,14 @@ public final class SettingsActivity extends Activity {
                 prefs.setBlackScreenButton(on);
             }
         });
+        CheckBox blackLegacy = (CheckBox) findViewById(R.id.black_legacy);
+        blackLegacy.setChecked(prefs.blackoutLegacy());
+        blackLegacy.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(CompoundButton bt, boolean on) {
+                prefs.setBlackoutLegacy(on);
+            }
+        });
         final EditText blackAfter = (EditText) findViewById(R.id.black_after);
         blackAfter.setText(String.valueOf(prefs.blackAfterSec()));
         renderBlackAfter();
@@ -1152,6 +1160,12 @@ public final class SettingsActivity extends Activity {
     }
 
     private boolean recreateFresh;
+
+    @Override
+    protected void onSaveInstanceState(Bundle out) {
+        // Being rebuilt with fresh values: restoring the old tick boxes would write them back over what the other page saved.
+        if (!recreateFresh) super.onSaveInstanceState(out);
+    }
 
     private void save() {
         if (recreateFresh) return; // being rebuilt with fresh values: nothing typed here to keep

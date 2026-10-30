@@ -254,7 +254,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         if (black != null) black.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                Toast.makeText(MainActivity.this, "Double-tap to wake", Toast.LENGTH_SHORT).show();
+                if (LightDiscipline.legacyBlackout(MainActivity.this)) Toast.makeText(MainActivity.this, "Double-tap to wake", Toast.LENGTH_SHORT).show();
                 LightDiscipline.blackout(MainActivity.this);
             }
         });
@@ -1633,7 +1633,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         } else if (id == MENU_TOP_CHAT) {
             startActivity(new Intent(this, ChatActivity.class));
         } else if (id == MENU_TOP_BLACK) {
-            Toast.makeText(this, "Double-tap to wake", Toast.LENGTH_SHORT).show();
+            if (LightDiscipline.legacyBlackout(this)) Toast.makeText(this, "Double-tap to wake", Toast.LENGTH_SHORT).show();
             LightDiscipline.blackout(this);
         } else if (id == MENU_VIDEOS) {
             startActivity(new Intent(this, TacticalVideoActivity.class));

@@ -67,6 +67,11 @@ public final class LightDiscipline implements Application.ActivityLifecycleCallb
 
     // ---- blackout ----
 
+    /** Settings > Home screen: lowest backlight instead of none, for older devices where none stops the double tap. */
+    public static boolean legacyBlackout(Context c) {
+        return c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean("blackoutLegacy", false);
+    }
+
     private static final int BLACKOUT_ID = 0x0b1ac0;
     private static final long DOUBLE_TAP_MS = 700;
 
@@ -83,10 +88,12 @@ public final class LightDiscipline implements Application.ActivityLifecycleCallb
         hint.setTextColor(0xff1a0000);
         hint.setTextSize(12);
         hint.setPadding(24, 24, 24, 24);
-        cover.addView(hint);
+        if (legacyBlackout(a)) cover.addView(hint); // even dim red text is light on an OLED screen
         final WindowManager.LayoutParams lp = a.getWindow().getAttributes();
         final float oldBrightness = lp.screenBrightness;
-        lp.screenBrightness = 0.01f; // the lowest backlight; exactly 0 can turn the panel and its touch off on older Android
+        boolean legacy = legacyBlackout(a);
+        // Exactly 0 is no light at all, to hide from night vision. It can stop touch on older Android, so Settings has a way round.
+        lp.screenBrightness = legacy ? 0.01f : 0.0f;
         a.getWindow().setAttributes(lp);
         a.getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         final int oldUi = decor.getSystemUiVisibility();
