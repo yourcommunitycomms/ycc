@@ -62,6 +62,32 @@ public final class MapActivity extends Activity {
         }
     };
 
+    private android.widget.Button layerButton;
+    private static final String[] LAYER_NAMES = {"Street map", "Satellite", "Topographic"};
+    private static final int[] LAYER_PRESETS = {0, 1, 3};
+
+    private String layerWord() {
+        int p = mp.onlinePreset();
+        return p == 1 ? "Satellite" : p == 3 ? "Topo" : p == 0 ? "Street" : "Layer";
+    }
+
+    private void chooseLayer() {
+        int cur = -1;
+        for (int i = 0; i < LAYER_PRESETS.length; i++) if (LAYER_PRESETS[i] == mp.onlinePreset()) cur = i;
+        new android.app.AlertDialog.Builder(this).setTitle("Map layer")
+                .setSingleChoiceItems(LAYER_NAMES, cur, new android.content.DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(android.content.DialogInterface d, int which) {
+                        mp.setOnline(LAYER_PRESETS[which], mp.customUrl());
+                        tilePrompt.apply();
+                        layerButton.setText(layerWord());
+                        refresh();
+                        d.dismiss();
+                    }
+                })
+                .setNegativeButton(android.R.string.cancel, null).show();
+    }
+
     /** The word under the points filter icon: the channel letter, or All. */
     private String poiWord() {
         if (org.communitycomms.app.geo.PoiFilter.layer(this).length() > 0) return "Layer";
@@ -213,6 +239,7 @@ public final class MapActivity extends Activity {
         super.onCreate(b);
         setTitle("Map");
         mp = new MapPrefs(this);
+        org.communitycomms.app.geo.TilePrefetch.cleanMixedCache(this);
         float d = getResources().getDisplayMetrics().density;
 
         LinearLayout root = new LinearLayout(this);
@@ -313,6 +340,43 @@ public final class MapActivity extends Activity {
                 });
             }
         });
+        // Layer: street, satellite or topographic, one tap (each keeps its own saved tiles).
+        layerButton = overMap(layerWord());
+        android.widget.FrameLayout.LayoutParams ll = new android.widget.FrameLayout.LayoutParams(
+                android.widget.FrameLayout.LayoutParams.WRAP_CONTENT, (int) (44 * d), android.view.Gravity.TOP | android.view.Gravity.LEFT);
+        ll.topMargin = (int) (58 * d);
+        ll.leftMargin = (int) (8 * d);
+        mapBox.addView(layerButton, ll);
+        layerButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                chooseLayer();
+            }
+        });
+        // Tools: the ruler (tap two points for the distance and bearing); a scale bar sits under these buttons.
+        final android.widget.Button tools = overMap("Tools");
+        android.widget.FrameLayout.LayoutParams rl = new android.widget.FrameLayout.LayoutParams(
+                android.widget.FrameLayout.LayoutParams.WRAP_CONTENT, (int) (44 * d), android.view.Gravity.TOP | android.view.Gravity.LEFT);
+        rl.topMargin = (int) (108 * d);
+        rl.leftMargin = (int) (8 * d);
+        mapBox.addView(tools, rl);
+        tools.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                new android.app.AlertDialog.Builder(MapActivity.this).setTitle("Map tools")
+                        .setItems(new String[]{map.rulerOn() ? "Ruler off" : "Ruler (distance and bearing between two points)"},
+                                new android.content.DialogInterface.OnClickListener() {
+                                    @Override
+                                    public void onClick(android.content.DialogInterface d, int which) {
+                                        boolean on = !map.rulerOn();
+                                        map.setRuler(on);
+                                        tools.setText(on ? "Tools: ruler" : "Tools");
+                                    }
+                                })
+                        .setNegativeButton(android.R.string.cancel, null).show();
+            }
+        });
+        map.setScaleBar(180);
         addHere.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {

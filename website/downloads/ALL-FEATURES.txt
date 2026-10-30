@@ -105,6 +105,8 @@ MAPS AND LOCATION
 - Map search for suburbs, towns and streets, offline (GeoNames + OpenStreetMap lists, shared via LAN storage) or online.
 - Data Tile Management: tile stats and prefetch 5, 10 or 20 km around the + (phone, LAN cache, then internet; fills the LAN cache).
 - Secondary map server for tiles, and a manual sync between the two servers through the phone.
+- Map layer button: street, satellite or topographic.
+- Map scale bar and a two-point ruler: distance, bearing and back bearing.
 - Aircraft (ADS-B) from a MANET receiver or online feeds, and ships (AIS) from Open Waters, each
   shareable to the channel.
 - ATAK: import and export map files, an ATAK map source for the LAN tiles, and an ATAK compatible

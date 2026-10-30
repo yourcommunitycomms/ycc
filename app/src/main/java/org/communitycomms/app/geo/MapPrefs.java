@@ -104,7 +104,11 @@ public final class MapPrefs {
     }
 
     public String onlineUrl() {
-        int p = onlinePreset();
+        return urlOfPreset(onlinePreset());
+    }
+
+    /** A preset's tile address on this phone (see onlineUrl). */
+    public String urlOfPreset(int p) {
         if (p == CUSTOM || p < 0 || p >= ONLINE_URLS.length) return sp.getString("customUrl", "");
         // Android 4.x cannot make the secure connections OSM, OpenTopoMap and Esri now require, so
         // their tiles never load there: use Google's road map instead (it still works on 4.x).
@@ -195,6 +199,11 @@ public final class MapPrefs {
         File old = new File(mapsRoot(context), "_online-cache");
         if (old.exists()) deleteTree(old);
         return cacheFor(onlineUrl());
+    }
+
+    /** The folder a tile source's tiles are saved in on this phone. */
+    public File cacheOf(String url) {
+        return cacheFor(url);
     }
 
     private File cacheFor(String url) {

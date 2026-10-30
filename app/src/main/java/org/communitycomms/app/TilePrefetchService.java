@@ -24,15 +24,16 @@ public final class TilePrefetchService extends Service {
     private static final String CHANNEL = "prefetch";
     private static final int NOTE = 7741;
     public static final String ACTION_PAUSE = "pause", ACTION_STOP = "stop";
-    private static final String EXTRA_LAT = "lat", EXTRA_LON = "lon", EXTRA_KM = "km", EXTRA_SYNC = "sync";
+    private static final String EXTRA_LAT = "lat", EXTRA_LON = "lon", EXTRA_KM = "km", EXTRA_SYNC = "sync", EXTRA_TYPES = "types";
 
     private final Handler main = new Handler(Looper.getMainLooper());
     private PowerManager.WakeLock wake;
     private WifiManager.WifiLock wifi;
 
     /** Starts a prefetch around a point (or carries on one already running). */
-    public static void start(Context c, double lat, double lon, int km) {
-        Intent i = new Intent(c, TilePrefetchService.class).putExtra(EXTRA_LAT, lat).putExtra(EXTRA_LON, lon).putExtra(EXTRA_KM, km);
+    public static void start(Context c, double lat, double lon, int km, String types) {
+        Intent i = new Intent(c, TilePrefetchService.class).putExtra(EXTRA_LAT, lat).putExtra(EXTRA_LON, lon).putExtra(EXTRA_KM, km)
+                .putExtra(EXTRA_TYPES, types);
         if (Build.VERSION.SDK_INT >= 26) c.startForegroundService(i);
         else c.startService(i);
     }
@@ -77,7 +78,7 @@ public final class TilePrefetchService extends Service {
         } else if (i != null && i.hasExtra(EXTRA_SYNC)) {
             TilePrefetch.beginSync(this, i.getIntExtra(EXTRA_SYNC, 0));
         } else if (i != null && i.hasExtra(EXTRA_KM)) {
-            TilePrefetch.begin(this, i.getDoubleExtra(EXTRA_LAT, 0), i.getDoubleExtra(EXTRA_LON, 0), i.getIntExtra(EXTRA_KM, 5));
+            TilePrefetch.begin(this, i.getDoubleExtra(EXTRA_LAT, 0), i.getDoubleExtra(EXTRA_LON, 0), i.getIntExtra(EXTRA_KM, 5), i.getStringExtra(EXTRA_TYPES));
         } else if (j == null || j.finished) {
             // Restarted by the system after the app was killed: carry on the saved job, if any.
             if (!TilePrefetch.resume(this)) {

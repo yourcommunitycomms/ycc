@@ -84,7 +84,7 @@ turn on Settings > Tunnel comms > **Use the relay now** when away.
 ### Moving or copying files in
 Files dropped into `/opt/project-nomad/storage/ycc-files/YCC/` appear straight away (for example a
 `Maps cache` folder copied from an older store). A tile set put in `YCC/Maps cache/<any name>/z/x/y.jpg` (e.g. one
-made for ATAK) is read by every phone before it goes online.
+made for ATAK) of satellite pictures is read by every phone using a satellite map, before it goes online.
 
 ### A second map server in the field
 Any second copy of this server can hold map tiles only: on a phone, Map menu > Data Tile Management > Secondary server, then

@@ -169,7 +169,7 @@ public final class TilePrefetch {
         double[] u = unfinished(c);
         if (u == null) return false;
         if (u[2] == 0) beginSync(c, saved(c).getInt("sync", 0));
-        else begin(c, u[0], u[1], (int) u[2]);
+        else begin(c, u[0], u[1], (int) u[2], saved(c).getString("types", "0"));
         return true;
     }
 
@@ -241,75 +241,73 @@ public final class TilePrefetch {
         }
     }
 
-    /** Runs in TilePrefetchService; one job at a time. */
-    public static Job begin(Context ctx, final double lat, final double lon, final int km) {
+    /**
+     * Once: removes satellite tiles a few earlier versions saved in a street or topo map's folder on this
+     * phone (OpenStreetMap and OpenTopoMap tiles are always PNG, so a JPEG there is out of place).
+     */
+    public static void cleanMixedCache(Context ctx) {
+        final Context c = ctx.getApplicationContext();
+        final SharedPreferences s = saved2(c);
+        if (s.getBoolean("mixedCleaned", false)) return;
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                MapPrefs mp = new MapPrefs(c);
+                String[] urls = {MapPrefs.ONLINE_URLS[0], MapPrefs.ONLINE_URLS[3]};
+                for (String u : urls) dropJpegs(mp.cacheOf(u));
+                s.edit().putBoolean("mixedCleaned", true).commit();
+            }
+        }, "tile-clean").start();
+    }
+
+    private static SharedPreferences saved2(Context c) {
+        return c.getSharedPreferences("map", Context.MODE_PRIVATE);
+    }
+
+    private static void dropJpegs(File d) {
+        File[] f = d.listFiles();
+        if (f == null) return;
+        for (File x : f) {
+            if (x.isDirectory()) {
+                dropJpegs(x);
+                continue;
+            }
+            try {
+                java.io.FileInputStream in = new java.io.FileInputStream(x);
+                int a = in.read(), b = in.read();
+                in.close();
+                if (a == 0xff && b == 0xd8) x.delete();
+            } catch (Exception ignored) {
+            }
+        }
+    }
+
+    /** Map types that can be prefetched: names and their MapPrefs presets. */
+    static final String[] TYPE_NAMES = {"Street map (OpenStreetMap)", "Satellite (Google, with labels)", "Topographic (OpenTopoMap)"};
+    static final int[] TYPE_PRESETS = {0, 1, 3};
+
+    /** Runs in TilePrefetchService; one job at a time. types = presets, comma separated (e.g. "0,1"). */
+    public static Job begin(Context ctx, final double lat, final double lon, final int km, final String types) {
         Job old = job;
         if (old != null && !old.finished) return old;
         final Context c = ctx.getApplicationContext();
-        saved(c).edit().putLong("lat", Double.doubleToLongBits(lat)).putLong("lon", Double.doubleToLongBits(lon)).putInt("km", km).commit();
-        final LanTiles second = LanTiles.secondary(c);
-        final MapPrefs mp = new MapPrefs(c);
-        final String url = mp.onlineUrl();
-        final File cache = mp.onlineCache();
-        final LanTiles lan = new LanTiles(c);
-        final Job j = new Job(km, count(lat, lon, km));
+        saved(c).edit().putLong("lat", Double.doubleToLongBits(lat)).putLong("lon", Double.doubleToLongBits(lon)).putInt("km", km)
+                .putString("types", types).commit();
+        final String[] list = types.split(",");
+        final Job j = new Job(km, count(lat, lon, km) * list.length);
         job = j;
         new Thread(new Runnable() {
             @Override
             public void run() {
-                final boolean useLan = lan.configured() || second != null;
-                final String src = LanTiles.sourceId(url);
-                List<String> found = lan.configured() ? lan.namedSets() : new ArrayList<String>();
-                if (found.isEmpty() && second != null) found = second.namedSets();
-                final List<String> sets = found;
-                final long[] lastNet = {0};
+                MapPrefs mp = new MapPrefs(c);
                 try {
-                    walk(lat, lon, km, new Each() {
-                        @Override
-                        public boolean tile(int z, int x, int y) throws Exception {
-                            while (j.paused && !j.stop) Thread.sleep(500);
-                            if (j.stop) return false;
-                            if (haveLocal(cache, z, x, y)) {
-                                j.local++;
-                                // Already here: make sure the LAN cache has it too.
-                                File f = new File(cache, z + "/" + x + "/" + y + ".jpg");
-                                if (lan.configured() && f.isFile() && !lan.has(src, z, x, y) && lan.put(src, z, x, y, f)) j.sent++;
-                            } else {
-                                byte[] d = null;
-                                if (useLan) {
-                                    d = lan.configured() ? lan.get(src, z, x, y) : null;
-                                    if (d == null && second != null) d = second.get(src, z, x, y);
-                                    for (int i = 0; d == null && i < sets.size(); i++) {
-                                        d = lan.configured() ? lan.get(sets.get(i), z, x, y) : null;
-                                        if (d == null && second != null) d = second.get(sets.get(i), z, x, y);
-                                    }
-                                }
-                                if (d != null) {
-                                    j.fromLan++;
-                                    save(cache, z, x, y, d);
-                                } else {
-                                    long wait = NET_GAP_MS - (System.currentTimeMillis() - lastNet[0]);
-                                    if (wait > 0) Thread.sleep(wait);
-                                    lastNet[0] = System.currentTimeMillis();
-                                    try {
-                                        d = fromNet(url, z, x, y);
-                                    } catch (Exception e) {
-                                        d = null;
-                                    }
-                                    if (d == null) {
-                                        j.failed++;
-                                    } else {
-                                        j.fromNet++;
-                                        save(cache, z, x, y, d);
-                                        // The primary, or the secondary map server if the primary is off.
-                                        if ((lan.configured() && lan.put(src, z, x, y, d)) || (second != null && second.put(src, z, x, y, d))) j.sent++;
-                                    }
-                                }
-                            }
-                            j.done++;
-                            return true;
-                        }
-                    });
+                    for (String t : list) {
+                        int preset = Integer.parseInt(t.trim());
+                        String url = mp.urlOfPreset(preset);
+                        for (int i = 0; i < TYPE_PRESETS.length; i++) if (TYPE_PRESETS[i] == preset) j.where = TYPE_NAMES[i];
+                        fetchType(c, j, url, mp.cacheOf(url), lat, lon, km);
+                        if (j.stop) break;
+                    }
                 } catch (Exception e) {
                     j.error = e.getMessage();
                 }
@@ -318,6 +316,63 @@ public final class TilePrefetch {
             }
         }, "tile-prefetch").start();
         return j;
+    }
+
+    /** One map type: each tile from this phone, the LAN cache, then the internet; the LAN cache gets what it lacks. */
+    private static void fetchType(Context c, final Job j, final String url, final File cache, double lat, double lon, int km) throws Exception {
+        final LanTiles lan = new LanTiles(c), second = LanTiles.secondary(c);
+        final boolean useLan = lan.configured() || second != null;
+        final String src = LanTiles.sourceId(url);
+        List<String> found = lan.configured() ? lan.namedSets() : new ArrayList<String>();
+        if (found.isEmpty() && second != null) found = second.namedSets();
+        final List<String> sets = LanTiles.isImagery(url) ? found : new ArrayList<String>(); // satellite sets only suit a satellite map
+        final long[] lastNet = {0};
+        walk(lat, lon, km, new Each() {
+            @Override
+            public boolean tile(int z, int x, int y) throws Exception {
+                while (j.paused && !j.stop) Thread.sleep(500);
+                if (j.stop) return false;
+                if (haveLocal(cache, z, x, y)) {
+                    j.local++;
+                    // Already here: make sure the LAN cache has it too.
+                    File f = new File(cache, z + "/" + x + "/" + y + ".jpg");
+                    if (lan.configured() && f.isFile() && !lan.has(src, z, x, y) && lan.put(src, z, x, y, f)) j.sent++;
+                } else {
+                    byte[] d = null;
+                    if (useLan) {
+                        d = lan.configured() ? lan.get(src, z, x, y) : null;
+                        if (d == null && second != null) d = second.get(src, z, x, y);
+                        for (int i = 0; d == null && i < sets.size(); i++) {
+                            d = lan.configured() ? lan.get(sets.get(i), z, x, y) : null;
+                            if (d == null && second != null) d = second.get(sets.get(i), z, x, y);
+                        }
+                    }
+                    if (d != null) {
+                        j.fromLan++;
+                        save(cache, z, x, y, d);
+                    } else {
+                        long wait = NET_GAP_MS - (System.currentTimeMillis() - lastNet[0]);
+                        if (wait > 0) Thread.sleep(wait);
+                        lastNet[0] = System.currentTimeMillis();
+                        try {
+                            d = fromNet(url, z, x, y);
+                        } catch (Exception e) {
+                            d = null;
+                        }
+                        if (d == null) {
+                            j.failed++;
+                        } else {
+                            j.fromNet++;
+                            save(cache, z, x, y, d);
+                            // The primary, or the secondary map server if the primary is off.
+                            if ((lan.configured() && lan.put(src, z, x, y, d)) || (second != null && second.put(src, z, x, y, d))) j.sent++;
+                        }
+                    }
+                }
+                j.done++;
+                return true;
+            }
+        });
     }
 
     // ---- the screen ----
@@ -388,7 +443,7 @@ public final class TilePrefetch {
                 @Override
                 public void onClick(View v) {
                     if (left[2] == 0) org.communitycomms.app.TilePrefetchService.startSync(a, saved(a).getInt("sync", 0));
-                    else org.communitycomms.app.TilePrefetchService.start(a, left[0], left[1], (int) left[2]);
+                    else org.communitycomms.app.TilePrefetchService.start(a, left[0], left[1], (int) left[2], saved(a).getString("types", "0"));
                     a.getWindow().getDecorView().postDelayed(new Runnable() {
                         @Override
                         public void run() {
@@ -442,7 +497,7 @@ public final class TilePrefetch {
                 if (lan.configured()) {
                     s.append("LAN maps cache: ").append(lan.base()).append('\n');
                     List<String> sets = lan.namedSets();
-                    if (!sets.isEmpty()) s.append("Named sets there: ").append(sets).append('\n');
+                    if (!sets.isEmpty()) s.append("Named sets there (used with a satellite map): ").append(sets).append('\n');
                     s.append("Since the app started: ").append(TileMapView.lanGot.get()).append(" tiles from it, ")
                             .append(TileMapView.lanSent.get()).append(" given to it");
                     if (TileMapView.lanFailed.get() > 0) s.append(", ").append(TileMapView.lanFailed.get()).append(" failed");
@@ -572,18 +627,60 @@ public final class TilePrefetch {
             progress(a, running, after);
             return;
         }
-        int n = count(lat, lon, km);
-        long mb = n * (long) KB_PER_TILE / 1024;
-        new AlertDialog.Builder(a).setTitle("Prefetch " + km + " km?")
-                .setMessage("High speed connection required: this will cause a lot of data from the LAN cache and the internet.\n\n"
-                        + "Up to " + n + " tiles, about " + mb + " MB, every zoom level " + MIN_Z + " to " + MAX_Z + ". Tiles already on this "
-                        + "phone or in the LAN cache are not downloaded again, and anything the LAN cache is missing is added to it.\n\n"
-                        + "Internet tiles are fetched slowly (at most 5 a second) because public map servers do not allow fast bulk "
-                        + "downloads, so a large area can take hours. Stay on WiFi; it can stop and carry on later.")
+        final int n = count(lat, lon, km);
+        float dp = a.getResources().getDisplayMetrics().density;
+        LinearLayout box = new LinearLayout(a);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding((int) (20 * dp), (int) (8 * dp), (int) (20 * dp), 0);
+        TextView top = new TextView(a);
+        top.setText("High speed connection required: this will cause a lot of data from the LAN cache and the internet.\n\nMap types to get:");
+        box.addView(top);
+        final android.widget.CheckBox[] ticks = new android.widget.CheckBox[TYPE_NAMES.length];
+        final TextView size = new TextView(a);
+        final Runnable showSize = new Runnable() {
+            @Override
+            public void run() {
+                int kinds = 0;
+                for (android.widget.CheckBox b : ticks) if (b.isChecked()) kinds++;
+                size.setText("\nUp to " + n * kinds + " tiles, about " + n * kinds * (long) KB_PER_TILE / 1024 + " MB (satellite tiles are larger), every "
+                        + "zoom level " + MIN_Z + " to " + MAX_Z + ". Tiles already on this phone or in the LAN cache are not downloaded again, and anything the "
+                        + "LAN cache is missing is added to it.\n\nInternet tiles are fetched slowly (at most 5 a second) because public map servers do "
+                        + "not allow fast bulk downloads, so a large area can take hours. Stay on WiFi; it can stop and carry on later.");
+            }
+        };
+        int cur = new MapPrefs(a).onlinePreset();
+        boolean any = false;
+        for (int i = 0; i < ticks.length; i++) {
+            ticks[i] = new android.widget.CheckBox(a);
+            ticks[i].setText(TYPE_NAMES[i]);
+            ticks[i].setChecked(TYPE_PRESETS[i] == cur);
+            any |= ticks[i].isChecked();
+            ticks[i].setOnCheckedChangeListener(new android.widget.CompoundButton.OnCheckedChangeListener() {
+                @Override
+                public void onCheckedChanged(android.widget.CompoundButton b, boolean on) {
+                    showSize.run();
+                }
+            });
+            box.addView(ticks[i]);
+        }
+        if (!any) ticks[0].setChecked(true);
+        box.addView(size);
+        showSize.run();
+        ScrollView sv = new ScrollView(a);
+        sv.addView(box);
+        new AlertDialog.Builder(a).setTitle("Prefetch " + km + " km?").setView(sv)
                 .setPositiveButton("Prefetch", new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface di, int w) {
-                        org.communitycomms.app.TilePrefetchService.start(a, lat, lon, km);
+                        StringBuilder types = new StringBuilder();
+                        for (int i = 0; i < ticks.length; i++) {
+                            if (ticks[i].isChecked()) types.append(types.length() > 0 ? "," : "").append(TYPE_PRESETS[i]);
+                        }
+                        if (types.length() == 0) {
+                            Toast.makeText(a, "Tick at least one map type", Toast.LENGTH_SHORT).show();
+                            return;
+                        }
+                        org.communitycomms.app.TilePrefetchService.start(a, lat, lon, km, types.toString());
                         a.getWindow().getDecorView().postDelayed(new Runnable() {
                             @Override
                             public void run() {
@@ -624,7 +721,7 @@ public final class TilePrefetch {
                     return;
                 }
                 dlg.setMessage((j.paused ? "Paused\n" : "") + (j.km == 0 ? "Copied: " + j.sent + "\nAlready there: " + j.local + "\nNow on: " + j.where
-                        : j.done + " of " + j.total + " tiles\nAlready here: " + j.local + "\nFrom the LAN cache: " + j.fromLan
+                        : (j.where.length() > 0 ? "Now: " + j.where + "\n" : "") + j.done + " of " + j.total + " tiles\nAlready here: " + j.local + "\nFrom the LAN cache: " + j.fromLan
                         + "\nFrom the internet: " + j.fromNet + "\nGiven to the LAN cache: " + j.sent)
                         + (j.failed > 0 ? "\nFailed: " + j.failed : "")
                         + (j.finished ? "\n\n" + (j.stopped() ? "Stopped." : j.error != null ? "Stopped: " + j.error : "Done.") : ""));

@@ -314,6 +314,19 @@ public final class TileMapView extends View {
             @Override
             public boolean onSingleTapConfirmed(MotionEvent e) {
                 if (cornerTap(e.getX(), e.getY())) return true;
+                if (rulerOn) {
+                    double tx = centerX + (e.getX() - getWidth() / 2f) / tilePx;
+                    double ty = centerY + (e.getY() - getHeight() / 2f) / tilePx;
+                    double[] p = {Geo.yToLat(ty, z), Geo.xToLon(tx, z)};
+                    if (rulerA == null || rulerB != null) { // first point, or start again
+                        rulerA = p;
+                        rulerB = null;
+                    } else {
+                        rulerB = p;
+                    }
+                    invalidate();
+                    return true;
+                }
                 Marker m = markerAt(e.getX(), e.getY());
                 if (m != null && onMarkerTap != null) onMarkerTap.onMarkerTap(m);
                 return m != null;
@@ -503,6 +516,104 @@ public final class TileMapView extends View {
         drawMe(c, d);
         drawCompass(c, d);
         drawCentreMe(c, d);
+        if (scaleY > 0) drawScale(c, d);
+        if (rulerOn) drawRuler(c, d);
+    }
+
+    // ---- scale bar and ruler (full map) ----
+
+    /** Height of the scale bar from the top in dp (0 = no scale bar). */
+    private int scaleY;
+    private boolean rulerOn;
+    private double[] rulerA, rulerB;
+    private final Paint rulerLine = new Paint(Paint.ANTI_ALIAS_FLAG);
+
+    public void setScaleBar(int topDp) {
+        scaleY = topDp;
+        invalidate();
+    }
+
+    /** Ruler mode: tap two points for the distance and bearing; a third tap starts again. */
+    public void setRuler(boolean on) {
+        rulerOn = on;
+        rulerA = rulerB = null;
+        invalidate();
+    }
+
+    public boolean rulerOn() {
+        return rulerOn;
+    }
+
+    private void drawScale(Canvas c, float d) {
+        double mPerPx = 156543.03 * Math.cos(Math.toRadians(centerLat())) / (1 << z) * 256 / tilePx;
+        // The longest round length (1, 2 or 5 times a power of ten) that fits in 100 dp.
+        double unit = Geo.imperial ? 0.3048 : 1; // metres in a foot or a metre
+        double most = 100 * d * mPerPx / unit;
+        double p = Math.pow(10, Math.floor(Math.log10(most)));
+        double nice = most >= 5 * p ? 5 * p : most >= 2 * p ? 2 * p : p;
+        if (Geo.imperial && nice >= 5280) { // round miles above a mile
+            double mi = most / 5280, q = Math.pow(10, Math.floor(Math.log10(mi)));
+            nice = (mi >= 5 * q ? 5 * q : mi >= 2 * q ? 2 * q : q) * 5280;
+        }
+        float w = (float) (nice * unit / mPerPx), x = 12 * d, y = scaleY * d;
+        for (int pass = 0; pass < 2; pass++) {
+            rulerLine.setStyle(Paint.Style.STROKE);
+            rulerLine.setStrokeCap(Paint.Cap.BUTT);
+            rulerLine.setStrokeWidth((pass == 0 ? 5 : 2.5f) * d);
+            rulerLine.setColor(pass == 0 ? 0xc0000000 : 0xffffffff);
+            c.drawLine(x, y, x + w, y, rulerLine);
+            c.drawLine(x, y - 5 * d, x, y + 3 * d, rulerLine);
+            c.drawLine(x + w, y - 5 * d, x + w, y + 3 * d, rulerLine);
+        }
+        String label = Geo.distance(nice * unit);
+        c.drawText(label, x, y - 8 * d, haloPaint);
+        c.drawText(label, x, y - 8 * d, textPaint);
+    }
+
+    private void drawRuler(Canvas c, float d) {
+        if (rulerA == null) {
+            label(c, "Tap the first point", d);
+            return;
+        }
+        float ax = sx(Geo.lonToX(rulerA[1], z)), ay = sy(Geo.latToY(rulerA[0], z));
+        rulerLine.setStrokeCap(Paint.Cap.ROUND);
+        rulerLine.setStyle(Paint.Style.STROKE);
+        if (rulerB != null) {
+            float bx = sx(Geo.lonToX(rulerB[1], z)), by = sy(Geo.latToY(rulerB[0], z));
+            rulerLine.setStrokeWidth(5 * d);
+            rulerLine.setColor(0xc0000000);
+            c.drawLine(ax, ay, bx, by, rulerLine);
+            rulerLine.setStrokeWidth(2.5f * d);
+            rulerLine.setColor(0xffffeb3b);
+            c.drawLine(ax, ay, bx, by, rulerLine);
+            dot(c, bx, by, d);
+            double m = Geo.distanceM(rulerA[0], rulerA[1], rulerB[0], rulerB[1]);
+            double brg = Geo.bearing(rulerA[0], rulerA[1], rulerB[0], rulerB[1]);
+            double back = Geo.bearing(rulerB[0], rulerB[1], rulerA[0], rulerA[1]);
+            label(c, Geo.distance(m) + "  " + Geo.compass(brg) + " " + Math.round(brg) % 360 + "°  (back " + Math.round(back) % 360 + "°)", d);
+        } else {
+            label(c, "Tap the second point", d);
+        }
+        dot(c, ax, ay, d);
+    }
+
+    private void dot(Canvas c, float x, float y, float d) {
+        rulerLine.setStyle(Paint.Style.FILL);
+        rulerLine.setColor(0xffffeb3b);
+        c.drawCircle(x, y, 6 * d, rulerLine);
+        rulerLine.setStyle(Paint.Style.STROKE);
+        rulerLine.setStrokeWidth(1.5f * d);
+        rulerLine.setColor(0xff000000);
+        c.drawCircle(x, y, 6 * d, rulerLine);
+    }
+
+    /** The ruler's reading, on a dark band beside the Ruler button (clear of the other map buttons). */
+    private void label(Canvas c, String s, float d) {
+        float x = 126 * d, y = 136 * d, w = textPaint.measureText(s);
+        rulerLine.setStyle(Paint.Style.FILL);
+        rulerLine.setColor(0xb0000000);
+        c.drawRect(x - 6 * d, y - 16 * d, x + w + 6 * d, y + 6 * d, rulerLine);
+        c.drawText(s, x, y, textPaint);
     }
 
     private final Paint headingPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -683,7 +794,7 @@ public final class TileMapView extends View {
                 String src = lu == null || lu.length() == 0 ? null : LanTiles.sourceId(lu);
                 if (b == null && (lan != null || lan2 != null) && src != null) b = fromLan(src, cacheDir, t);
                 // Then any named set in the LAN maps cache (e.g. "ATAK Home") before going online.
-                if (b == null && base && (lan != null || lan2 != null)) {
+                if (b == null && base && (lan != null || lan2 != null) && LanTiles.isImagery(lu)) {
                     for (String set : namedSets) {
                         b = fromLan(set, cacheDir, t);
                         if (b != null) break;

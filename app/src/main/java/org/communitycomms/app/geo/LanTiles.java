@@ -58,6 +58,17 @@ public final class LanTiles {
         tryPass = pass;
     }
 
+    /**
+     * Is this tile source satellite photos? Named sets in the cache (e.g. "ATAK Home") are satellite
+     * JPEGs, so they only fill in for a satellite source: on a street or topographic map they would
+     * make a patchwork of two kinds of map.
+     */
+    public static boolean isImagery(String tileUrl) {
+        if (tileUrl == null) return false;
+        String u = tileUrl.toLowerCase(java.util.Locale.US);
+        return u.contains("lyrs=y") || u.contains("lyrs=s") || u.contains("satellite") || u.contains("imagery");
+    }
+
     /** The secondary map server (map tiles only, Data Tile Management), or null if none is set. */
     public static LanTiles secondary(Context c) {
         SharedPreferences s = c.getSharedPreferences("settings", Context.MODE_PRIVATE);

@@ -357,7 +357,7 @@ type ERASE). Destructive buttons ask first.
 - **Clean up received bursts** (Audio page, off by default): less background noise, quiet bursts turned up and loud ones
   evened out before playing (the original recording stays in Chat).
 - **Data Tile Management** (map menu): what is stored on this phone and in the LAN maps cache, and Prefetch 5, 10 or 20 km around
-  the + at every zoom level 10–17. Tiles already here are skipped, the LAN cache is used before the internet, and whatever the
+  the + at every zoom level 10–17, for the map types you tick (street, satellite, topographic). Tiles already here are skipped, the LAN cache is used before the internet, and whatever the
   cache is missing is added to it. Needs a fast connection; internet tiles are limited to 5 a second, so large areas take hours. It runs in the background with
   a notification (Pause / Resume, Stop); open Data Tile Management to see it, or carry on after the app was closed.
 - **Secondary map server** (Data Tile Management): a second LAN storage for map tiles only. Phones read from it when the primary
@@ -365,8 +365,11 @@ type ERASE). Destructive buttons ask first.
   phone with no internet (either way or both), only what is missing, never deleting; handy for filling a new server in the field.
   Needs folder listings on both servers (the YCC server has them).
 - **Named LAN tile sets**: a tile set copied into the LAN storage's Maps cache folder under its own name (e.g. "ATAK Home",
-  z/x/y.jpg) is used by every phone automatically, after its own saved tiles and before going online. The map's tiles line
+  z/x/y.jpg) is used by every phone on a satellite map source (it would not match a street map), after its own saved tiles and before going online. The map's tiles line
   counts tiles read from and given to the LAN maps cache.
+- **Map layer** (full map, top left, under Search): street map, satellite or topographic in one tap; each keeps its own saved tiles.
+- **Scale and ruler** (full map, top left): a scale bar in your units, and **Tools > Ruler**: tap two points for the distance and bearing
+  (and the bearing back); a third tap starts again, Tools > Ruler off clears it.
 - **Map search** (full map, top left): suburbs, towns and streets. Offline lists are offered the first time in a country
   (Australia and the USA by their outline; others looked up online): suburbs and towns from GeoNames (also shared through the
   LAN storage) and streets from OpenStreetMap around the map centre (5–40 km). With internet, OpenStreetMap's search adds the
