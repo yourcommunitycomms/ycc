@@ -1486,7 +1486,8 @@ public final class RadioService extends Service implements RadioEngine.Listener 
                     }, 3000);
                     // The name is the passcode, so it is never shown in the status or notification.
                     String s = "On air, channel tag " + Integer.toHexString(e.channelTag()) + watching
-                            + (org.communitycomms.app.net.Tunnel.client != null ? " · internet tunnel on (and the WiFi here)"
+                            + (org.communitycomms.app.net.Tunnel.client != null ? (org.communitycomms.app.net.Tunnel.onlyTags
+                            ? " · internet tunnel on for some channels" : " · internet tunnel on (and the WiFi here)")
                             : org.communitycomms.app.net.Tunnel.relay != null ? " · tunnel relay on" : "");
                     publishState(s, true);
                     goForeground(s);
@@ -1800,15 +1801,48 @@ public final class RadioService extends Service implements RadioEngine.Listener 
      * of every channel it is on; a relay opens its remotes' ports. Off when neither is set.
      */
     private void applyTunnel(RadioEngine e) {
-        int[] t = new int[1 + e.monitors().size()];
-        t[0] = e.channelTag();
-        int i = 1;
-        for (RadioEngine m : e.monitors()) t[i++] = m.channelTag();
-        org.communitycomms.app.net.Tunnel.tags = t;
+        applyTunnel(e, true);
+    }
+
+    /** The slot whose channel has this name (A–H, Public), or -1. */
+    private static int slotNamed(Prefs pr, String name) {
+        String n = name == null ? "" : name.trim();
+        for (int s : Prefs.order()) {
+            String c = s == Prefs.SLOT_PUBLIC ? pr.publicKey() : pr.effectiveChannel(pr.channel(s));
+            if (c != null && c.trim().equals(n) && n.length() > 0) return s;
+        }
+        return -1;
+    }
+
+    /** Channels page: a tunnel icon or the all-channels switch changed (no rejoin needed). */
+    public void applyTunnelNow() {
+        RadioEngine e = engine;
+        if (e != null) applyTunnel(e, false);
+    }
+
+    /**
+     * Which channels go through the tunnel: all of them (Tunnel comms on), or only those with their
+     * tunnel icon on (Channels page). restart = on joining (a fresh connection); otherwise only the
+     * channel list changes, sent in the next HELLO.
+     */
+    private void applyTunnel(RadioEngine e, boolean restart) {
         Prefs pr = new Prefs(this);
-        if (pr.tunnelServer().length() > 0 && pr.tunnelKey().length() > 0 && pr.tunnelClientOn()) {
+        boolean all = pr.tunnelClientOn();
+        List<Integer> tl = new ArrayList<Integer>();
+        if (all || pr.tunnelSlot(pr.activeSlot())) tl.add(e.channelTag());
+        for (RadioEngine m : e.monitors()) {
+            int s = slotNamed(pr, m.channelName());
+            if (all || (s >= 0 && pr.tunnelSlot(s))) tl.add(m.channelTag());
+        }
+        int[] t = new int[tl.size()];
+        for (int i = 0; i < t.length; i++) t[i] = tl.get(i);
+        org.communitycomms.app.net.Tunnel.tags = t;
+        org.communitycomms.app.net.Tunnel.onlyTags = !all;
+        if (pr.tunnelSetUp() && (all || t.length > 0)) {
             org.communitycomms.app.net.Tunnel.Relay.stopRelay();
-            org.communitycomms.app.net.Tunnel.Client.start(pr.tunnelServer(), pr.tunnelKey());
+            if (restart || org.communitycomms.app.net.Tunnel.client == null) {
+                org.communitycomms.app.net.Tunnel.Client.start(pr.tunnelServer(), pr.tunnelKey());
+            }
         } else {
             org.communitycomms.app.net.Tunnel.Client.stopClient();
             if (pr.tunnelRelayOn() && pr.tunnelRemotes().trim().length() > 0) {

@@ -292,6 +292,27 @@ public final class MapActivity extends Activity {
                 android.widget.Toast.makeText(MapActivity.this, "Fake GPS centre and position set to the + (" + org.communitycomms.app.geo.FakeGps.centre(MapActivity.this) + ")", android.widget.Toast.LENGTH_SHORT).show();
             }
         });
+        // Search for a suburb, town or street (offline lists for this country, or OpenStreetMap online).
+        android.widget.Button search = overMap("Search");
+        android.widget.FrameLayout.LayoutParams sl = new android.widget.FrameLayout.LayoutParams(
+                android.widget.FrameLayout.LayoutParams.WRAP_CONTENT, (int) (44 * d), android.view.Gravity.TOP | android.view.Gravity.LEFT);
+        sl.topMargin = (int) (8 * d);
+        sl.leftMargin = (int) (8 * d);
+        mapBox.addView(search, sl);
+        search.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                MapSearch.show(MapActivity.this, map.centerLat(), map.centerLon(), new MapSearch.Go() {
+                    @Override
+                    public void to(double lat, double lon, int zoom, String label) {
+                        map.center(lat, lon, Math.max(map.zoom(), zoom));
+                        refresh();
+                        android.widget.Toast.makeText(MapActivity.this, label + ": the + is on it (Add POI at + to mark it)",
+                                android.widget.Toast.LENGTH_LONG).show();
+                    }
+                });
+            }
+        });
         addHere.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {

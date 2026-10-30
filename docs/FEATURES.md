@@ -356,6 +356,13 @@ type ERASE). Destructive buttons ask first.
   (encoded on the last sheet used, from its next row). CW mode stays on across restarts and crashes until the lock is tapped.
 - **Clean up received bursts** (Audio page, off by default): less background noise, quiet bursts turned up and loud ones
   evened out before playing (the original recording stays in Chat).
+- **Map search** (full map, top left): suburbs, towns and streets. Offline lists are offered the first time in a country
+  (Australia and the USA by their outline; others looked up online): suburbs and towns from GeoNames (also shared through the
+  LAN storage) and streets from OpenStreetMap around the map centre (5–40 km). With internet, OpenStreetMap's search adds the
+  rest. A result moves the + there (Add POI at + to mark it). Search lists… adds streets for another area.
+- **Tunnel per channel** (Channels page, with a relay server set up): "Use the tunnel for every channel" (also in Settings >
+  Tunnel comms), or leave it off and tap the arch icon on a channel so only that channel goes through the relay. The
+  Channels page also shows your callsign (tap to change).
 - **Mobile data prompt**: with a relay server set up (Settings > Tunnel comms) and no WiFi, the app offers to talk through
   the relay over mobile data; when WiFi is back it offers to switch back.
 - **Bulk add / export points** (full map menu): one point per line, `Name, Icon, Lat, Lon, Notes` (the position may be one

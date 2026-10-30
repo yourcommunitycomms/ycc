@@ -54,6 +54,8 @@ public final class Tunnel {
     public static volatile Relay relay;
     /** Channel tags this phone is on (on air + listened to), for the HELLO. */
     public static volatile int[] tags = new int[0];
+    /** Only some channels go through the tunnel (the per-channel tunnel icons): send only packets of tags. */
+    public static volatile boolean onlyTags;
 
     private Tunnel() {
     }
@@ -298,6 +300,12 @@ public final class Tunnel {
 
         /** From UdpLink: a radio packet this phone sends. */
         public void send(byte[] p) {
+            if (onlyTags) {
+                int t = channelTag(p, p.length);
+                boolean ok = false;
+                for (int x : tags) ok |= x == t;
+                if (!ok) return; // a channel kept off the tunnel
+            }
             queue(DATA, p, p.length);
         }
 

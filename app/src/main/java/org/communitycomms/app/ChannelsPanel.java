@@ -102,14 +102,28 @@ final class ChannelsPanel {
         int air = onAir();
         List<Integer> hear = listeningNow();
         StringBuilder k = new StringBuilder().append(air).append(hear).append(prefs.dualWatch()).append(prefs.extrasOn())
-                .append(prefs.watchSlots(prefs.activeSlot())).append(prefs.publicKey());
+                .append(prefs.watchSlots(prefs.activeSlot())).append(prefs.publicKey()).append(prefs.callsign())
+                .append(prefs.tunnelSetUp()).append(prefs.tunnelClientOn());
         for (int s : Prefs.order()) {
             k.append('|').append(prefs.shown(s)).append(prefs.channel(s).length()).append(prefs.channelNote(s).hashCode())
-                    .append(prefs.channelMuted(s));
+                    .append(prefs.channelMuted(s)).append(prefs.tunnelSlot(s));
         }
         if (k.toString().equals(shown)) return;
         shown = k.toString();
         box.removeAllViews();
+
+        // Who I am on air (tap to change).
+        TextView me = new TextView(a);
+        me.setTextSize(16);
+        me.setText("Callsign: " + (prefs.callsign().length() > 0 ? prefs.callsign() : "(not set)") + "  (tap to change)");
+        me.setPadding(0, dp(4), 0, dp(6));
+        me.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                editCallsign();
+            }
+        });
+        box.addView(me);
 
         if (prefs.dualWatch() && !samePlan(hear)) {
             TextView t = new TextView(a);
@@ -122,6 +136,23 @@ final class ChannelsPanel {
             box.addView(channelRow(slot, air, hear));
         }
 
+        if (prefs.tunnelSetUp()) {
+            heading("Tunnel (internet relay)");
+            final Switch all = new Switch(a);
+            all.setText("Use the tunnel for every channel (the same as Settings > Tunnel comms). Off: only channels "
+                    + "with their tunnel icon on go through it.");
+            all.setChecked(prefs.tunnelClientOn());
+            all.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+                @Override
+                public void onCheckedChanged(CompoundButton bt, boolean on) {
+                    prefs.setTunnelClientOn(on);
+                    RadioService rs = RadioService.instance();
+                    if (rs != null) rs.applyTunnelNow();
+                    changed();
+                }
+            });
+            box.addView(all);
+        }
         heading("Radio silent");
         box.addView(Prefs.radioSilentBox(a));
         heading("Listening");
@@ -154,6 +185,7 @@ final class ChannelsPanel {
         note.setPadding(0, dp(12), 0, 0);
         note.setText("Eye: show that channel's button on the home screen (room for " + Prefs.HOME_MAX
                 + "). Key: DRYAD sheets. Note: kept on this phone; it moves with the channel when swapped. "
+                + (prefs.tunnelSetUp() && !prefs.tunnelClientOn() ? "Tunnel (arch): this channel also goes through the internet relay. " : "")
                 + "Three dots: name, swap with A or B, mute.");
         box.addView(note);
     }
@@ -215,6 +247,21 @@ final class ChannelsPanel {
                 editNote(slot);
             }
         }));
+        if (prefs.tunnelSetUp() && !prefs.tunnelClientOn() && slot != Prefs.SLOT_OPENMANET) {
+            final boolean tun = prefs.tunnelSlot(slot);
+            top.addView(icon(tun ? R.drawable.ic_tunnel : R.drawable.ic_tunnel_off,
+                    tun ? "Tunnel on for this channel" : "Tunnel off for this channel", new Runnable() {
+                        @Override
+                        public void run() {
+                            prefs.setTunnelSlot(slot, !tun);
+                            RadioService rs = RadioService.instance();
+                            if (rs != null) rs.applyTunnelNow();
+                            Toast.makeText(a, !tun ? MainActivity.label(slot) + " now also goes through the tunnel"
+                                    : MainActivity.label(slot) + " stays off the tunnel", Toast.LENGTH_SHORT).show();
+                            changed();
+                        }
+                    }));
+        }
         if (slot != Prefs.SLOT_OPENMANET) {
             top.addView(icon(R.drawable.ic_more, "More", new Runnable() {
                 @Override
@@ -353,6 +400,33 @@ final class ChannelsPanel {
                 })
                 .setNegativeButton(android.R.string.cancel, null)
                 .show();
+    }
+
+    private void editCallsign() {
+        final android.widget.EditText e = new android.widget.EditText(a);
+        e.setSingleLine(true);
+        e.setText(prefs.callsign());
+        e.setSelectAllOnFocus(true);
+        e.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS);
+        new android.app.AlertDialog.Builder(a).setTitle("Callsign").setView(pad(e))
+                .setMessage("The name others see when you talk or send.")
+                .setPositiveButton(android.R.string.ok, new android.content.DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(android.content.DialogInterface d, int w) {
+                        String n = e.getText().toString().trim();
+                        if (n.length() > 0) {
+                            prefs.setCallsign(n);
+                            RadioService rs = RadioService.instance();
+                            RadioEngine en = rs == null ? null : rs.engine();
+                            if (en != null) { // heard as the new name straight away, no rejoin
+                                en.setCallsign(n);
+                                for (RadioEngine m : en.monitors()) m.setCallsign(n);
+                            }
+                        }
+                        changed();
+                    }
+                })
+                .setNegativeButton(android.R.string.cancel, null).show();
     }
 
     private void editNote(final int slot) {

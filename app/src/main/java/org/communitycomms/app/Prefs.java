@@ -783,6 +783,20 @@ public final class Prefs {
         return sp.getBoolean("tunnelClientOn", false);
     }
 
+    /** Tunnel for this one channel only (used when the tunnel is not on for every channel). */
+    public boolean tunnelSlot(int slot) {
+        return sp.getBoolean("tunnelSlot" + slot, false);
+    }
+
+    public void setTunnelSlot(int slot, boolean on) {
+        sp.edit().putBoolean("tunnelSlot" + slot, on).commit();
+    }
+
+    /** A relay server and key are set up (Settings > Tunnel comms). */
+    public boolean tunnelSetUp() {
+        return tunnelServer().length() > 0 && tunnelKey().length() > 0;
+    }
+
     public void setTunnelClientOn(boolean on) {
         sp.edit().putBoolean("tunnelClientOn", on).commit();
     }

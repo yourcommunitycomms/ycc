@@ -101,6 +101,8 @@ MAPS AND LOCATION
 - Burst voice cleanup (optional): noise reduction and level evening before playing.
 - CW (Morse) on DRYAD Enigma: message format, generate / send / receive / decode, CW mode (stealth), join, split, upload and download CW files.
 - Bulk add / export map points (text, QR or file; Name, Icon, Lat, Lon, Notes), layers, repeat skipping.
+- Tunnel per channel (arch icon on the Channels page) or for all channels; callsign shown on the Channels page.
+- Map search for suburbs, towns and streets, offline (GeoNames + OpenStreetMap lists, shared via LAN storage) or online.
 - Aircraft (ADS-B) from a MANET receiver or online feeds, and ships (AIS) from Open Waters, each
   shareable to the channel.
 - ATAK: import and export map files, an ATAK map source for the LAN tiles, and an ATAK compatible
