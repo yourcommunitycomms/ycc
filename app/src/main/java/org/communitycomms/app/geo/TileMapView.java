@@ -381,6 +381,12 @@ public final class TileMapView extends View {
         return Geo.xToLon(centerX, z);
     }
 
+    /** What the map shows now: {north, west, south, east}. */
+    public double[] screenBox() {
+        double hw = getWidth() / 2.0 / tilePx, hh = getHeight() / 2.0 / tilePx;
+        return new double[]{Geo.yToLat(centerY - hh, z), Geo.xToLon(centerX - hw, z), Geo.yToLat(centerY + hh, z), Geo.xToLon(centerX + hw, z)};
+    }
+
     public int zoom() {
         return z;
     }

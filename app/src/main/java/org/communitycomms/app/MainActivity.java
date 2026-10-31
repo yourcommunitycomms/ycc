@@ -303,6 +303,10 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         join.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+                if (talkHere()) {
+                    requestJoin();
+                    return;
+                }
                 // Simple modes: just the private and public keys, not the full channels page.
                 startActivity(new Intent(MainActivity.this, prefs.simple() ? KeysActivity.class : ChannelsActivity.class));
             }
@@ -410,6 +414,16 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         if (action != null) handleChannelAction(action, i.getIntExtra(ChannelsActivity.EXTRA_SLOT, slot));
     }
 
+    /** Simple modes have no Channels page, so when off a channel this button gets back on it. */
+    private boolean talkHere() {
+        return prefs.simple() && !joined && prefs.channel(slot).length() > 0;
+    }
+
+    private void renderJoinButton() {
+        if (talkHere()) join.setText("Talk here");
+        else join.setText(R.string.channels_button);
+    }
+
     /** Join (switch to) or leave a channel, asked for on the Channels page or the commander panel. */
     private void handleChannelAction(String action, int s) {
         if (ChannelsActivity.LEAVE.equals(action)) {
@@ -501,6 +515,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         renderCommanderPoints();
         renderSlots();
         rejoinIfSettingsChanged();
+        renderJoinButton();
         if (joinWhenBack) {
             joinWhenBack = false; // first start chose Public: join once the permissions screen is done
             requestJoin();
@@ -2691,7 +2706,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         joined = isJoined;
         lastStatus = s;
         status.setText(label(slot) + " · " + s);
-        join.setText(R.string.channels_button);
+        renderJoinButton();
         renderBroadcast();
         ptt.setEnabled(isJoined);
         if (isJoined) applyVox();

@@ -1132,7 +1132,7 @@ public final class MapActivity extends Activity {
             return true;
         }
         if (item.getItemId() == 10) {
-            org.communitycomms.app.geo.TilePrefetch.show(this, map.centerLat(), map.centerLon(), new Runnable() {
+            org.communitycomms.app.geo.TilePrefetch.show(this, map.centerLat(), map.centerLon(), map.screenBox(), map.zoom(), new Runnable() {
                 @Override
                 public void run() {
                     map.retryMissing();

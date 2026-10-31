@@ -71,3 +71,5 @@
 - 2026-10-31: Offline mode: the channel says Offline instead of On air, and PTT says Record offline message: it records while held and sends by itself when someone is heard.
 - 2026-10-31: Chat filter: status changes and notices are hidden by default (tick them in the filter to show them).
 - 2026-10-31: Missed calls: an unacknowledged call shows as an unread Missed call line under Voice in Chat, and reminds every 5 minutes (beep, buzz, notification, call screen) for up to an hour until acknowledged; on by default, tick in Audio, PTT and alerts.
+- 2026-10-31: Fix: Simple mode when not on a channel (for example after leaving one in Advanced): the Channels button now says Talk here and joins.
+- 2026-10-31: Prefetch: Current screen downloads the map exactly as shown (its corners, not a radius), with any zoom level that is not too many tiles.
