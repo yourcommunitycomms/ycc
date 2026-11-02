@@ -19,10 +19,11 @@ public final class PowerMode {
     private static volatile int mode = NORMAL;
     private static volatile long awakeUntil;
     /** Kept up to date by RadioService. */
-    static volatile boolean screenOn = true, alone, charging;
+    static volatile boolean screenOn = true, alone, charging, fullOnCharge;
 
     static void load(Context c) {
         mode = new Prefs(c).powerMode();
+        fullOnCharge = new Prefs(c).gpsFullOnCharge();
     }
 
     public static int mode() {
@@ -62,6 +63,23 @@ public final class PowerMode {
     /** The screen may sleep by itself in these modes, instead of being kept on. */
     static boolean letScreenSleep() {
         return mode == SAVER || mode == ULTRA;
+    }
+
+    /** Power and sleep: GPS at its fastest while on charge. Off by default. */
+    public static void setFullOnCharge(Context c, boolean on) {
+        fullOnCharge = on;
+        new Prefs(c).setGpsFullOnCharge(on);
+        powerNudge();
+    }
+
+    private static void powerNudge() {
+        RadioService s = RadioService.instance();
+        if (s != null) s.powerChanged();
+    }
+
+    /** A GPS interval: the saving one, or the full one on charge when that is ticked. */
+    public static long gpsMs(long full, long saving) {
+        return fullOnCharge && charging ? full : saving;
     }
 
     static boolean offline() {

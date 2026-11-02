@@ -49,11 +49,13 @@ public final class ListenKey {
     private final byte[] secret;
     private final ECPoint q;
     private final PrivateKey priv; // null = listen only
+    private final BigInteger secretD; // null = listen only
     private final PublicKey pub;
 
     private ListenKey(byte[] secret, ECPoint q, BigInteger d) throws GeneralSecurityException {
         this.secret = secret;
         this.q = q;
+        secretD = d;
         KeyFactory kf = KeyFactory.getInstance("EC");
         pub = kf.generatePublic(new ECPublicKeySpec(q, SPEC));
         priv = d == null ? null : kf.generatePrivate(new ECPrivateKeySpec(d, SPEC));
@@ -125,11 +127,82 @@ public final class ListenKey {
         }
     }
 
+    // ---- reports to leaders: locked to Q, so only a full key holder can open them ----
+
+    private static byte[] hash(String label, byte[] s) throws GeneralSecurityException {
+        MessageDigest md = MessageDigest.getInstance("SHA-256");
+        md.update(label.getBytes(UTF8));
+        return md.digest(s);
+    }
+
+    private static byte[] crypt(byte[] secret, byte[] iv, byte[] in) throws GeneralSecurityException {
+        javax.crypto.Cipher c = javax.crypto.Cipher.getInstance("AES/CTR/NoPadding");
+        c.init(javax.crypto.Cipher.ENCRYPT_MODE, new javax.crypto.spec.SecretKeySpec(hash("enc", secret), "AES"), new javax.crypto.spec.IvParameterSpec(iv));
+        return c.doFinal(in);
+    }
+
+    private static byte[] tag(byte[] secret, byte[] data, int len) throws GeneralSecurityException {
+        javax.crypto.Mac m = javax.crypto.Mac.getInstance("HmacSHA256");
+        m.init(new javax.crypto.spec.SecretKeySpec(hash("mac", secret), "HmacSHA256"));
+        m.update(data, 0, len);
+        return java.util.Arrays.copyOf(m.doFinal(), 16);
+    }
+
+    /** R(33) iv(16) ciphertext tag(16). Any phone with the listen key can make one. */
+    public byte[] sealReport(byte[] plain) throws GeneralSecurityException {
+        java.security.SecureRandom rnd = new java.security.SecureRandom();
+        BigInteger k;
+        do {
+            k = new BigInteger(256, rnd);
+        } while (k.signum() == 0 || k.compareTo(N) >= 0);
+        byte[] r = compress(multiply(k, new ECPoint(GX, GY))), secret = fixed(multiply(k, q).getAffineX()), iv = new byte[16];
+        rnd.nextBytes(iv);
+        byte[] ct = crypt(secret, iv, plain);
+        byte[] out = new byte[33 + 16 + ct.length + 16];
+        System.arraycopy(r, 0, out, 0, 33);
+        System.arraycopy(iv, 0, out, 33, 16);
+        System.arraycopy(ct, 0, out, 49, ct.length);
+        System.arraycopy(tag(secret, out, 49 + ct.length), 0, out, 49 + ct.length, 16);
+        return out;
+    }
+
+    /** Null unless this is a full key and the report is intact. */
+    public byte[] openReport(byte[] s) {
+        if (secretD == null || s.length < 66) return null;
+        try {
+            byte[] secret = fixed(multiply(secretD, decompress(java.util.Arrays.copyOf(s, 33))).getAffineX());
+            int len = s.length - 49 - 16;
+            byte[] want = tag(secret, s, 49 + len), got = java.util.Arrays.copyOfRange(s, 49 + len, s.length);
+            if (!MessageDigest.isEqual(want, got)) return null;
+            return crypt(secret, java.util.Arrays.copyOfRange(s, 33, 49), java.util.Arrays.copyOfRange(s, 49, 49 + len));
+        } catch (GeneralSecurityException | RuntimeException e) {
+            return null;
+        }
+    }
+
+    /** Leaders issue these: the team or person, then a check only a full key holder can work out. */
+    public String memberCode(String id) {
+        try {
+            byte[] h = hash("member|" + id.trim().toUpperCase(Locale.US) + "|", fixed(secretD));
+            return id.trim().toUpperCase(Locale.US) + "-" + Base32.encode(java.util.Arrays.copyOf(h, 5));
+        } catch (GeneralSecurityException e) {
+            return "";
+        }
+    }
+
+    public boolean checkMember(String code) {
+        int dash = code == null ? -1 : code.lastIndexOf('-');
+        return secretD != null && dash > 0 && memberCode(code.substring(0, dash)).equals(code);
+    }
+
     // ---- P-256 point maths (only for working out Q = d·G and decompressing Q) ----
 
     private static ECPoint multiply(BigInteger k) {
-        ECPoint r = null, a = new ECPoint(GX, GY);
-        for (int i = k.bitLength() - 1; i >= 0; i--) {
+        return multiply(k, new ECPoint(GX, GY));
+    }
+
+    private static ECPoint multiply(BigInteger k, ECPoint a) {
+        ECPoint r = null;        for (int i = k.bitLength() - 1; i >= 0; i--) {
             r = r == null ? null : add(r, r);
             if (k.testBit(i)) r = r == null ? a : add(r, a);
         }

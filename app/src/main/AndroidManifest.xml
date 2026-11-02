@@ -115,6 +115,9 @@
         <activity android:name=".AboutActivity" android:exported="false" />
         <activity android:name=".QuickProfileActivity" android:exported="false" />
         <activity android:name=".ContactsActivity" android:exported="false" />
+        <activity android:name=".ChannelArrayActivity" android:exported="false" />
+        <activity android:name=".TasksActivity" android:exported="false" />
+        <activity android:name=".ReportUpActivity" android:exported="false" />
         <activity android:name=".ChannelsActivity" android:exported="false" />
         <activity
             android:name=".CallAlertActivity"

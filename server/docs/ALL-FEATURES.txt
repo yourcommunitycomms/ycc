@@ -113,6 +113,13 @@ MAPS AND LOCATION
 - Option for the black screen to come back on for calls and voice.
 - Red light on a schedule.
 - Missed call line in Chat under Voice, and a reminder every 5 minutes until acknowledged.
+- Photo messages: several photos and a comment together.
+- Map eye button and speed readout.
+- Channel array: hundreds of teams with import, export, setup QR and printed cards.
+- Team names before the callsign.
+- Report to leaders: OK, Need help, SOS, location and message, sealed so only leaders can read them, with approved codes.
+- Tasks and notes for a channel, team or person.
+- Private contacts shared by QR.
 - Blackout with no light at all, and a legacy setting (lowest backlight) for older devices.
 - Map layer button: street, satellite or topographic, with ticks for ships, aircraft and emergency alerts.
 - Map scale bar and a two-point ruler: distance, bearing and back bearing.

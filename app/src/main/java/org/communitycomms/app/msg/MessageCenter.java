@@ -81,7 +81,7 @@ public final class MessageCenter {
     }
 
     private String me() {
-        String n = new Prefs(ctx).callsign();
+        String n = new Prefs(ctx).airName();
         return n.length() == 0 ? "?" : n;
     }
 
@@ -276,10 +276,22 @@ public final class MessageCenter {
         m.body = kind == KIND_REPORT ? inflate(data) : new String(data, UTF8);
         if (m.body == null) return;
         m.channelTag = tag;
+        if (m.body.startsWith(org.communitycomms.app.ReportUp.ACK)) {
+            org.communitycomms.app.ReportUp.acked(m.body);
+            return;
+        }
         MessageLog.Entry old = log().find(m.id);
         boolean wasMissing = old != null && old.state == MessageLog.STATE_MISSING;
         if (log().put(m)) {
-            if (!wasMissing && !m.ack) air.onNewMessage(m);
+            if (org.communitycomms.app.Tasks.is(m.body)) {
+                MessageLog.Entry n = new MessageLog.Entry();
+                n.type = MessageLog.TYPE_TEXT;
+                n.creator = m.creator;
+                n.body = "A task or note from " + m.creator;
+                air.onNewMessage(n);
+            } else if (!wasMissing && !m.ack) {
+                air.onNewMessage(m);
+            }
             maybeAcknowledge(m);
         }
     }

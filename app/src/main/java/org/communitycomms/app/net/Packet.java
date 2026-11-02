@@ -67,6 +67,8 @@ public final class Packet {
      * name(12, ASCII, space padded). At most 35 per packet.
      */
     public static final int TYPE_AIS = 19;
+    /** A report sealed for leaders: the one thing a listen-key phone can send (ReportUp). */
+    public static final int TYPE_UP = 20;
 
     public int type;
     public long sender;

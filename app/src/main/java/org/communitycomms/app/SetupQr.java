@@ -104,6 +104,10 @@ public final class SetupQr {
             if (onCancel != null) onCancel.run();
             return;
         }
+        if (o.has("team")) {
+            offerTeam(a, o, onCancel, onDone);
+            return;
+        }
         final String url = o.optString("url").trim();
         final boolean hasLan = url.startsWith("http://") || url.startsWith("https://");
         if (!hasLan && o.optString("tunnel").length() == 0) { // a code for a remote person may hold only the tunnel
@@ -147,6 +151,45 @@ public final class SetupQr {
                 .show();
     }
 
+    /** A team code from the Channel array: every set of settings can be left out. */
+    private static void offerTeam(final Activity a, final JSONObject o, final Runnable onCancel, final Runnable onDone) {
+        final String[][] sets = {{"chA", "Team channel (A)"}, {"pub", "Public channel"}, {"tunnel", "Remote relay: " + o.optString("tunnel")},
+                {"url", "Local cache server: " + o.optString("url")}, {"prof", "Profile: " + o.optString("prof")},
+                {"area", "Map area to download: " + o.optString("area")}, {"code", "Approved code for reports"}};
+        float d = a.getResources().getDisplayMetrics().density;
+        android.widget.LinearLayout box = new android.widget.LinearLayout(a);
+        box.setOrientation(android.widget.LinearLayout.VERTICAL);
+        box.setPadding((int) (20 * d), (int) (8 * d), (int) (20 * d), 0);
+        final android.widget.CheckBox[] ticks = new android.widget.CheckBox[sets.length];
+        for (int i = 0; i < sets.length; i++) {
+            ticks[i] = new android.widget.CheckBox(a);
+            ticks[i].setText(sets[i][1]);
+            ticks[i].setChecked(true);
+            if (o.has(sets[i][0])) box.addView(ticks[i]);
+        }
+        android.widget.ScrollView sv = new android.widget.ScrollView(a);
+        sv.addView(box);
+        new AlertDialog.Builder(a).setTitle("Set up for team " + o.optString("team")).setView(sv).setCancelable(false)
+                .setPositiveButton("Set up", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface di, int w) {
+                        for (int i = 0; i < sets.length; i++) {
+                            if (!ticks[i].isChecked()) o.remove(sets[i][0]);
+                        }
+                        if (!o.has("tunnel")) o.remove("tkey");
+                        String url = o.optString("url").trim();
+                        if (url.startsWith("http://") || url.startsWith("https://")) check(a, o, url, onCancel, onDone);
+                        else apply(a, o, "", onDone);
+                    }
+                })
+                .setNegativeButton(android.R.string.cancel, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface di, int w) {
+                        if (onCancel != null) onCancel.run();
+                    }
+                }).show();
+    }
+
     private static void check(final Activity a, final JSONObject o, final String url, final Runnable onCancel,
                               final Runnable onDone) {
         Toast.makeText(a, "Checking the LAN storage...", Toast.LENGTH_SHORT).show();
@@ -182,6 +225,26 @@ public final class SetupQr {
                 });
             }
         }).start();
+    }
+
+    private static void applyTeam(Activity a, JSONObject o, Prefs p) {
+        if (!o.has("team")) return;
+        p.setTeamName(o.optString("team"));
+        if (o.has("code")) p.setReportCode(o.optString("code"));
+        if (o.has("chA") && o.has("pub")) { // talk on the team channel, hear Public
+            p.setDualWatch(true, true, false);
+            p.setListening(Prefs.SLOT_PUBLIC, true);
+            p.setActiveSlot(Prefs.SLOT_A);
+        }
+        if (o.has("prof")) {
+            int at = java.util.Arrays.asList(org.communitycomms.app.geo.QuickProfiles.NAMES).indexOf(o.optString("prof"));
+            if (at >= 0) new org.communitycomms.app.geo.QuickProfiles(a).setProfile(at);
+            else Toast.makeText(a, "Profile " + o.optString("prof") + " is not known here, so it was left as it is", Toast.LENGTH_LONG).show();
+        }
+        double[] area = ChannelArray.area(o.optString("area"));
+        if (area != null) {
+            TilePrefetchService.start(a, area[0], area[1], (int) area[2], "0", org.communitycomms.app.geo.TilePrefetch.upTo(14), area[2] > 20);
+        }
     }
 
     private static void apply(final Activity a, final JSONObject o, String url, final Runnable onDone) {
@@ -229,6 +292,7 @@ public final class SetupQr {
                             ed.putBoolean("homeNetOn", true).putString("homeNetSsid", o.optString("home"));
                         }
                         ed.commit();
+                        applyTeam(a, o, p);
                         p.setSetupDone();
                         Toast.makeText(a, done + (o.optString("tunnel").length() > 0
                                 ? ". Turn the tunnel on in Settings when away from the MANET." : ""), Toast.LENGTH_LONG).show();

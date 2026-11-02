@@ -514,6 +514,17 @@ public final class RadioEngine {
         return crypto.channelTag;
     }
 
+    /** A report for leaders: unsigned, so a listen-key phone can send it, and sealed so only leaders can read it. */
+    public void sendUp(byte[] sealed) {
+        UdpLink l = link != null ? link : sendVia == null ? null : sendVia.link;
+        if (l == null || radioSilent) return;
+        try {
+            l.send(Packet.seal(crypto, Packet.TYPE_UP, myId, nextSeq(), sealed, sealed.length));
+        } catch (GeneralSecurityException e) {
+            Log.e(TAG, "seal failed", e);
+        }
+    }
+
     public List<InetSocketAddress> destinations() {
         return link == null ? new ArrayList<InetSocketAddress>() : link.destinations();
     }
@@ -1166,6 +1177,10 @@ public final class RadioEngine {
         }
         Packet p = Packet.open(crypto, buf, len);
         if (p == null || p.sender == myId || p.payload.length < 1) return;
+        if (listenKey != null && p.type == Packet.TYPE_UP) {
+            RadioService.upReceived(listenKey, p.payload);
+            return;
+        }
         if (listenKey != null) {
             // Signed channel: only packets signed by a full key holder count (listen-key phones cannot sign).
             int n = p.payload.length - org.communitycomms.app.crypto.ListenKey.SIG_LEN;

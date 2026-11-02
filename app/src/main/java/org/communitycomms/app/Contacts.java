@@ -165,6 +165,16 @@ public final class Contacts {
     }
 
     /** OpenMANET* talkers: only a name and when they were last heard. */
+    /** A position sent only to leaders (ReportUp): shown on the map like any other. */
+    public synchronized void located(String name, double lat, double lon) {
+        heard(name, System.currentTimeMillis(), "Report", "");
+        Contact c = byName.get(name);
+        if (c == null) return;
+        c.lat = lat;
+        c.lon = lon;
+        c.fixTimeMs = System.currentTimeMillis();
+    }
+
     public synchronized void heard(String name, long when, String on, String address) {
         if (name == null || name.length() == 0) return;
         Contact c = byName.get(name);

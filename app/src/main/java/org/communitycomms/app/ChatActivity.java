@@ -233,7 +233,7 @@ public final class ChatActivity extends Activity {
         java.util.Set<Long> down = org.communitycomms.app.msg.MessageCenter.unpinned(all);
         List<MessageLog.Entry> pins = new ArrayList<MessageLog.Entry>();
         for (MessageLog.Entry m : all) {
-            if (org.communitycomms.app.msg.MessageCenter.isUnpin(m)) continue;
+            if (org.communitycomms.app.msg.MessageCenter.isUnpin(m) || Tasks.is(m.body) || m.body.startsWith(ReportUp.ACK)) continue;
             if (org.communitycomms.app.msg.MessageCenter.isPin(m) && !down.contains(m.id)) pins.add(m);
             else if ((hidden() & (1 << category(m))) == 0) rows.add(m);
         }
@@ -258,6 +258,7 @@ public final class ChatActivity extends Activity {
         if (m.type == MessageLog.TYPE_REPORT) return 4;
         if (m.type == MessageLog.TYPE_POI) return 3;
         if (m.type == MessageLog.TYPE_FILE) return m.mime != null && m.mime.startsWith("audio/") ? 1 : 2;
+        if (m.local && m.body != null && m.body.startsWith("REPORT ")) return 4;
         if (m.local && m.body != null && m.body.startsWith("MISSED CALL")) return 1; // someone tried to reach you: never hidden as a notice
         return m.ack || m.local ? 5 : 0;
     }

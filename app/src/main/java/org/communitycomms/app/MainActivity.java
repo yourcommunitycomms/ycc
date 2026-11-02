@@ -313,7 +313,12 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         });
 
         findViewById(R.id.chat).setOnClickListener(open(ChatActivity.class));
-        findViewById(R.id.reports).setOnClickListener(open(ReportsActivity.class));
+        findViewById(R.id.reports).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                startActivity(new Intent(MainActivity.this, prefs.reportCode().length() > 0 ? ReportUpActivity.class : ReportsActivity.class));
+            }
+        });
         findViewById(R.id.map).setOnClickListener(open(MapActivity.class));
         lock.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -489,7 +494,9 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         View black = findViewById(R.id.black_screen);
         if (black != null) black.setVisibility(prefs.blackScreenButton() ? View.VISIBLE : View.GONE);
         View reports = findViewById(R.id.reports);
-        if (reports != null) reports.setVisibility(prefs.simple() ? View.GONE : View.VISIBLE); // simple modes: no reports
+        boolean canReport = prefs.reportCode().length() > 0;
+        if (reports != null) reports.setVisibility(prefs.simple() && !canReport ? View.GONE : View.VISIBLE); // simple modes: no reports
+        if (reports instanceof Button && canReport) ((Button) reports).setText("Report to leaders");
         View chal = findViewById(R.id.challenge_btn);
         if (chal != null) chal.setVisibility(prefs.appMode() == Prefs.MODE_ADVANCED ? View.VISIBLE : View.GONE);
         restartBlackTimer();
@@ -1474,12 +1481,15 @@ public final class MainActivity extends Activity implements RadioService.Ui {
     private static final int MENU_DRYAD = 1, MENU_PIGPEN = 2, MENU_CHANNEL_QR = 3, MENU_SCAN = 4, MENU_FILES = 5,
             MENU_OPENMANET = 6, MENU_BLACKOUT = 7, MENU_RED = 8, MENU_SETTINGS = 9, MENU_CHAT = 10, MENU_AUDIO = 11, MENU_ABOUT = 12, MENU_EXIT = 13,
             MENU_STREAMS = 14, MENU_INTERCOM = 15, MENU_VIDEOS = 16, MENU_TV = 17, MENU_GATEWAY = 18,
-            MENU_HOME_TOGGLE = 19, MENU_TOP_CHAT = 20, MENU_TOP_BLACK = 21, MENU_NOMAD = 22, MENU_TV_MENU = 23;
+            MENU_HOME_TOGGLE = 19, MENU_TOP_CHAT = 20, MENU_TOP_BLACK = 21, MENU_NOMAD = 22, MENU_TV_MENU = 23, MENU_TASKS = 24, MENU_ARRAY = 25, MENU_REPORT_UP = 26;
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         // Channel QR and Scan QR live in Settings (under the channel names) to keep this menu short.
         menu.add(0, MENU_CHAT, 0, R.string.chat);
+        menu.add(0, MENU_TASKS, 2, "Tasks and notes");
+        menu.add(0, MENU_ARRAY, 3, "Channel array");
+        menu.add(0, MENU_REPORT_UP, 0, "Report to leaders");
         menu.add(0, MENU_AUDIO, 1, "Audio");
         menu.add(0, MENU_SETTINGS, 9, R.string.settings); // just above Exit
         menu.add(0, MENU_FILES, 2, "Data / files");
@@ -1788,6 +1798,12 @@ public final class MainActivity extends Activity implements RadioService.Ui {
                     showChannelQr();
                 }
             }, null);
+        } else if (id == MENU_TASKS) {
+            startActivity(new Intent(this, TasksActivity.class));
+        } else if (id == MENU_ARRAY) {
+            startActivity(new Intent(this, ChannelArrayActivity.class));
+        } else if (id == MENU_REPORT_UP) {
+            startActivity(new Intent(this, ReportUpActivity.class));
         } else if (id == MENU_BLACKOUT) {
             LightDiscipline.blackout(this);
         } else if (id == MENU_RED) {
@@ -2595,7 +2611,8 @@ public final class MainActivity extends Activity implements RadioService.Ui {
                 // Tunnel comms: a new relay address, key or remote list re-joins too.
                 + "|" + prefs.tunnelServer() + prefs.tunnelKey().hashCode() + prefs.tunnelRelayOn() + prefs.tunnelRemotes().hashCode()
                 + prefs.tunnelClientOn()
-                + "|" + prefs.keyRotation()
+                + "|" + prefs.keyRotation() + prefs.teamName()
+                + "|" + ChannelArray.read(this, "channel-array.json").hashCode() + ChannelArray.read(this, "private-contacts.json").hashCode()
                 + "|" + watchNames();
     }
 
@@ -2655,6 +2672,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
             cs = "Station-" + Integer.toHexString((int) (Math.random() * 0xffff));
             prefs.setCallsign(cs);
         }
+        cs = prefs.airName();
         String ch = prefs.channel(slot);
         joinedWith = joinSettings();
         if (slot == Prefs.SLOT_OPENMANET) {

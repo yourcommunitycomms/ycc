@@ -450,7 +450,12 @@ public final class RadioService extends Service implements RadioEngine.Listener 
     }
 
     /** Which channel (A, Public, D…) a listen-only engine is on, from its name. */
+    /** Team code or private contact, by key, for channels outside the list. */
+    private static final java.util.Map<String, String> watchLabels = new java.util.concurrent.ConcurrentHashMap<String, String>();
+
     private static String letterOf(Prefs pr, RadioEngine m) {
+        String named = watchLabels.get(m.channelName().trim());
+        if (named != null) return named;
         for (int s : Prefs.order()) {
             if (pr.channel(s).trim().length() > 0 && pr.effectiveChannel(pr.channel(s)).trim().equals(m.channelName().trim())) return Prefs.letter(s);
         }
@@ -1728,7 +1733,6 @@ public final class RadioService extends Service implements RadioEngine.Listener 
         Prefs pr = new Prefs(this);
         watchMessages.clear();
         List<Integer> slots = pr.watchSlots(pr.activeSlot());
-        if (slots.isEmpty()) return "";
         StringBuilder ok = new StringBuilder(), failed = new StringBuilder();
         for (int other : slots) {
             String letter = Prefs.letter(other);
@@ -1740,19 +1744,43 @@ public final class RadioService extends Service implements RadioEngine.Listener 
                 failed.append(failed.length() == 0 ? "" : ", ").append(letter);
             }
         }
+        String on2 = pr.channel(pr.activeSlot()).trim();
+        int extra = 0;
+        for (ChannelArray.Row r : ChannelArray.load(this)) {
+            if (r.listen && !r.priv.equals(on2)) extra += watchExtra(on, callsign, pr, r.priv, r.code, r.hear);
+        }
+        for (PrivateContacts.Person p : PrivateContacts.load(this)) {
+            if (!p.key.equals(on2)) extra += watchExtra(on, callsign, pr, p.key, p.name, true);
+        }
         String letters = ok.toString();
+        if (slots.isEmpty()) return extra == 0 ? "" : " · also listening to " + extra + " teams and contacts";
         return (letters.length() == 0 ? "" : " · also listening to " + letters
                 + (mainPan != 0 ? " (stereo: " + (mainPan < 0 ? "this channel left, " + letters + " right)"
                 : letters + " left, this channel right)") : "")
                 + (pr.dualWatchSave() ? " (saving voice)" : ""))
+                + (extra == 0 ? "" : " · and " + extra + " teams and contacts")
                 + (failed.length() == 0 ? "" : " · could not listen to " + failed);
     }
 
+    private int watchExtra(RadioEngine on, String callsign, Prefs pr, String key, String label, boolean play) {
+        try {
+            watchLabels.put(key.trim(), label);
+            startWatch(on, callsign, pr, key, label, -1, play, true);
+            return 1;
+        } catch (Exception ex) {
+            Log.e(TAG, "could not listen to " + label, ex);
+            return 0;
+        }
+    }
+
     private void startWatch(RadioEngine on, String callsign, Prefs pr, int other) throws Exception {
-        final String letter = Prefs.letter(other);
+        startWatch(on, callsign, pr, pr.channel(other), Prefs.letter(other), other, pr.dualWatchPlay() && !pr.channelMuted(other), pr.dualWatchSave() || pr.recordAllVoice());
+    }
+
+    private void startWatch(RadioEngine on, String callsign, Prefs pr, String key, final String letter, final int other, boolean play, boolean save) throws Exception {
         final org.communitycomms.app.msg.MessageCenter[] mc = new org.communitycomms.app.msg.MessageCenter[1];
-        final org.communitycomms.app.crypto.ListenKey watchLk = listenKeyIfPublic(pr.channel(other));
-        final RadioEngine m = new RadioEngine(watchLk != null ? pr.channel(other) : pr.effectiveChannel(pr.channel(other)), watchLk,
+        final org.communitycomms.app.crypto.ListenKey watchLk = listenKeyIfPublic(key);
+        final RadioEngine m = new RadioEngine(watchLk != null ? key : pr.effectiveChannel(key), watchLk,
                 callsign, new RadioEngine.Listener() {
             @Override
             public void onRosterChanged() {
@@ -1790,7 +1818,7 @@ public final class RadioService extends Service implements RadioEngine.Listener 
                 });
             }
         });
-        VoiceRecorder rec = !pr.dualWatchSave() && !pr.recordAllVoice() ? null : new VoiceRecorder(receivedDir(this), letter,
+        VoiceRecorder rec = !save ? null : new VoiceRecorder(receivedDir(this), letter,
                 new VoiceRecorder.Listener() {
                     @Override
                     public void onRecording(java.io.File f, String from, int seconds, long voiceId) {
@@ -1808,7 +1836,7 @@ public final class RadioService extends Service implements RadioEngine.Listener 
                     }
                 });
         m.setPan(-mainPan);
-        m.startMonitor(pr.dualWatchPlay() && !pr.channelMuted(other), rec);
+        m.startMonitor(play, rec);
         mc[0] = new org.communitycomms.app.msg.MessageCenter(this, new org.communitycomms.app.msg.MessageCenter.Air() {
             @Override
             public RadioEngine engine() {
@@ -2461,6 +2489,75 @@ public final class RadioService extends Service implements RadioEngine.Listener 
                 && ((txLocationOn && !PowerMode.idle()) || rapidShareUntil > System.currentTimeMillis());
     }
 
+    // ---- reports to leaders (ReportUp) ----
+
+    private RadioEngine upEngine() {
+        RadioEngine e = engineFor(Prefs.SLOT_PUBLIC);
+        return e != null && e.signedChannel() ? e : null;
+    }
+
+    public boolean canReportUp() {
+        return upEngine() != null;
+    }
+
+    public void sendUp(String plain) {
+        RadioEngine e = upEngine();
+        org.communitycomms.app.crypto.ListenKey lk = listenKeyIfPublic(new Prefs(this).publicKey());
+        if (e == null || lk == null) return;
+        try {
+            e.sendUp(lk.sealReport(plain.getBytes("UTF-8")));
+        } catch (Exception ex) {
+            Log.w(TAG, "report", ex);
+        }
+    }
+
+    @SuppressLint("MissingPermission")
+    public android.location.Location lastFix() {
+        if (lastFix != null) return lastFix;
+        android.location.LocationManager lm = (android.location.LocationManager) getSystemService(Context.LOCATION_SERVICE);
+        return lm == null || !hasLocationPermission() ? null : org.communitycomms.app.geo.LocationHelper.bestKnown(lm);
+    }
+
+    /** From the receive thread: anything without a valid approved code stops here. */
+    public static void upReceived(org.communitycomms.app.crypto.ListenKey lk, byte[] sealed) {
+        final RadioService s = instance;
+        if (s == null) return;
+        final org.json.JSONObject o = ReportUp.open(s, lk, sealed);
+        if (o == null) return;
+        s.main.post(new Runnable() {
+            @Override
+            public void run() {
+                s.onReport(o);
+            }
+        });
+    }
+
+    private void onReport(org.json.JSONObject o) {
+        int kind = o.optInt("k");
+        String name = o.optString("n"), code = o.optString("c"), text = o.optString("t");
+        boolean hasFix = o.has("la");
+        if (hasFix) Contacts.get(this).located(name, o.optDouble("la"), o.optDouble("lo"));
+        sendTextTo(Prefs.SLOT_PUBLIC, ReportUp.ACK + Long.toHexString(o.optLong("id")) + "]");
+        if (kind == ReportUp.LOCATION) return;
+        org.communitycomms.app.msg.MessageLog.Entry m = new org.communitycomms.app.msg.MessageLog.Entry();
+        m.id = o.optLong("id");
+        m.type = org.communitycomms.app.msg.MessageLog.TYPE_TEXT;
+        m.time = System.currentTimeMillis();
+        m.creator = name;
+        m.channelTag = tagNow();
+        m.body = "REPORT " + ReportUp.NAMES[Math.max(0, Math.min(ReportUp.NAMES.length - 1, kind))] + " from " + name + " (" + code + ")"
+                + (text.length() > 0 ? ": " + text : "") + (hasFix ? String.format(java.util.Locale.US, " at %.5f, %.5f", o.optDouble("la"), o.optDouble("lo")) : "")
+                + (o.optInt("b", -1) >= 0 ? " battery " + o.optInt("b") + "%" : "");
+        m.local = true;
+        org.communitycomms.app.msg.MessageLog.get(this).put(m);
+        notifyMessage(m);
+        if (kind == ReportUp.SOS || kind == ReportUp.HELP) {
+            if (kind == ReportUp.SOS) org.communitycomms.app.audio.CallRinger.ring(this);
+            callWaiting(name, kind == ReportUp.SOS ? " SOS" : " needs help");
+            showCallScreen(name, kind == ReportUp.SOS ? " SOS" : " needs help");
+        }
+    }
+
     // ---- Settings > Power and sleep ----
 
     private boolean asleep, feedsWere = true, offlineWere;
@@ -2528,7 +2625,7 @@ public final class RadioService extends Service implements RadioEngine.Listener 
                 publishState(status, true);
             }
         }
-        String location = locationWanted() + ":" + PowerMode.locationMs(LOCATION_EVERY_MS);
+        String location = locationWanted() + ":" + PowerMode.locationMs(PowerMode.gpsMs(5000, 30000));
         if (!location.equals(locationWas)) {
             locationWas = location;
             updateLocationLoop();
@@ -2624,7 +2721,7 @@ public final class RadioService extends Service implements RadioEngine.Listener 
             };
             try {
                 for (String p : new String[]{android.location.LocationManager.GPS_PROVIDER, android.location.LocationManager.NETWORK_PROVIDER}) {
-                    if (lm.getAllProviders().contains(p)) lm.requestLocationUpdates(p, PowerMode.locationMs(5000), 0, fixListener, Looper.getMainLooper());
+                    if (lm.getAllProviders().contains(p)) lm.requestLocationUpdates(p, PowerMode.locationMs(PowerMode.gpsMs(5000, 30000)), 0, fixListener, Looper.getMainLooper());
                 }
             } catch (RuntimeException ignored) {
                 // no permission or provider

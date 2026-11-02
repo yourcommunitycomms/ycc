@@ -4,6 +4,7 @@
         <LinearLayout android:id="@+id/main_top" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical">
             <TextView android:id="@+id/callsign_label" style="@style/Label" android:text="@string/callsign" />
             <EditText android:id="@+id/callsign" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="@string/callsign_hint" android:inputType="textCapCharacters|textNoSuggestions" android:maxLength="32" android:singleLine="true" />
+        <EditText android:id="@+id/team_name" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Team or group name (optional)" android:inputType="text" android:singleLine="true" />
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
                 <Button android:id="@+id/update_from_url" style="@style/SmallButton" android:text="@string/update_from_url" />
                 <Button android:id="@+id/edit_update_url" style="@style/SmallButton" android:text="@string/edit_update_url" />
@@ -134,6 +135,7 @@
                 <RadioButton android:id="@+id/power_offline" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Offline: for no network. No remote prompts, sync or tunnel. With nobody around and the screen off, GPS and check-ins rest." />
             </RadioGroup>
             <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="After PTT, Power saver and Ultra low work as normal for 3 minutes so a reply is heard." android:textSize="12sp" />
+            <CheckBox android:id="@+id/gps_full_charge" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Full power GPS while plugged in" />
             <TextView style="@style/Label" android:text="Ask to change at battery level" />
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical" android:orientation="horizontal">
                 <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Ask about Power saver at (%, 0 = never)" />

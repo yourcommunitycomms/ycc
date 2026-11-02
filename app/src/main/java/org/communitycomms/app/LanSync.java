@@ -38,7 +38,9 @@ public final class LanSync {
 
     public static final String[] EVERY_NAMES = {"On demand only", "Weekly", "Daily", "Every minute (testing)"};
     private static final long[] EVERY_MS = {0, 7 * 24 * 3600000L, 24 * 3600000L, 60000L};
-    private static volatile boolean running;
+    private static volatile boolean running, scheduledRun;
+    /** Scheduled syncs look for a new app version at most this often (a tap on Sync always does). */
+    private static final long UPDATE_CHECK_MS = 7 * 24 * 3600000L;
 
     private static SharedPreferences sp(Context c) {
         return c.getSharedPreferences("settings", Context.MODE_PRIVATE);
@@ -101,6 +103,7 @@ public final class LanSync {
         if (gap == Long.MAX_VALUE || running || !anything(c) || !new LanTiles(c).configured()) return;
         long last = sp(c).getLong("lanSyncLast", 0);
         if (System.currentTimeMillis() - last < gap - 5000) return;
+        scheduledRun = true;
         new Thread(new Runnable() {
             @Override
             public void run() {
@@ -163,7 +166,13 @@ public final class LanSync {
             String pfx = prefix(c);
             if (mission(c).length() > 0) out.append("Mission ").append(mission(c)).append('\n');
             if (atHome(c)) out.append("Home network ").append(homeSsid(c)).append(": syncing everything but logs\n");
-            if (!fin && (autoUpdate(c) || atHome(c))) out.append(checkUpdate(c, lan)).append('\n');
+            long now = System.currentTimeMillis();
+            boolean checkDue = !scheduledRun || every(c) == EVERY_MS.length - 1 || now - sp(c).getLong("lanUpdateChecked", 0) >= UPDATE_CHECK_MS;
+            scheduledRun = false;
+            if (!fin && checkDue && (autoUpdate(c) || atHome(c))) {
+                sp(c).edit().putLong("lanUpdateChecked", now).commit();
+                out.append(checkUpdate(c, lan)).append('\n');
+            }
             if (fin || on(c, "lanSyncLogs")) out.append(uploadLog(lan, pfx, me)).append('\n');
             if (fin || on(c, "lanSyncData")) out.append(uploadData(c, lan, me, fin || atHome(c))).append('\n');
             if (fin || on(c, "lanSyncDryad")) out.append(syncDryad(c, lan)).append('\n');

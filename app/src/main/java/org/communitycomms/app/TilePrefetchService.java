@@ -103,7 +103,16 @@ public final class TilePrefetchService extends Service {
             NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
             if (j.finished) {
                 stopForeground(true);
-                if (nm != null) nm.notify(NOTE, note((j.stopped() ? "Stopped: " : j.error != null ? "Stopped early: " : "Done: ") + j.line(), true));
+                if (nm != null) {
+                    nm.notify(NOTE, note((j.stopped() ? "Stopped: " : j.error != null ? "Stopped early: " : "Done: ") + j.line(), true));
+                    final NotificationManager clear = nm;
+                    main.postDelayed(new Runnable() { // the result, for a moment, then out of the way
+                        @Override
+                        public void run() {
+                            clear.cancel(NOTE);
+                        }
+                    }, 20000);
+                }
                 stopSelf();
                 return;
             }
@@ -137,7 +146,7 @@ public final class TilePrefetchService extends Service {
         Notification.Builder b = Build.VERSION.SDK_INT >= 26 ? new Notification.Builder(this, CHANNEL) : new Notification.Builder(this);
         TilePrefetch.Job cur = TilePrefetch.job;
         b.setContentTitle(cur != null ? cur.title : "Map tiles").setContentText(text).setSmallIcon(R.drawable.ic_stat_radio).setContentIntent(open)
-                .setOngoing(!finished).setOnlyAlertOnce(true);
+                .setOngoing(!finished).setOnlyAlertOnce(true).setAutoCancel(finished);
         TilePrefetch.Job j = TilePrefetch.job;
         if (!finished && j != null) {
             b.setProgress(Math.max(1, j.total), j.done, j.total == 0);

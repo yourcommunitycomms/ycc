@@ -76,7 +76,7 @@ public final class MyPosition implements SensorEventListener, LocationListener {
             setLoc(LocationHelper.bestKnown(lm));
             try {
                 for (String p : new String[]{LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER}) {
-                    if (lm.getAllProviders().contains(p)) lm.requestLocationUpdates(p, 2000, 0, this, Looper.getMainLooper());
+                    if (lm.getAllProviders().contains(p)) lm.requestLocationUpdates(p, org.communitycomms.app.PowerMode.gpsMs(2000, 5000), 0, this, Looper.getMainLooper());
                 }
             } catch (RuntimeException ignored) {
                 // no permission yet: the compass still works

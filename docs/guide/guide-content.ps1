@@ -78,5 +78,8 @@ Add (P "• **New phones later:** scan the phone setup QR code in the wizard (se
 Add (P "• **LAN storage server:** Settings > **LAN storage location** points a phone at it (address, user, password, **Test**). Shared map tiles, auto updates, logs, missions and config backups are in Settings > **LAN sync and updates**. Installing the server on Project NOMAD and running the commander view on an Ubuntu desktop: see **NOMAD-SETUP.md**.")
 Add (P "• **Every feature** is listed in **ALL-FEATURES.txt**, and explained in the user guide **FEATURES.md**.")
 Add (P "• **Full map:** the buttons at the top left are **Search** (places, offline country lists can be downloaded), **Layer** (street, satellite or topographic) and **Tools** (a ruler: tap two points for the distance and bearing). The scale bar sits under them. The map menu has **Data Tile Management** to save an area from 1 to 200 km (or a basic world map) for offline use, with a choice of how much detail so big areas stay a sensible size.")
+Add (P "• **Teams:** leaders use **Channel array** in the menu to make team keys, setup QR codes and printed cards. Team phones can use **Report to leaders** for OK, Need help and SOS. **Tasks and notes** in the menu hold instructions for a channel, team or person.")
+Add (P "• **Private contacts:** at the bottom of Contacts, **Share my private comms** links two people by QR code, with no channel.")
+Add (P "• **Power and sleep** in Settings has the power modes, black screen and red light settings.")
 Add (P "• **Tablets** held sideways show the commander view: map, contacts and channels together.")
 Add (P "• **Lost phone?** Set a PIN in Settings and turn on lost-device protection: two wrong PINs erase the app's data.")

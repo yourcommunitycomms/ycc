@@ -666,10 +666,94 @@ public final class FilesActivity extends Activity {
         if (result != RESULT_OK) return;
         if (req == REQ_CAMERA && pendingCamera != null && pendingCamera.length() > 0) {
             notePhotoAim(pendingCamera);
-            sendCameraFile(pendingCamera);
-        } else if ((req == REQ_PICK_FILE || req == REQ_PICK_IMAGE) && data != null && data.getData() != null) {
+            Uri u = Uri.fromFile(pendingCamera);
+            album.add(u);
+            albumCamera.add(u);
+            showAlbum();
+        } else if (req == REQ_PICK_IMAGE && data != null && data.getData() != null) {
+            album.add(data.getData());
+            showAlbum();
+        } else if (req == REQ_PICK_FILE && data != null && data.getData() != null) {
             prepareAndSend(data.getData(), null, null);
         }
+    }
+
+    // ---- a photo message: one or more photos and a comment ----
+
+    private final ArrayList<Uri> album = new ArrayList<Uri>();
+    private final java.util.HashSet<Uri> albumCamera = new java.util.HashSet<Uri>();
+    private String albumComment = "";
+
+    private void showAlbum() {
+        float d = getResources().getDisplayMetrics().density;
+        final android.widget.EditText comment = new android.widget.EditText(this);
+        comment.setHint("Comment (optional)");
+        comment.setText(albumComment);
+        android.widget.FrameLayout box = new android.widget.FrameLayout(this);
+        box.setPadding((int) (20 * d), (int) (8 * d), (int) (20 * d), 0);
+        box.addView(comment);
+        new AlertDialog.Builder(this).setTitle(album.size() == 1 ? "1 photo" : album.size() + " photos").setView(box).setCancelable(false)
+                .setPositiveButton("Send", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface di, int w) {
+                        albumComment = comment.getText().toString().trim();
+                        sendAlbum();
+                    }
+                })
+                .setNeutralButton("Add another photo", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface di, int w) {
+                        albumComment = comment.getText().toString();
+                        pick("image/*", REQ_PICK_IMAGE);
+                    }
+                })
+                .setNegativeButton(android.R.string.cancel, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface di, int w) {
+                        clearAlbum();
+                    }
+                }).show();
+    }
+
+    private void clearAlbum() {
+        album.clear();
+        albumCamera.clear();
+        albumComment = "";
+    }
+
+    private void sendAlbum() {
+        if (RadioService.files() == null) {
+            Toast.makeText(this, "Join a channel on the radio screen first", Toast.LENGTH_LONG).show();
+            return;
+        }
+        if (RadioEngine.radioSilent) {
+            Toast.makeText(this, "Radio silent: files are not sent", Toast.LENGTH_LONG).show();
+            return;
+        }
+        if (RadioService.onPublic()) {
+            new AlertDialog.Builder(this).setTitle("You are on Public")
+                    .setMessage("Anyone with this app can receive files sent on Public. Send anyway?")
+                    .setPositiveButton("Send", new DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(DialogInterface d, int w) {
+                            sendAlbumNow();
+                        }
+                    })
+                    .setNegativeButton(android.R.string.cancel, null).show();
+        } else {
+            sendAlbumNow();
+        }
+    }
+
+    private void sendAlbumNow() {
+        for (Uri u : album) {
+            fromCamera = albumCamera.contains(u);
+            doPrepare(u, null, fromCamera ? "image/jpeg" : null);
+        }
+        fromCamera = false;
+        RadioService s = RadioService.instance();
+        if (albumComment.length() > 0 && s != null && s.messages() != null) s.messages().sendText(albumComment);
+        clearAlbum();
     }
 
     private void handleShare(Intent i) {

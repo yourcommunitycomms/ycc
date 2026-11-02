@@ -62,7 +62,20 @@ public final class MapActivity extends Activity {
         }
     };
 
-    private android.widget.Button layerButton;
+    private android.widget.Button layerButton, eyeButton;
+    private View[] overTools;
+
+    private boolean toolsShown() {
+        return getSharedPreferences("map", MODE_PRIVATE).getBoolean("mapToolsShown", true);
+    }
+
+    /** The eye: Search, Layer, Tools and the arrows pad, together. */
+    private void applyEye() {
+        boolean on = toolsShown();
+        for (View v : overTools) v.setVisibility(on ? View.VISIBLE : View.GONE);
+        mapPad.setVisibility(on && org.communitycomms.app.geo.MapPad.shown(this) ? View.VISIBLE : View.GONE);
+        eyeButton.setCompoundDrawablesWithIntrinsicBounds(new MapGlyph(this, on ? MapGlyph.EYE : MapGlyph.EYE_OFF), null, null, null);
+    }
     private static final String[] LAYER_NAMES = {"Street map", "Satellite", "Topographic"};
     private static final int[] LAYER_PRESETS = {0, 1, 3};
 
@@ -447,7 +460,7 @@ public final class MapActivity extends Activity {
         android.widget.Button search = overMap("Search");
         android.widget.FrameLayout.LayoutParams sl = new android.widget.FrameLayout.LayoutParams(
                 android.widget.FrameLayout.LayoutParams.WRAP_CONTENT, (int) (44 * d), android.view.Gravity.TOP | android.view.Gravity.LEFT);
-        sl.topMargin = (int) (8 * d);
+        sl.topMargin = (int) (58 * d);
         sl.leftMargin = (int) (8 * d);
         mapBox.addView(search, sl);
         search.setOnClickListener(new View.OnClickListener() {
@@ -466,9 +479,11 @@ public final class MapActivity extends Activity {
         });
         // Layer: street, satellite or topographic, one tap (each keeps its own saved tiles).
         layerButton = overMap(layerWord());
+        layerButton.setCompoundDrawablesWithIntrinsicBounds(new MapGlyph(this, MapGlyph.LAYERS), null, null, null);
+        layerButton.setCompoundDrawablePadding((int) (6 * d));
         android.widget.FrameLayout.LayoutParams ll = new android.widget.FrameLayout.LayoutParams(
                 android.widget.FrameLayout.LayoutParams.WRAP_CONTENT, (int) (44 * d), android.view.Gravity.TOP | android.view.Gravity.LEFT);
-        ll.topMargin = (int) (58 * d);
+        ll.topMargin = (int) (108 * d);
         ll.leftMargin = (int) (8 * d);
         mapBox.addView(layerButton, ll);
         layerButton.setOnClickListener(new View.OnClickListener() {
@@ -481,7 +496,7 @@ public final class MapActivity extends Activity {
         final android.widget.Button tools = overMap("Tools");
         android.widget.FrameLayout.LayoutParams rl = new android.widget.FrameLayout.LayoutParams(
                 android.widget.FrameLayout.LayoutParams.WRAP_CONTENT, (int) (44 * d), android.view.Gravity.TOP | android.view.Gravity.LEFT);
-        rl.topMargin = (int) (108 * d);
+        rl.topMargin = (int) (158 * d);
         rl.leftMargin = (int) (8 * d);
         mapBox.addView(tools, rl);
         tools.setOnClickListener(new View.OnClickListener() {
@@ -500,7 +515,23 @@ public final class MapActivity extends Activity {
                         .setNegativeButton(android.R.string.cancel, null).show();
             }
         });
-        map.setScaleBar(180);
+        map.setScaleBar(230);
+        eyeButton = overMap("");
+        android.widget.FrameLayout.LayoutParams el = new android.widget.FrameLayout.LayoutParams(
+                android.widget.FrameLayout.LayoutParams.WRAP_CONTENT, (int) (44 * d), android.view.Gravity.TOP | android.view.Gravity.LEFT);
+        el.topMargin = (int) (8 * d);
+        el.leftMargin = (int) (8 * d);
+        mapBox.addView(eyeButton, el);
+        eyeButton.setContentDescription("Show or hide the map tools");
+        overTools = new View[]{search, layerButton, tools};
+        eyeButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                getSharedPreferences("map", MODE_PRIVATE).edit().putBoolean("mapToolsShown", !toolsShown()).commit();
+                applyEye();
+            }
+        });
+        applyEye();
         addHere.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -601,14 +632,16 @@ public final class MapActivity extends Activity {
                         choosePoiFilter();
                     }
                 }));
-        keys.add(padToggle = new MapIconButton(this, MapIconButton.PAD, "Pad", "Show or hide the arrows and zoom over the map",
+        keys.add(padToggle = new MapIconButton(this, MapIconButton.PAD, "Tools", "Show or hide the arrows and zoom over the map",
                 new Runnable() {
                     @Override
                     public void run() {
                         // Arrows, zoom and centre over the map (all maps); off by default. Pinch and drag always work.
-                        boolean on = !org.communitycomms.app.geo.MapPad.shown(MapActivity.this);
+                        // Hidden by the eye: this brings everything back, not just the pad.
+                        boolean on = !org.communitycomms.app.geo.MapPad.shown(MapActivity.this) || !toolsShown();
                         org.communitycomms.app.geo.MapPad.setShown(MapActivity.this, on);
-                        mapPad.setVisibility(on ? View.VISIBLE : View.GONE);
+                        if (on) getSharedPreferences("map", MODE_PRIVATE).edit().putBoolean("mapToolsShown", true).commit();
+                        applyEye();
                         padToggle.setLit(on);
                     }
                 }));

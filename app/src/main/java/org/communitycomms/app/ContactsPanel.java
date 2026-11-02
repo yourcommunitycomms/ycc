@@ -34,6 +34,43 @@ import java.util.List;
  * Shown on its own page (ContactsActivity) or in the tablet commander view's side panel.
  */
 final class ContactsPanel {
+    private LinearLayout privateBox;
+
+    /** The bottom section: private contacts, each with Talk and Delete, and the Share button. */
+    private void renderPrivate() {
+        privateBox.removeAllViews();
+        TextView head = new TextView(a);
+        head.setTextSize(13);
+        head.setText("Private contacts");
+        privateBox.addView(head);
+        for (final PrivateContacts.Person p : PrivateContacts.load(a)) {
+            LinearLayout row = new LinearLayout(a);
+            row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+            TextView t = new TextView(a);
+            t.setText(p.name);
+            row.addView(t, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+            row.addView(small("Talk", new Runnable() {
+                @Override
+                public void run() {
+                    PrivateContacts.talk(a, p.key, p.remote);
+                }
+            }));
+            row.addView(small("Delete", new Runnable() {
+                @Override
+                public void run() {
+                    PrivateContacts.delete(a, p);
+                    renderPrivate();
+                }
+            }));
+            privateBox.addView(row);
+        }
+        privateBox.addView(small("Share my private comms", new Runnable() {
+            @Override
+            public void run() {
+                PrivateContacts.share(a);
+            }
+        }));
+    }
     private final Activity a;
     private final LinearLayout root;
     private final ListView list;
@@ -78,6 +115,9 @@ final class ContactsPanel {
         root.addView(top);
         list = new ListView(a);
         root.addView(list, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1));
+        privateBox = new LinearLayout(a);
+        privateBox.setOrientation(LinearLayout.VERTICAL);
+        root.addView(privateBox);
         list.setAdapter(adapter);
         list.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             @Override
@@ -92,6 +132,7 @@ final class ContactsPanel {
     }
 
     void start() {
+        renderPrivate();
         readMyPosition();
         handler.post(tick);
     }

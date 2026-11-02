@@ -33,7 +33,10 @@ public final class ChannelCrypto {
     public final int channelTag;
 
     public ChannelCrypto(String channelName) throws GeneralSecurityException {
-        byte[] okm = pbkdf2Sha256(channelName.trim().getBytes(UTF8), SALT, ITERATIONS, 64);
+        String name = channelName.trim();
+        // Team keys are long and random, so stretching adds nothing and hundreds can be set up at once.
+        byte[] okm = name.startsWith("YCCT1-") ? MessageDigest.getInstance("SHA-512").digest((name + "|communitycomms/v1").getBytes(UTF8))
+                : pbkdf2Sha256(name.getBytes(UTF8), SALT, ITERATIONS, 64);
         byte[] ek = new byte[32];
         byte[] mk = new byte[32];
         System.arraycopy(okm, 0, ek, 0, 32);

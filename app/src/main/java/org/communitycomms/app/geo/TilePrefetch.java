@@ -585,7 +585,10 @@ public final class TilePrefetch {
 
             @Override
             public void run() {
-                if (!dlg.isShowing()) return;
+                if (!dlg.isShowing()) {
+                    if (job != null && job.finished) job = null; // seen: nothing to show next time
+                    return;
+                }
                 Job j = job;
                 boolean on = j != null && !j.finished;
                 double[] left = on ? null : unfinished(a);

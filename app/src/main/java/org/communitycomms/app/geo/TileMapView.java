@@ -107,6 +107,7 @@ public final class TileMapView extends View {
     /** My position (null = none yet) and the way the phone faces (degrees true, NaN = no compass). */
     public void setMe(android.location.Location loc, float headingDeg) {
         if (loc != null) {
+            noteMove(loc);
             meLat = loc.getLatitude();
             meLon = loc.getLongitude();
             meAccuracy = loc.hasAccuracy() ? loc.getAccuracy() : 0;
@@ -115,6 +116,29 @@ public final class TileMapView extends View {
         }
         heading = headingDeg;
         invalidate();
+    }
+
+    private static final long MOVE_WINDOW_MS = 60000;
+    private static final double MOVE_MIN_M = 5;
+    private final java.util.ArrayDeque<double[]> track = new java.util.ArrayDeque<double[]>();
+    private String speedText;
+
+    /** Speed for the top right, only after moving more than 5 m in the last minute. */
+    private void noteMove(android.location.Location loc) {
+        long now = System.currentTimeMillis();
+        double[] last = track.peekLast();
+        if (last == null || last[1] != loc.getLatitude() || last[2] != loc.getLongitude()) {
+            track.addLast(new double[]{now, loc.getLatitude(), loc.getLongitude()});
+        }
+        while (track.size() > 1 && now - track.peekFirst()[0] > MOVE_WINDOW_MS) track.removeFirst();
+        double[] a = track.peekFirst(), b = track.peekLast();
+        double metres = Geo.distanceM(a[1], a[2], b[1], b[2]), secs = (b[0] - a[0]) / 1000;
+        if (metres <= MOVE_MIN_M || now - a[0] > 2 * MOVE_WINDOW_MS || secs < 1) {
+            speedText = null;
+            return;
+        }
+        double ms = loc.hasSpeed() && loc.getSpeed() > 0 ? loc.getSpeed() : metres / secs;
+        speedText = Geo.imperial ? Math.round(ms * 2.23694) + " mph" : Math.round(ms * 3.6) + " km/h";
     }
 
     private final Paint mePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -152,6 +176,11 @@ public final class TileMapView extends View {
             return;
         }
         drawCrossBearing(c, d, getHeight() - 10 * d);
+        if (speedText != null) {
+            float wt = textPaint.measureText(speedText), tx = getWidth() - 12 * d - wt;
+            c.drawText(speedText, tx, 86 * d, haloPaint);
+            c.drawText(speedText, tx, 86 * d, textPaint);
+        }
         if (meFake && !movedByHand) {
             c.drawText("Me: (Fake) GPS position", 8 * d, getHeight() - 10 * d, haloPaint);
             c.drawText("Me: (Fake) GPS position", 8 * d, getHeight() - 10 * d, textPaint);
@@ -615,7 +644,7 @@ public final class TileMapView extends View {
 
     /** The ruler's reading, on a dark band beside the Ruler button (clear of the other map buttons). */
     private void label(Canvas c, String s, float d) {
-        float x = 126 * d, y = 136 * d, w = textPaint.measureText(s);
+        float x = 126 * d, y = 186 * d, w = textPaint.measureText(s);
         rulerLine.setStyle(Paint.Style.FILL);
         rulerLine.setColor(0xb0000000);
         c.drawRect(x - 6 * d, y - 16 * d, x + w + 6 * d, y + 6 * d, rulerLine);

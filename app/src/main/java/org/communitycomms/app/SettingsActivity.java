@@ -834,6 +834,7 @@ public final class SettingsActivity extends Activity {
             }
         });
         setUpPower();
+        ((EditText) findViewById(R.id.team_name)).setText(prefs.teamName());
         final EditText blackAfter = (EditText) findViewById(R.id.black_after);
         blackAfter.setText(String.valueOf(prefs.blackAfterSec()));
         renderBlackAfter();
@@ -1187,6 +1188,14 @@ public final class SettingsActivity extends Activity {
         });
         ((EditText) findViewById(R.id.power_ask_saver)).setText(String.valueOf(prefs.powerAskSaver()));
         ((EditText) findViewById(R.id.power_ask_ultra)).setText(String.valueOf(prefs.powerAskUltra()));
+        CheckBox fullGps = (CheckBox) findViewById(R.id.gps_full_charge);
+        fullGps.setChecked(prefs.gpsFullOnCharge());
+        fullGps.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(CompoundButton bt, boolean on) {
+                PowerMode.setFullOnCharge(SettingsActivity.this, on);
+            }
+        });
         CheckBox wake = (CheckBox) findViewById(R.id.black_wake);
         wake.setChecked(prefs.blackWake());
         wake.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
@@ -1248,6 +1257,8 @@ public final class SettingsActivity extends Activity {
 
     private void save() {
         if (recreateFresh) return; // being rebuilt with fresh values: nothing typed here to keep
+        EditText team = (EditText) findViewById(R.id.team_name);
+        if (here(team)) prefs.setTeamName(team.getText().toString());
         EditText askSaver = (EditText) findViewById(R.id.power_ask_saver), askUltra = (EditText) findViewById(R.id.power_ask_ultra);
         if (here(askSaver)) {
             prefs.setPowerAskSaver(percent(askSaver));

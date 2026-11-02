@@ -308,6 +308,14 @@ public final class QrScanActivity extends Activity implements SurfaceHolder.Call
             } catch (IllegalArgumentException e) {
                 status.setText(e.getMessage());
             }
+        } else if (text.startsWith(PrivateContacts.PREFIX)) {
+            paused = true;
+            PrivateContacts.offer(this, text, new Runnable() {
+                @Override
+                public void run() {
+                    finish();
+                }
+            });
         } else if (text.startsWith(MainActivity.CHANNEL_QR_PREFIX)) {
             offerChannel(text);
         } else if (org.communitycomms.app.crypto.ListenKey.isListenKey(text)) {

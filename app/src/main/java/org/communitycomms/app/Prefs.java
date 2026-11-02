@@ -575,6 +575,29 @@ public final class Prefs {
         sp.edit().putBoolean("blackScreenButton", on).commit();
     }
 
+    /** Team or group name, shown before the callsign on air: channel, group, individual. */
+    public String teamName() {
+        return sp.getString("teamName", "").trim();
+    }
+
+    public void setTeamName(String s) {
+        sp.edit().putString("teamName", s == null ? "" : s.trim()).commit();
+    }
+
+    /** The name heard on air. */
+    public String airName() {
+        return teamName().length() > 0 ? teamName() + " " + callsign() : callsign();
+    }
+
+    /** The approved code from leaders, for Report to leaders. */
+    public String reportCode() {
+        return sp.getString("reportCode", "");
+    }
+
+    public void setReportCode(String s) {
+        sp.edit().putString("reportCode", s == null ? "" : s.trim()).commit();
+    }
+
     // ---- Settings > Power and sleep ----
 
     public int powerMode() {
@@ -583,6 +606,14 @@ public final class Prefs {
 
     public void setPowerMode(int m) {
         sp.edit().putInt("powerMode", m).commit();
+    }
+
+    public boolean gpsFullOnCharge() {
+        return sp.getBoolean("gpsFullOnCharge", false);
+    }
+
+    public void setGpsFullOnCharge(boolean on) {
+        sp.edit().putBoolean("gpsFullOnCharge", on).commit();
     }
 
     /** Battery percent at which to ask about Power saver; 0 = never. */
@@ -677,6 +708,7 @@ public final class Prefs {
      * every hour / day (UTC) for everyone with the same setting. The Public key never rotates.
      */
     public String effectiveChannel(String name) {
+        if (name.startsWith(ChannelArray.TEAM_PREFIX)) return name; // team keys never rotate
         int m = keyRotation();
         if (m == ROTATE_OFF || name.length() == 0 || name.trim().equals(publicKey().trim())) return name;
         return name + "|" + (m == ROTATE_HOURLY ? "h" : "d") + rotationPeriod(m, System.currentTimeMillis());
