@@ -253,7 +253,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
 
         join = (Button) findViewById(R.id.join);
         ptt = (Button) findViewById(R.id.ptt);
-        if (!mapHome && getResources().getConfiguration().orientation != android.content.res.Configuration.ORIENTATION_LANDSCAPE) {
+        addSayButton();        if (!mapHome && getResources().getConfiguration().orientation != android.content.res.Configuration.ORIENTATION_LANDSCAPE) {
             // Buttons home (portrait): PTT about a quarter of the screen, not all the spare space.
             int quarter = getResources().getDisplayMetrics().heightPixels / 4;
             ptt.getLayoutParams().height = Math.max((int) (120 * getResources().getDisplayMetrics().density), quarter);
@@ -1731,6 +1731,53 @@ public final class MainActivity extends Activity implements RadioService.Ui {
             wokeForVoice = false;
             LightDiscipline.blackout(this);
         }
+    }
+
+    /** A smaller button beside PTT: type a message that every phone on the channel reads aloud. */
+    private void addSayButton() {
+        if (!(ptt.getParent() instanceof LinearLayout)) return;
+        LinearLayout row = (LinearLayout) ptt.getParent();
+        float d = getResources().getDisplayMetrics().density;
+        Button say = new Button(this);
+        say.setAllCaps(false);
+        say.setText(row.getOrientation() == LinearLayout.HORIZONTAL ? "Text as\nvoice" : "Text as voice");
+        say.setTextSize(14);
+        say.setContentDescription("Send text as voice");
+        say.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                askSay();
+            }
+        });
+        LinearLayout.LayoutParams lp = row.getOrientation() == LinearLayout.HORIZONTAL
+                ? new LinearLayout.LayoutParams((int) (88 * d), LinearLayout.LayoutParams.MATCH_PARENT)
+                : new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, (int) (52 * d));
+        row.addView(say, row.indexOfChild(ptt) + 1, lp);
+    }
+
+    private void askSay() {
+        float d = getResources().getDisplayMetrics().density;
+        final EditText text = new EditText(this);
+        text.setHint("Read aloud on every phone on the channel");
+        android.widget.FrameLayout box = new android.widget.FrameLayout(this);
+        box.setPadding((int) (20 * d), (int) (8 * d), (int) (20 * d), 0);
+        box.addView(text);
+        new AlertDialog.Builder(this).setTitle("Text as voice").setView(box)
+                .setPositiveButton("Send", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface di, int w) {
+                        String t = text.getText().toString().trim();
+                        if (t.length() == 0) return;
+                        if (t.length() > 400) t = t.substring(0, 400);
+                        RadioService s = RadioService.instance();
+                        if (prefs.radioSilent()) {
+                            Toast.makeText(MainActivity.this, "Radio silent: not sent", Toast.LENGTH_SHORT).show();
+                        } else if (s == null || s.messages() == null || !s.messages().sendText(RadioService.SAY + t)) {
+                            Toast.makeText(MainActivity.this, "Join a channel first", Toast.LENGTH_SHORT).show();
+                        }
+                    }
+                })
+                .setNegativeButton(android.R.string.cancel, null).show();
     }
 
     private void showChannelQr() {

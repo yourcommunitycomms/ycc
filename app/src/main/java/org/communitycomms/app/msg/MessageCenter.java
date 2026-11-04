@@ -283,6 +283,10 @@ public final class MessageCenter {
         MessageLog.Entry old = log().find(m.id);
         boolean wasMissing = old != null && old.state == MessageLog.STATE_MISSING;
         if (log().put(m)) {
+            if (m.body.startsWith(org.communitycomms.app.RadioService.SAY) && System.currentTimeMillis() - m.time < 120000) {
+                org.communitycomms.app.RadioService s = org.communitycomms.app.RadioService.instance();
+                if (s != null) s.sayAloud(m.creator, m.body.substring(org.communitycomms.app.RadioService.SAY.length()));
+            }
             if (org.communitycomms.app.Tasks.is(m.body)) {
                 MessageLog.Entry n = new MessageLog.Entry();
                 n.type = MessageLog.TYPE_TEXT;

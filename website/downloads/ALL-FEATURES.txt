@@ -120,6 +120,7 @@ MAPS AND LOCATION
 - Report to leaders: OK, Need help, SOS, location and message, sealed so only leaders can read them, with approved codes.
 - Tasks and notes for a channel, team or person.
 - Private contacts shared by QR.
+- Text as voice: typed messages read aloud on every phone.
 - Blackout with no light at all, and a legacy setting (lowest backlight) for older devices.
 - Map layer button: street, satellite or topographic, with ticks for ships, aircraft and emergency alerts.
 - Map scale bar and a two-point ruler: distance, bearing and back bearing.

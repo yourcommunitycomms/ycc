@@ -113,7 +113,7 @@ below are what follows it.
 | 3 | PRESENCE | status(1: 0 available, 1 away, 2 stealth) battery(1: 0-100 %, 255 unknown) checkin(1: tens of seconds between presences when slower than normal, 0 = normal; older phones send none); every 5 s while on a channel and at once when the status changes. Old phones sent nothing here: treat a missing status as unknown |
 | 4 | ACK | txId(4) targetSenderId(8) framesHeard(2) |
 | 20 | UP | report for leaders on a signed Public channel, not signed: R(33, compressed P-256) iv(16) AES-256-CTR(JSON) HMAC-SHA256[16]. Secret = x of k·Q; enc key SHA-256("enc"||secret), mac key SHA-256("mac"||secret). JSON k kind, id, c code, n name, t text, at, b, la, lo. Code = ID "-" base32(SHA-256("member|ID|"||d)[5]). Team keys starting YCCT1- use SHA-512(name||"|communitycomms/v1") instead of PBKDF2. |
-| 10 | CHAT | messages, reports, catch-up sync, private messages (section 6) |
+| 10 | CHAT | (text starting "[say] " is read aloud by receivers; "[task] " is a task; "[up-ack:" confirms a report) | messages, reports, catch-up sync, private messages (section 6) |
 | 11 | LOCATION | lat(8 double) lon(8 double) accuracyM(4 float) fixAgeMs(8) labelLen(1) label. Sent twice |
 | 12 | MARK | map point (POI) body (section 7). Sent twice |
 | 13 | DRYAD | transferId(4) chunkIndex(2) chunkCount(2) up to 1000 bytes of sheet text (section 8) |

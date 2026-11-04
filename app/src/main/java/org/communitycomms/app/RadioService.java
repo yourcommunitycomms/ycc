@@ -1202,6 +1202,13 @@ public final class RadioService extends Service implements RadioEngine.Listener 
         }
     }
 
+    /** Text as voice: a message that every phone reads aloud (not in stealth). */
+    public static final String SAY = "[say] ";
+
+    public void sayAloud(String from, String text) {
+        say(from + " says: " + text);
+    }
+
     @SuppressWarnings("deprecation")
     private void say(String text) {
         Log.i(TAG, "say: " + text);
