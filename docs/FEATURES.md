@@ -238,7 +238,7 @@ phone call volume (radio audio) and media volume, an in-app hearing boost and mi
   Magnetic north with the local declination. **Map points** shows the points and people around the
   edge (icon and distance where each lies) and as a list; tap one for a red arrow pointing at it.
 - **Mark…** on a map home screen asks **At the X** (default) or **At me**.
-- **Move a point:** Edit › **Move…**, drag the map under the +, **Save here**, then Send.
+- **Move a point:** Edit › **Move…**, drag the map under the +, **Save here**, then Send. A note or icon already changed in Edit is kept through the move.
 - **Navigate / open in Google Maps** from a point (driving directions; any other map app works too).
 - **Sync** (full map, refresh icon) offers Sync (all your active points and asks everyone for theirs) or Resync (clears others' points first).
 - **Map points:** tap one to see, edit or remove it; you are asked whether to **announce** the change

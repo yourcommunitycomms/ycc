@@ -416,7 +416,7 @@ below are what follows it.
 |---|---|---|
 | 1 | VOICE | txId(4) + one IMA-ADPCM frame (section 4) |
 | 2 | VOICE_END | txId(4). Sent 3 times when the talker releases PTT |
-| 3 | PRESENCE | status(1: 0 available, 1 away, 2 stealth) battery(1: 0-100 %, 255 unknown) checkin(1: tens of seconds between presences when slower than normal, 0 = normal; older phones send none); every 5 s while on a channel and at once when the status changes. Old phones sent nothing here: treat a missing status as unknown |
+| 3 | PRESENCE | status(1: 0 available, 1 away, 2 stealth, 3 gone: a goodbye, sent twice when the phone exits or leaves the channel, so receivers drop the person at once; older phones ignore it and time them out) battery(1: 0-100 %, 255 unknown) checkin(1: tens of seconds between presences when slower than normal, 0 = normal; older phones send none); every 5 s while on a channel and at once when the status changes. Old phones sent nothing here: treat a missing status as unknown |
 | 4 | ACK | txId(4) targetSenderId(8) framesHeard(2) |
 | 20 | UP | report for leaders on a signed Public channel, not signed: R(33, compressed P-256) iv(16) AES-256-CTR(JSON) HMAC-SHA256[16]. Secret = x of k·Q; enc key SHA-256("enc"||secret), mac key SHA-256("mac"||secret). JSON k kind, id, c code, n name, t text, at, b, la, lo. Code = ID "-" base32(SHA-256("member|ID|"||d)[5]). Team keys starting YCCT1- use SHA-512(name||"|communitycomms/v1") instead of PBKDF2. |
 | 10 | CHAT | (text starting "[say] " is read aloud by receivers; "[task] " is a task; "[up-ack:" confirms a report) | messages, reports, catch-up sync, private messages (section 6) |

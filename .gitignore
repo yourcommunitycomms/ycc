@@ -11,4 +11,8 @@ server/.env
 *.jks
 *token*.txt
 *credentials*
+# Video production (Kokoro model, venv, narration, YouTube): never in the repository
+videos/
+client_secret*.json
+token.json
 

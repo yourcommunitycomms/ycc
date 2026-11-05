@@ -43,7 +43,12 @@ if ($Source -match '\.zip$') {
     $inner = Get-ChildItem $tmp -Directory
     if ($inner.Count -eq 1 -and (Get-ChildItem $tmp -File).Count -eq 0) { $root = $inner[0].FullName }
 }
-$files = Get-ChildItem $root -Recurse -File
+# Never push the video production folder (Kokoro model, venv, narration), build output or secrets.
+$skip = '^(videos|build|app/build|\.gradle|\.idea|server/data)/|(^|/)(__pycache__|venv)/|(^|/)(local\.properties|token\.json|client_secret[^/]*\.json|server/\.env)$'
+$files = Get-ChildItem $root -Recurse -File | Where-Object {
+    $r = $_.FullName.Substring($root.Length + 1).Replace('\', '/')
+    $r -notmatch $skip
+}
 Write-Host "$($files.Count) files from $root"
 
 # 2. Where the branch is now.

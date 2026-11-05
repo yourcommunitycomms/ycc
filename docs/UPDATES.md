@@ -77,3 +77,8 @@
 - 2026-11-03: Channel array for leaders, team names, team setup QR codes with ticks for each set, printed cards, Report to leaders with approved codes (only leaders can read them), Tasks and notes, and Private contacts by QR. All phones need this version to work with these.
 - 2026-11-03: Full map: the bottom Tools key now also brings back Search, Layer and Tools if the eye has hidden them.
 - 2026-11-05: Text as voice: a smaller button beside PUSH TO TALK sends typed text that every phone on the channel reads aloud (not in Stealth), and it also shows in Chat.
+- 2026-11-05: Fix: the simple modes now have the map / buttons home switch in the top bar too.
+- 2026-11-05: About: links to the GitHub page and the YouTube channel at the top.
+- 2026-11-05: Fix: Move… in a map point's Edit & resend keeps the note you had already changed. Exit (or leaving a channel) now says goodbye, so others see you go offline straight away instead of about 30 s later.
+- 2026-11-05: Fixes: DRYAD Generate shows the phrase warning once. Joining or leaving from the Channels page right after coming back from another app now always takes effect. Enigma: the CW lock shows on gold, the keyboard puts the button rows aside and goes away after Encode / Decode (ESC too), and numbers no longer leave a trailing space.
+- 2026-11-06: Map shapes: switching to a line or arrow resets the sizes to 200 m and 0° (and back to 100 m by 60 m), labels sit in the middle of their shape, and Export points keeps shapes and icon turn / size in a new Style column that Bulk add reads back.

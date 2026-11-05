@@ -1041,8 +1041,9 @@ public final class TileMapView extends View {
                     if ((s.bg >>> 24) != 0) c.drawOval(rf, shapeFill);
                     c.drawOval(rf, shapeLine);
                 }
-                lx = mx - hw;
-                ly = my - hh - 4 * d;
+                // Label in the middle of the shape, so it cannot drift onto a neighbour.
+                lx = mx;
+                ly = my + textPaint.getTextSize() / 3;
                 break;
             }
             case Poi.CIRCLE: {
@@ -1050,8 +1051,8 @@ public final class TileMapView extends View {
                 float rad = (float) (s.radiusM / mPerPx);
                 if ((s.bg >>> 24) != 0) c.drawCircle(mx, my, rad, shapeFill);
                 c.drawCircle(mx, my, rad, shapeLine);
-                lx = mx + rad * 0.72f;
-                ly = my - rad * 0.72f;
+                lx = mx;
+                ly = my + textPaint.getTextSize() / 3;
                 break;
             }
             case Poi.LINE:
@@ -1087,8 +1088,14 @@ public final class TileMapView extends View {
             }
         }
         if (m.label.length() > 0) {
+            // Centred on the point chosen above (middle of the shape, or just above a line's middle).
+            Paint.Align ha = haloPaint.getTextAlign(), ta = textPaint.getTextAlign();
+            haloPaint.setTextAlign(Paint.Align.CENTER);
+            textPaint.setTextAlign(Paint.Align.CENTER);
             c.drawText(m.label, lx, ly, haloPaint);
             c.drawText(m.label, lx, ly, textPaint);
+            haloPaint.setTextAlign(ha);
+            textPaint.setTextAlign(ta);
         }
     }
 

@@ -21,6 +21,7 @@ import java.util.TimeZone;
 
 /** Bulk-generates a run of sheets with back-to-back validity windows. */
 public final class DryadGenerateActivity extends Activity {
+    private android.app.AlertDialog phraseWarn;
     private static final String[] PERIOD_LABELS = {"6 hours", "12 hours", "1 day", "2 days", "1 week", "No expiry"};
     private static final long H = 3600000L;
     private static final long[] PERIODS = {6 * H, 12 * H, 24 * H, 48 * H, 168 * H, 0};
@@ -66,8 +67,9 @@ public final class DryadGenerateActivity extends Activity {
             @Override
             public void onCheckedChanged(RadioGroup g, int id) {
                 phrase.setVisibility(id == R.id.src_phrase ? View.VISIBLE : View.GONE);
-                if (id == R.id.src_phrase) {
-                    new android.app.AlertDialog.Builder(DryadGenerateActivity.this)
+                // RadioGroup can report the same choice twice: only one warning box at a time.
+                if (id == R.id.src_phrase && (phraseWarn == null || !phraseWarn.isShowing())) {
+                    phraseWarn = new android.app.AlertDialog.Builder(DryadGenerateActivity.this)
                             .setTitle(R.string.gen_phrase)
                             .setMessage(R.string.gen_phrase_warn)
                             .setPositiveButton(android.R.string.ok, null)

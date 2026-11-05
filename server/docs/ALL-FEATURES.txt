@@ -105,6 +105,7 @@ MAPS AND LOCATION
 - Map search for suburbs, towns and streets, offline (GeoNames + OpenStreetMap lists, shared via LAN storage) or online.
 - Data Tile Management: tile stats and prefetch the current screen, or 1 to 200 km around the +, or the whole world at low zoom, at the zoom levels you tick, with a super slow mode for huge areas (phone, LAN cache, then internet; fills the LAN cache).
 - Secondary map server for tiles, and a manual sync between the two servers through the phone.
+- Exit says goodbye, so others see you go offline at once.
 - After Exit, asks whether to reconnect the last channels and shows their remote state.
 - Asks to turn remote off on the home network, and on when away from it.
 - Power and sleep settings: Normal, Power saver, Ultra low (4 minute check-ins, sound for missed messages) and Offline, with battery levels that ask to change.

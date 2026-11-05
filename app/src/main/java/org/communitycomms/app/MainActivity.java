@@ -199,6 +199,13 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         public void onServiceConnected(ComponentName name, IBinder b) {
             service = ((RadioService.LocalBinder) b).service();
             service.setUi(MainActivity.this);
+            if (pendingAction != null) {
+                String a = pendingAction;
+                pendingAction = null;
+                startupRejoinDone = true;
+                handleChannelAction(a, pendingSlot);
+                return;
+            }
             if (joinAfterPermission) {
                 joinAfterPermission = false;
                 doJoin();
@@ -430,7 +437,17 @@ public final class MainActivity extends Activity implements RadioService.Ui {
     }
 
     /** Join (switch to) or leave a channel, asked for on the Channels page or the commander panel. */
+    private String pendingAction;
+    private int pendingSlot;
+
     private void handleChannelAction(String action, int s) {
+        if (service == null) {
+            // Brought back from another screen or app: the radio service is still being bound,
+            // so do it once it is (otherwise only the label changed and Leave did nothing).
+            pendingAction = action;
+            pendingSlot = s;
+            return;
+        }
         if (ChannelsActivity.LEAVE.equals(action)) {
             leaveChannel();
         } else if (ChannelsActivity.JOIN.equals(action)) {
@@ -1575,7 +1592,8 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         // Top bar icons: Advanced mode only; the tablet commander view is always the map.
         boolean adv = prefs.appMode() == Prefs.MODE_ADVANCED;
         MenuItem ht = menu.findItem(MENU_HOME_TOGGLE);
-        if (ht != null) ht.setVisible(adv && !commander());
+        // Map / buttons home: every mode with a home screen (the simple modes too), not intercom or the commander view.
+        if (ht != null) ht.setVisible(prefs.appMode() != Prefs.MODE_INTERCOM && !commander());
         for (int id : new int[]{MENU_TOP_CHAT, MENU_TOP_BLACK}) {
             MenuItem it = menu.findItem(id);
             if (it != null) it.setVisible(adv);

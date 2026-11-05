@@ -454,8 +454,29 @@ public final class RadioEngine {
         stop(false);
     }
 
+    /** Goodbye presence (status GONE), sent twice as the channel stops; older apps just time the person out. */
+    private void sendGoodbye() {
+        if (monitorMode || link == null || radioSilent) return;
+        final byte[] p = namePayload(3);
+        p[p.length - 3] = (byte) STATUS_GONE;
+        p[p.length - 2] = (byte) 255;
+        p[p.length - 1] = 0;
+        Thread t = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                send(Packet.TYPE_PRESENCE, p, p.length);
+                send(Packet.TYPE_PRESENCE, p, p.length);
+            }
+        }, "goodbye");
+        t.start();
+        try {
+            t.join(400);
+        } catch (InterruptedException ignored) {
+        }
+    }
     /** silent = close the socket first, so not even an end-of-transmission packet goes out. */
     public void stop(boolean silent) {
+        if (!silent) sendGoodbye();
         if (silent && link != null) {
             UdpLink l = link;
             link = null;
@@ -1002,6 +1023,8 @@ public final class RadioEngine {
     }
 
     public static final int STATUS_AVAILABLE = 0, STATUS_AWAY = 1, STATUS_STEALTH = 2;
+    /** Presence status meaning "gone": sent on Exit or leaving the channel (never shown as a status). */
+    public static final int STATUS_GONE = 3;
     /** This phone's status and battery percent (-1 unknown), sent with every presence. */
     public static volatile int myStatus = STATUS_AVAILABLE, myBattery = -1;
 
@@ -1204,7 +1227,17 @@ public final class RadioEngine {
             p.payload = v;
             p.type = Packet.TYPE_VOICE;
         }
-        long now = System.currentTimeMillis();
+        if (p.type == Packet.TYPE_PRESENCE && p.payload.length - (1 + nl) >= 2 && (p.payload[1 + nl] & 0xff) == STATUS_GONE) {
+            // Goodbye: the person exited or left this channel, so they go off the list now, not 30 s later.
+            boolean had;
+            synchronized (stations) {
+                had = stations.remove(p.sender) != null;
+            }
+            RadioService rs = RadioService.instance();
+            if (rs != null) Contacts.get(rs).gone(name);
+            if (had) listener.onRosterChanged();
+            return;
+        }        long now = System.currentTimeMillis();
         boolean changed;
         synchronized (stations) {
             Station s = stations.get(p.sender);

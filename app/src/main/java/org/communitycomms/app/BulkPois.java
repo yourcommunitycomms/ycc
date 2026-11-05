@@ -39,10 +39,12 @@ final class BulkPois {
     private BulkPois() {
     }
 
-    static final String HEADER = "Name,Icon,Lat,Lon,Notes,Layer";
+    static final String HEADER = "Name,Icon,Lat,Lon,Notes,Layer,Style";
 
     static final class Row {
         String name = "", iconText = "", notes = "", layer = "";
+        /** Shape and icon pose tags from an export ([shape:…] [pose:…]), so shapes come back as shapes. */
+        String style = "";
         int icon = -1;
         double lat, lon;
     }
@@ -101,11 +103,22 @@ final class BulkPois {
     static List<Row> parse(String text, List<String> bad) {
         List<Row> out = new ArrayList<Row>();
         String[] lines = text.split("\r?\n");
+        // With this app's header, the Notes, Layer and Style columns are taken by position (so the
+        // layer and style do not end up in the notes); without it, everything after the position is notes.
+        int notesCol = -1, layerCol = -1, styleCol = -1;
         for (int n = 0; n < lines.length; n++) {
             String line = lines[n].trim();
             if (line.length() == 0 || line.startsWith("#")) continue;
             List<String> f = fields(line);
-            if (n == 0 && f.get(0).equalsIgnoreCase("name")) continue; // header
+            if (f.get(0).equalsIgnoreCase("name")) { // header
+                for (int i = 0; i < f.size(); i++) {
+                    String h = f.get(i).toLowerCase(Locale.US);
+                    if (h.equals("notes")) notesCol = i;
+                    else if (h.equals("layer")) layerCol = i;
+                    else if (h.equals("style")) styleCol = i;
+                }
+                continue;
+            }
             if (f.size() < 3) {
                 bad.add("Line " + (n + 1) + ": needs at least name, icon and position");
                 continue;
@@ -134,8 +147,14 @@ final class BulkPois {
                 bad.add("Line " + (n + 1) + ": position out of range");
                 continue;
             }
+            if (styleCol >= 0 && styleCol < f.size()) r.style = f.get(styleCol);
+            if (layerCol >= 0 && layerCol < f.size()) r.layer = f.get(layerCol);
+            int last = f.size();
+            if (notesCol >= 0 && (layerCol > notesCol || styleCol > notesCol)) {
+                last = Math.min(f.size(), Math.min(layerCol > notesCol ? layerCol : Integer.MAX_VALUE, styleCol > notesCol ? styleCol : Integer.MAX_VALUE));
+            }
             StringBuilder notes = new StringBuilder();
-            for (int i = next; i < f.size(); i++) {
+            for (int i = next; i < last; i++) {
                 if (notes.length() > 0) notes.append(", ");
                 notes.append(f.get(i));
             }
@@ -163,9 +182,14 @@ final class BulkPois {
             String[] lines = Poi.readable(p.note).split("\n", 2);
             String name = lines[0].trim(), notes = lines.length > 1 ? lines[1].trim().replace("\n", " / ") : "";
             String icon = p.icon >= 0 && p.icon < Poi.ICON_NAMES.length ? Poi.ICON_NAMES[p.icon] : String.valueOf(p.icon);
+            StringBuilder style = new StringBuilder();
+            Poi.Shape sh = Poi.shape(p.note);
+            if (sh != null) style.append(Poi.shapeTag(sh));
+            java.util.regex.Matcher pm = java.util.regex.Pattern.compile("\\[pose:[^\\]]*\\]").matcher(p.note);
+            if (pm.find()) style.append(pm.group());
             b.append(csv(name)).append(',').append(csv(icon)).append(',')
                     .append(String.format(Locale.US, "%.6f,%.6f", p.lat, p.lon)).append(',')
-                    .append(csv(notes)).append(',').append(csv(layer)).append('\n');
+                    .append(csv(notes)).append(',').append(csv(layer)).append(',').append(csv(style.toString())).append('\n');
         }
         return b.toString();
     }
@@ -377,6 +401,14 @@ final class BulkPois {
             }
             String note = name + (r.notes.length() > 0 ? "\n" + r.notes : "");
             note = Poi.withLayer(note, layer);
+            if (r.style.length() > 0) {
+                Poi.Shape sh = Poi.shape(r.style);
+                if (sh != null) note = Poi.withShape(note, sh);
+                if (r.style.contains("[pose:")) {
+                    int[] pose = Poi.pose(r.style);
+                    note = Poi.withPose(note, pose[0], pose[1], pose[2] == 1);
+                }
+            }
             note = Poi.withQuiet(note, true); // no spoken announcement for each of a bulk add
             Poi p = Poi.create(r.lat, r.lon, r.icon < 0 ? Poi.ICON_DOT : r.icon, note, lifeMs, me);
             boolean sent = send && rs.sendPoi(p);

@@ -40,6 +40,15 @@ public final class AboutActivity extends Activity {
         title.setTextColor(getResources().getColor(R.color.gold));
         root.addView(title);
 
+        TextView links = new TextView(this);
+        links.setTextSize(15);
+        links.setAutoLinkMask(android.text.util.Linkify.WEB_URLS);
+        links.setLinkTextColor(0xff90caf9);
+        links.setText("GitHub (code and downloads): https://github.com/yourcommunitycomms/ycc\nYouTube (how-to videos): https://www.youtube.com/@YourCommunityComms");
+        links.setLinksClickable(true);
+        links.setPadding(0, pad / 2, 0, pad / 2);
+        root.addView(links);
+
         Button copy = new Button(this);
         copy.setText("Copy to clipboard");
         copy.setAllCaps(false);

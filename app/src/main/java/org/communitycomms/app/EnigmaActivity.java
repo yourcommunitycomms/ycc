@@ -156,14 +156,32 @@ public final class EnigmaActivity extends Activity {
             }
         });
         // CW (Morse) row above the pigpen row: the lock enters CW mode for Send and Receive.
-        root.addView(cwRow());
-        LinearLayout pigRow = FilesActivity.row(pigId, qr, toPig, readPig);
+        final View cwButtons = cwRow();
+        root.addView(cwButtons);
+        final LinearLayout pigRow = FilesActivity.row(pigId, qr, toPig, readPig);
         for (Button x : new Button[]{pigId, qr, toPig, readPig}) {
             x.setTextSize(12);
             x.setPadding((int) (2 * d), 0, (int) (2 * d), 0);
         }
         root.addView(pigRow);
         setContentView(root);
+        // While the keyboard is up, the button rows step aside so the text boxes (and the
+        // Encode / Decode button between them) have the room; they come back with the keyboard gone.
+        final View kbRoot = root;
+        root.getViewTreeObserver().addOnGlobalLayoutListener(new android.view.ViewTreeObserver.OnGlobalLayoutListener() {
+            @Override
+            public void onGlobalLayout() {
+                android.graphics.Rect r = new android.graphics.Rect();
+                kbRoot.getWindowVisibleDisplayFrame(r);
+                int screen = kbRoot.getRootView().getHeight();
+                boolean kb = screen - r.bottom > screen / 4;
+                int v = kb ? View.GONE : View.VISIBLE;
+                if (pigRow.getVisibility() != v) {
+                    pigRow.setVisibility(v);
+                    cwButtons.setVisibility(v);
+                }
+            }
+        });
 
         String id = getIntent().getStringExtra(EXTRA_ID);
         if (id != null) idField.setText(id);
@@ -196,6 +214,18 @@ public final class EnigmaActivity extends Activity {
             dec.setChecked(true);
             useQr(q);
         }
+    }
+
+    /** ESC on a hardware keyboard puts the on-screen keyboard away. */
+    @Override
+    public boolean dispatchKeyEvent(android.view.KeyEvent ev) {
+        if (ev.getKeyCode() == android.view.KeyEvent.KEYCODE_ESCAPE && ev.getAction() == android.view.KeyEvent.ACTION_DOWN) {
+            android.view.inputmethod.InputMethodManager imm = (android.view.inputmethod.InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+            View f = getCurrentFocus();
+            if (imm != null && f != null) imm.hideSoftInputFromWindow(f.getWindowToken(), 0);
+            return true;
+        }
+        return super.dispatchKeyEvent(ev);
     }
 
     @Override
@@ -394,9 +424,19 @@ public final class EnigmaActivity extends Activity {
             Toast.makeText(this, "Enter a sheet ID held on this phone and a start row", Toast.LENGTH_LONG).show();
             return;
         }
+        // Put the keyboard away, so the result box below is not covered.
+        android.view.inputmethod.InputMethodManager imm = (android.view.inputmethod.InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+        if (imm != null) imm.hideSoftInputFromWindow(plain.getWindowToken(), 0);
+        plain.clearFocus();
+        cipher.clearFocus();
         String in = (decode ? cipher : plain).getText().toString();
         if (!decode) {
             while (in.endsWith(" ")) in = in.substring(0, in.length() - 1); // e.g. the space after a number word
+            if (!in.equals(plain.getText().toString())) { // show it without the trailing space too
+                fixing = true;
+                plain.setText(in);
+                fixing = false;
+            }
         }
         StringBuilder out = new StringBuilder();
         for (int i = 0; i < in.length(); i++) {
@@ -504,6 +544,8 @@ public final class EnigmaActivity extends Activity {
         boolean on = Cw.mode();
         cwLock.setImageResource(on ? android.R.drawable.ic_lock_lock : android.R.drawable.ic_lock_idle_lock);
         cwLock.setBackgroundColor(on ? 0xfff0c75e : 0x00000000);
+        if (on) cwLock.setColorFilter(0xff1b1b1b); // a dark lock on the gold, so it can be seen
+        else cwLock.clearColorFilter();
         cwSend.setAlpha(on ? 1f : 0.45f);
         cwRecv.setAlpha(on ? 1f : 0.45f);
     }

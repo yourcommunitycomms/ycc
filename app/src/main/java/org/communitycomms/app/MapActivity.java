@@ -338,6 +338,9 @@ public final class MapActivity extends Activity {
     private LinearLayout moveBar;
     /** The map point being moved, or null. */
     private org.communitycomms.app.geo.Poi moving;
+    /** The note and icon typed in Edit & resend before Move… was tapped, so they come back after the move. */
+    private String moveNote;
+    private int moveIcon = -1;
     private MapPrefs mp;
     private Location me;
     private final Handler handler = new Handler();
@@ -406,6 +409,7 @@ public final class MapActivity extends Activity {
             @Override
             public void onClick(View v) {
                 endMove();
+                moveNote = null;
             }
         });
         moveBar.addView(moveCancel);
@@ -1631,6 +1635,7 @@ public final class MapActivity extends Activity {
     /** Move a map point: the map centres on it, drag it under the + and tap Save here. */
     private void startMove(org.communitycomms.app.geo.Poi p) {
         moving = p;
+        moveNote = null;
         String n = org.communitycomms.app.geo.Poi.readable(p.note);
         moveText.setText("Moving " + (n.length() == 0 ? "the map point" : "\"" + n + "\"")
                 + ": drag the map until the + is where it goes.");
@@ -1659,6 +1664,11 @@ public final class MapActivity extends Activity {
         note.setText(old == null ? "" : org.communitycomms.app.geo.Poi.readable(old.note));
         box.addView(note);
         final int[] icon = {old == null ? new org.communitycomms.app.geo.QuickProfiles(this).iconOrder()[0] : old.icon};
+        if (old != null && moveNote != null) { // back from Move…: keep what was typed before
+            note.setText(moveNote);
+            if (moveIcon >= 0) icon[0] = moveIcon;
+        }
+        moveNote = null;
         box.addView(IconPicker.button(this, icon));
         // Turn, size and direction arrow for the icon (a unit lined up with its real formation and heading).
         final int[] oldPose = old == null ? new int[]{0, 100, 0} : org.communitycomms.app.geo.Poi.pose(old.note);
@@ -1743,6 +1753,7 @@ public final class MapActivity extends Activity {
             sizeA.setText(String.valueOf(Math.round(ab[0])));
             sizeB.setText(String.valueOf(Math.round(ab[1])));
         }
+        final int[] shapeKind = {oldShape == null ? -1 : oldShape.type >= org.communitycomms.app.geo.Poi.LINE && oldShape.type != org.communitycomms.app.geo.Poi.TEXT ? 1 : 0};
         drawAs.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(android.widget.AdapterView<?> p, View v, int pos, long id) {
@@ -1756,8 +1767,12 @@ public final class MapActivity extends Activity {
                 sizeHelp.setText(t == org.communitycomms.app.geo.Poi.TEXT ? "The note is shown in a box on the map."
                         : t >= org.communitycomms.app.geo.Poi.LINE ? "Starts at this point and runs along the bearing."
                         : "Centred on this point.");
-                if (sizeA.getText().length() == 0) sizeA.setText(t >= org.communitycomms.app.geo.Poi.LINE ? "200" : "100");
-                if (sizeB.getText().length() == 0) sizeB.setText(t >= org.communitycomms.app.geo.Poi.LINE ? "0" : "60");
+                // Line / arrow sizes mean length and bearing; the others width and height: new defaults on switching kind.
+                int kind = t < 0 ? -1 : t >= org.communitycomms.app.geo.Poi.LINE && t != org.communitycomms.app.geo.Poi.TEXT ? 1 : 0;
+                boolean switched = shapeKind[0] != -2 && kind >= 0 && shapeKind[0] >= 0 && kind != shapeKind[0];
+                if (kind >= 0) shapeKind[0] = kind;
+                if (switched || sizeA.getText().length() == 0) sizeA.setText(kind == 1 ? "200" : "100");
+                if (switched || sizeB.getText().length() == 0) sizeB.setText(kind == 1 ? "0" : "60");
             }
 
             @Override
@@ -1789,6 +1804,8 @@ public final class MapActivity extends Activity {
             @Override
             public void onClick(android.content.DialogInterface di, int w) {
                 startMove(old);
+                moveNote = note.getText().toString();
+                moveIcon = icon[0];
             }
         });
         dlg.setTitle(old == null ? "Send a POI" : "Edit & resend POI")

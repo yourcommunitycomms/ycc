@@ -37,8 +37,11 @@ public final class Contacts {
         /** How often they check in when in a power mode, or 0 (not saved). */
         public long checkInMs;
 
+        /** lastSeenMs when they said goodbye (Exit): offline until heard again. Not saved. */
+        public long goneMs = -1;
+
         public boolean online(long now) {
-            return now - lastSeenMs < checkInMs + ONLINE_MS;
+            return lastSeenMs != goneMs && now - lastSeenMs < checkInMs + ONLINE_MS;
         }
 
         public boolean hasFix() {
@@ -208,6 +211,12 @@ public final class Contacts {
 
     public synchronized Contact find(String name) {
         return byName.get(name);
+    }
+
+    /** They said goodbye: offline now instead of after the timeout. */
+    public synchronized void gone(String name) {
+        Contact c = byName.get(name);
+        if (c != null) c.goneMs = c.lastSeenMs;
     }
 
     public synchronized int onlineCount() {
