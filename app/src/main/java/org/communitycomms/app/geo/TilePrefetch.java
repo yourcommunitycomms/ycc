@@ -370,7 +370,10 @@ public final class TilePrefetch {
         double[] b = screenBox;
         if (km == SCREEN_KM && b != null) saved(c).edit().putString("box", b[0] + "," + b[1] + "," + b[2] + "," + b[3]).commit();
         final String[] list = types.split(",");
-        final Job j = new Job(km, count(lat, lon, km, zooms) * list.length);
+        int tileTypes = 0;
+        for (String t : list) if (!t.trim().equals(ROUTING)) tileTypes++;
+        final List<int[]> cells = types.contains(ROUTING) && km != WORLD_KM ? routingCells(lat, lon, km) : new ArrayList<int[]>();
+        final Job j = new Job(km, count(lat, lon, km, zooms) * tileTypes + cells.size());
         j.title = (km == WORLD_KM ? "World" : km == SCREEN_KM ? "Screen" : km + " km") + " prefetch" + (slow ? " (super slow)" : "");
         job = j;
         new Thread(new Runnable() {
@@ -379,6 +382,11 @@ public final class TilePrefetch {
                 MapPrefs mp = new MapPrefs(c);
                 try {
                     for (String t : list) {
+                        if (t.trim().equals(ROUTING)) {
+                            fetchRouting(c, j, cells);
+                            if (j.stop) break;
+                            continue;
+                        }
                         int preset = Integer.parseInt(t.trim());
                         String url = mp.urlOfPreset(preset);
                         for (int i = 0; i < TYPE_PRESETS.length; i++) if (TYPE_PRESETS[i] == preset) j.where = TYPE_NAMES[i];
@@ -393,6 +401,43 @@ public final class TilePrefetch {
             }
         }, "tile-prefetch").start();
         return j;
+    }
+
+    /** In a prefetch's map types: the offline street routing data (Routing), not a tile source. */
+    static final String ROUTING = "R";
+
+    private static List<int[]> routingCells(double lat, double lon, int km) {
+        double[] b = screenBox;
+        if (km == SCREEN_KM && b != null) return Routing.cellsBox(b[0], b[1], b[2], b[3]);
+        return Routing.cellsAround(lat, lon, km);
+    }
+
+    /** Street routing data for each cell: this phone, the LAN storage, then the internet (one at a time, gently). */
+    private static void fetchRouting(Context c, Job j, List<int[]> cells) throws Exception {
+        j.where = "Street routing data";
+        long lastNet = 0;
+        for (int[] k : cells) {
+            while (j.paused && !j.stop) Thread.sleep(500);
+            if (j.stop) return;
+            if (!Routing.file(c, k[0], k[1]).isFile()) {
+                long wait = 2000 - (System.currentTimeMillis() - lastNet);
+                if (wait > 0) Thread.sleep(wait);
+            }
+            try {
+                int got = Routing.fetch(c, k[0], k[1]);
+                if (got == Routing.HERE) j.local++;
+                else if (got == Routing.FROM_LAN) j.fromLan++;
+                else {
+                    j.fromNet++;
+                    lastNet = System.currentTimeMillis();
+                }
+            } catch (Exception e) {
+                j.failed++;
+                j.where = "Street routing data (last problem: " + e.getMessage() + ")";
+                lastNet = System.currentTimeMillis();
+            }
+            j.done++;
+        }
     }
 
     /** One map type: each tile from this phone, the LAN cache, then the internet; the LAN cache gets what it lacks. */
@@ -616,6 +661,8 @@ public final class TilePrefetch {
                 s.append("On this phone: ").append(m[0]).append(" tiles, ").append(size(m[1])).append('\n');
                 String off = mp.offlineSetName();
                 s.append("Offline set: ").append(off.length() > 0 ? off : "none").append('\n');
+                long[] r = Routing.stats(a);
+                s.append("Street routing data: ").append(r[0]).append(" areas, ").append(size(r[1])).append('\n');
                 LanTiles lan = new LanTiles(a);
                 if (lan.configured()) {
                     s.append("LAN maps cache: ").append(lan.base()).append('\n');
@@ -836,6 +883,16 @@ public final class TilePrefetch {
             box.addView(ticks[i]);
         }
         if (!any) ticks[0].setChecked(true);
+        // Offline directions: OpenStreetMap roads for the same area (not for the whole world).
+        final android.widget.CheckBox routing = new android.widget.CheckBox(a);
+        int routeCells = world ? 0 : (km == SCREEN_KM && screenBox == null ? 0 : routingCells(lat, lon, km).size());
+        long[] haveR = Routing.stats(a);
+        routing.setText(world ? "Street routing data (offline directions): not for the whole world"
+                : "Street routing data for offline directions (" + Routing.cellWords(routeCells) + ", usually well under 1 MB each, a few MB for a city; "
+                + haveR[0] + " on this phone now)");
+        routing.setEnabled(!world && routeCells > 0);
+        routing.setChecked(saved2(a).getBoolean("routingTick", false) && routing.isEnabled());
+        box.addView(routing);
         box.addView(slow);
         box.addView(size);
         showSize.run();
@@ -849,6 +906,8 @@ public final class TilePrefetch {
                         for (int i = 0; i < ticks.length; i++) {
                             if (ticks[i].isChecked()) chosen.append(chosen.length() > 0 ? "," : "").append(TYPE_PRESETS[i]);
                         }
+                        if (routing.isChecked()) chosen.append(chosen.length() > 0 ? "," : "").append(ROUTING);
+                        saved2(a).edit().putBoolean("routingTick", routing.isChecked()).commit();
                         if (chosen.length() == 0) {
                             Toast.makeText(a, "Tick at least one map type", Toast.LENGTH_SHORT).show();
                             return;

@@ -52,7 +52,7 @@ public final class Poi {
     /** The note as people should read it (without the photo link, aim, shape, public or quiet marks). */
     public static String readable(String note) {
         return LAYER_TAG.matcher(POSE_TAG.matcher(AIM_TAG.matcher(SHAPE_TAG.matcher(PHOTO_TAG.matcher(note).replaceAll("")).replaceAll(""))
-                .replaceAll("")).replaceAll("")).replaceAll("").replace(QUIET_TAG, "").replace(PUBLIC_TAG, "").trim();
+                .replaceAll("")).replaceAll("")).replaceAll("").replace(QUIET_TAG, "").replace(PUBLIC_TAG, "").replace(PERSONAL_TAG, "").replace(FENCE_ME, "").replace(FENCE_CHANNEL, "").trim();
     }
 
     // ---- layer: a group of points (e.g. one bulk import) that the map can show on its own ----
@@ -111,6 +111,48 @@ public final class Poi {
 
     public static boolean isPublic(String note) {
         return note.contains(PUBLIC_TAG);
+    }
+
+    /**
+     * Personal: kept on this phone only, never sent, synced or resent (the tag never leaves the phone).
+     */
+    public static final String PERSONAL_TAG = "[personal]";
+
+    public static boolean isPersonal(String note) {
+        return note.contains(PERSONAL_TAG);
+    }
+
+    public static String withPersonal(String note, boolean personal) {
+        String n = note.replace("\n" + PERSONAL_TAG, "").replace(PERSONAL_TAG, "");
+        return personal ? n + "\n" + PERSONAL_TAG : n;
+    }
+
+    /**
+     * Geofence (a rectangle, circle or oval): the phone that made it alerts when a contact leaves it,
+     * on that phone only ([fence:me]) or with a message to the channel ([fence:channel]).
+     */
+    public static final String FENCE_ME = "[fence:me]", FENCE_CHANNEL = "[fence:channel]";
+    public static final int FENCE_OFF = 0, FENCE_PRIVATE = 1, FENCE_TELL_CHANNEL = 2;
+
+    public static int fence(String note) {
+        return note.contains(FENCE_CHANNEL) ? FENCE_TELL_CHANNEL : note.contains(FENCE_ME) ? FENCE_PRIVATE : FENCE_OFF;
+    }
+
+    public static String withFence(String note, int mode) {
+        String n = note.replace("\n" + FENCE_ME, "").replace(FENCE_ME, "").replace("\n" + FENCE_CHANNEL, "").replace(FENCE_CHANNEL, "");
+        return mode == FENCE_PRIVATE ? n + "\n" + FENCE_ME : mode == FENCE_TELL_CHANNEL ? n + "\n" + FENCE_CHANNEL : n;
+    }
+
+    /** Whether a point is inside a rectangle, circle or oval shape centred on (lat, lon). */
+    public static boolean inside(double lat, double lon, Shape s, double pLat, double pLon) {
+        double kx = 111320 * Math.cos(Math.toRadians(lat)), ky = 110540;
+        double dx = (pLon - lon) * kx, dy = (pLat - lat) * ky;
+        if (s.type == CIRCLE) return Math.sqrt(dx * dx + dy * dy) <= s.radiusM;
+        double hw = Math.abs((s.lon2 - lon) * kx), hh = Math.abs((s.lat2 - lat) * ky);
+        if (hw <= 0 || hh <= 0) return false;
+        if (s.type == RECT) return Math.abs(dx) <= hw && Math.abs(dy) <= hh;
+        if (s.type == OVAL) return (dx / hw) * (dx / hw) + (dy / hh) * (dy / hh) <= 1;
+        return false;
     }
 
     public static String withPublic(String note, boolean pub) {

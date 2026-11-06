@@ -100,6 +100,9 @@
             <TextView style="@style/Label" android:text="@string/alerts" />
             <CheckBox android:id="@+id/call_enabled" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/call_enabled" />
             <CheckBox android:id="@+id/call_reminder" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Remind me every 5 minutes about a call I have not acknowledged" />
+            <CheckBox android:id="@+id/nav_no_reroute" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Offline directions: don't work out a new route automatically when I leave it" />
+            <CheckBox android:id="@+id/off_route_alert" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Offline directions: sound a warning when more than 500 m off the route" />
+            <CheckBox android:id="@+id/off_route_channel" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Also tell the channel when I am more than 500 m off my route (otherwise only this phone)" />
             <CheckBox android:id="@+id/announce_poi" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/announce_poi" />
             <CheckBox android:id="@+id/auto_ack" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/auto_ack" />
             <TextView style="@style/Label" android:text="@string/status_heading" />

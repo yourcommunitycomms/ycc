@@ -150,6 +150,7 @@ public final class RadioService extends Service implements RadioEngine.Listener 
             public void run() {
                 if (ask) e.sendPoiBody(new byte[]{org.communitycomms.app.geo.Poi.OP_SYNC_REQUEST});
                 for (org.communitycomms.app.geo.Poi p : all) {
+                    if (org.communitycomms.app.geo.Poi.isPersonal(p.note)) continue; // personal: this phone only
                     e.sendPoiBody(p.encode());
                     try {
                         Thread.sleep(40);
@@ -866,12 +867,13 @@ public final class RadioService extends Service implements RadioEngine.Listener 
         ((NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE)).notify(NOTIF_CALL, n);
     }
 
-    private static final int NOTIF_CALL = 8;
+    private static final int NOTIF_CALL = 8, NOTIF_FENCE = 13;
     private static final String CALL_CHANNEL_ID = "calls";
 
     public boolean sendPoi(org.communitycomms.app.geo.Poi p) {
         RadioEngine e = engine;
         org.communitycomms.app.geo.PoiStore.get(this).apply(p);
+        if (org.communitycomms.app.geo.Poi.isPersonal(p.note)) return true; // this phone only: never on air
         logPoi(p, true);
         if (e == null) return false;
         messages.notePoiOnAir(p.id);
@@ -1209,6 +1211,88 @@ public final class RadioService extends Service implements RadioEngine.Listener 
         say(from + " says: " + text);
     }
 
+    /** Spoken on this phone only (offline route directions); nothing in stealth. */
+    public void speakLocal(String text) {
+        say(text);
+    }
+
+    // ---- geofences: the phone that made one alerts when a contact leaves it ----
+
+    /** Inside or not, at the last check, for each fence and contact ("fenceId|name"). */
+    private final java.util.Map<String, Boolean> fenceInside = new java.util.HashMap<String, Boolean>();
+    private final Runnable fenceTick = new Runnable() {
+        @Override
+        public void run() {
+            try {
+                checkFences();
+            } catch (RuntimeException e) {
+                Log.w(TAG, "geofence", e);
+            }
+            main.postDelayed(this, 15000);
+        }
+    };
+
+    private void checkFences() {
+        String me = new Prefs(this).callsign();
+        long now = System.currentTimeMillis();
+        List<Contacts.Contact> people = null;
+        for (org.communitycomms.app.geo.Poi p : org.communitycomms.app.geo.PoiStore.get(this).all()) {
+            int mode = org.communitycomms.app.geo.Poi.fence(p.note);
+            if (mode == 0 || p.expired(now) || !p.creator.equalsIgnoreCase(me)) continue; // one phone alerts, not all
+            org.communitycomms.app.geo.Poi.Shape s = org.communitycomms.app.geo.Poi.shape(p.note);
+            if (s == null) continue;
+            if (people == null) people = Contacts.get(this).all();
+            String fenceName = org.communitycomms.app.geo.Poi.readable(p.note).split("\n")[0].trim();
+            if (fenceName.length() == 0) fenceName = "the geofence";
+            for (Contacts.Contact c : people) {
+                if (Double.isNaN(c.lat) || now - c.fixTimeMs > 15 * 60000L || c.name.equalsIgnoreCase(me)) continue;
+                boolean in = org.communitycomms.app.geo.Poi.inside(p.lat, p.lon, s, c.lat, c.lon);
+                Boolean was = fenceInside.put(p.id + "|" + c.name, in);
+                if (was != null && was && !in) fenceAlert(c.name, fenceName, mode, c.lat, c.lon);
+            }
+        }
+    }
+
+    private void fenceAlert(String who, String fence, int mode, double lat, double lon) {
+        String text = who + " has left " + fence;
+        alertLocal(text + ".");
+        Intent open = new Intent(this, MapActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        int piFlags = Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE : 0;
+        Notification.Builder b;
+        if (Build.VERSION.SDK_INT >= 26) {
+            NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+            NotificationChannel ch = new NotificationChannel(CALL_CHANNEL_ID, "Calls", NotificationManager.IMPORTANCE_HIGH);
+            ch.setSound(null, null);
+            nm.createNotificationChannel(ch);
+            b = new Notification.Builder(this, CALL_CHANNEL_ID);
+        } else {
+            b = new Notification.Builder(this);
+        }
+        Notification n = b.setContentTitle("Geofence: " + text)
+                .setContentText(new java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.US).format(new java.util.Date()))
+                .setSmallIcon(R.drawable.ic_stat_radio)
+                .setContentIntent(PendingIntent.getActivity(this, 12, open, piFlags))
+                .setAutoCancel(true)
+                .build();
+        ((NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE)).notify(NOTIF_FENCE, n);
+        if (mode == org.communitycomms.app.geo.Poi.FENCE_TELL_CHANNEL) {
+            sendAlertText("Geofence: " + text + " (at " + org.communitycomms.app.geo.Geo.latLon(lat, lon) + ")");
+        }
+    }
+
+    /** An alert: a warning tone and spoken words on this phone (stealth: a buzz only). */
+    public void alertLocal(String text) {
+        beep(android.media.ToneGenerator.TONE_CDMA_EMERGENCY_RINGBACK);
+        if (curStatus == RadioEngine.STATUS_STEALTH) return;
+        say(text);
+    }
+
+    /** A plain chat message to everyone on the channel on air (alerts). False when not on air. */
+    public boolean sendAlertText(String text) {
+        if (engine == null || RadioEngine.radioSilent) return false;
+        return messages.sendText(text);
+    }
+
     @SuppressWarnings("deprecation")
     private void say(String text) {
         Log.i(TAG, "say: " + text);
@@ -1396,6 +1480,7 @@ public final class RadioService extends Service implements RadioEngine.Listener 
             }
         });
         main.postDelayed(messageTick, 10000);
+        main.postDelayed(fenceTick, 20000);
         Prefs startPrefs = new Prefs(this);
         curStatus = startPrefs.status();
         RadioEngine.myStatus = curStatus;

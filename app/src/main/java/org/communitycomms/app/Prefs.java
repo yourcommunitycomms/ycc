@@ -403,6 +403,33 @@ public final class Prefs {
         sp.edit().putBoolean("callReminder", on).commit();
     }
 
+    /** Offline directions: no automatic new route when off it (Route… > work out a new route). On by default. */
+    public boolean navNoReroute() {
+        return sp.getBoolean("navNoReroute", true);
+    }
+
+    public void setNavNoReroute(boolean on) {
+        sp.edit().putBoolean("navNoReroute", on).commit();
+    }
+
+    /** Offline directions: a warning sound (and spoken words) more than 500 m off the route. On by default. */
+    public boolean offRouteAlert() {
+        return sp.getBoolean("offRouteAlert", true);
+    }
+
+    public void setOffRouteAlert(boolean on) {
+        sp.edit().putBoolean("offRouteAlert", on).commit();
+    }
+
+    /** ...and a chat message to the channel too. Off by default (private). */
+    public boolean offRouteChannel() {
+        return sp.getBoolean("offRouteChannel", false);
+    }
+
+    public void setOffRouteChannel(boolean on) {
+        sp.edit().putBoolean("offRouteChannel", on).commit();
+    }
+
     public boolean callEnabled() {
         return sp.getBoolean("callEnabled", true);
     }

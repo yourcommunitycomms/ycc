@@ -13,6 +13,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
@@ -126,6 +127,65 @@ public final class TilePack {
         return n;
     }
 
+    /**
+     * Several map types and the street routing data in one pack. The first source goes in as plain
+     * z/x/y (so older versions still import it); the others as more/set/NAME/z/x/y (an offline set) or
+     * more/cache/ID/z/x/y (a tile source's cache folder, the same ID on every phone), and routing
+     * cells as routing/NAME.ycr. Returns {tiles, routing cells}.
+     */
+    public static int[] buildMulti(List<File> roots, List<String> prefixes, Area a, String setName, List<File> routing, File out) throws IOException {
+        ZipOutputStream zo = new ZipOutputStream(new FileOutputStream(out));
+        int n = 0, r = 0;
+        try {
+            zo.setLevel(0);
+            zo.putNextEntry(new ZipEntry("uctiles.txt"));
+            String info = "set=" + setName + "\nlat=" + a.lat + "\nlon=" + a.lon + "\nradiusKm=" + a.radiusKm
+                    + "\nzMin=" + a.zMin + "\nzMax=" + a.zMax + "\n";
+            zo.write(info.getBytes("UTF-8"));
+            zo.closeEntry();
+            byte[] buf = new byte[16384];
+            for (int i = 0; i < roots.size(); i++) {
+                File[] one = {roots.get(i)};
+                String pre = prefixes.get(i);
+                for (int z = a.zMin; z <= a.zMax; z++) {
+                    int[] rg = a.range(z);
+                    for (int x = rg[0]; x <= rg[1]; x++) {
+                        for (int y = rg[2]; y <= rg[3]; y++) {
+                            File f = find(one, z, x, y);
+                            if (f == null) continue;
+                            zo.putNextEntry(new ZipEntry(pre + z + "/" + x + "/" + f.getName()));
+                            copy(f, zo, buf);
+                            zo.closeEntry();
+                            n++;
+                        }
+                    }
+                }
+            }
+            for (File f : routing) {
+                zo.putNextEntry(new ZipEntry("routing/" + f.getName()));
+                copy(f, zo, buf);
+                zo.closeEntry();
+                r++;
+            }
+        } finally {
+            zo.close();
+        }
+        return new int[]{n, r};
+    }
+
+    private static void copy(File f, OutputStream o, byte[] buf) throws IOException {
+        InputStream in = new FileInputStream(f);
+        try {
+            int k;
+            while ((k = in.read(buf)) > 0) o.write(buf, 0, k);
+        } finally {
+            in.close();
+        }
+    }
+
+    private static final Pattern MORE = Pattern.compile("^more/(set|cache)/([^/]+)/(\\d{1,2}/\\d{1,7}/\\d{1,7}\\.(jpg|jpeg|png|webp))$");
+    private static final Pattern ROUTING = Pattern.compile("^routing/(r-?\\d{1,4}_-?\\d{1,4}\\.ycr)$");
+
     /** Set name from the pack's uctiles.txt, else from the file name. */
     public static String setName(File pack) {
         String fallback = pack.getName();
@@ -158,17 +218,39 @@ public final class TilePack {
         return s.length() == 0 ? fallback : s;
     }
 
-    /** Unpacks into maps/SET/. Only z/x/y image entries are taken; existing tiles are kept. */
+    /** Routing cells taken by the last importInto. */
+    public static int lastRouting;
+
+    /**
+     * Unpacks into maps/SET/ (plain z/x/y), other offline sets and tile caches (more/...), and the
+     * street routing folder (routing/...). Existing tiles and cells are kept.
+     */
     public static int importInto(File pack, File setDir) throws IOException {
         int n = 0;
+        lastRouting = 0;
+        File maps = setDir.getParentFile();
         ZipInputStream zi = new ZipInputStream(new BufferedInputStream(new FileInputStream(pack)));
         try {
             ZipEntry e;
             byte[] buf = new byte[16384];
             while ((e = zi.getNextEntry()) != null) {
-                Matcher m = TILE.matcher(e.getName());
-                if (e.isDirectory() || !m.matches()) continue;
-                File out = new File(setDir, e.getName());
+                if (e.isDirectory()) continue;
+                String name = e.getName();
+                File out;
+                Matcher more = MORE.matcher(name), rt = ROUTING.matcher(name);
+                if (TILE.matcher(name).matches()) {
+                    out = new File(setDir, name);
+                } else if (more.matches()) {
+                    String folder = more.group(2).replaceAll("[^A-Za-z0-9 _.()-]", "");
+                    if (folder.length() == 0 || folder.startsWith(".")) continue;
+                    out = more.group(1).equals("set") ? new File(new File(maps, clean(folder, "Received tiles")), more.group(3))
+                            : new File(new File(new File(maps, "_tile-cache"), folder), more.group(3));
+                } else if (rt.matches()) {
+                    out = new File(new File(maps, "_routing"), rt.group(1));
+                    if (!out.exists()) lastRouting++;
+                } else {
+                    continue;
+                }
                 if (out.exists()) continue;
                 out.getParentFile().mkdirs();
                 OutputStream os = new FileOutputStream(out);
@@ -178,7 +260,7 @@ public final class TilePack {
                 } finally {
                     os.close();
                 }
-                n++;
+                if (!rt.matches()) n++;
             }
         } finally {
             zi.close();
@@ -205,6 +287,7 @@ public final class TilePack {
                                     MapPrefs mp = new MapPrefs(a);
                                     if (mp.offlineSetName().length() == 0) mp.setOfflineSet(set);
                                     return "Imported " + n + " new tiles into \"" + set + "\""
+                                            + (lastRouting > 0 ? " and " + lastRouting + " street routing area(s)" : "")
                                             + (set.equals(mp.offlineSetName()) ? "" : ". Pick it in Map options to use it.");
                                 } catch (IOException e) {
                                     return "Import failed: " + e.getMessage();

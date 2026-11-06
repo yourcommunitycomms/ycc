@@ -802,7 +802,11 @@ public final class FilesActivity extends Activity {
 
     private static final double[] TILE_RADII_KM = {1, 2, 5, 10, 25};
 
-    /** Packs the tiles around the last map view and sends them; the other phone can import them. */
+    /**
+     * Packs the map data around the last map view and sends it: any of the offline sets and map types
+     * on this phone (street, satellite, topographic…), and the street routing data. The other phone
+     * imports it all into the same places.
+     */
     private void sendTiles() {
         if (RadioService.files() == null) {
             Toast.makeText(this, "Join a channel on the radio screen first", Toast.LENGTH_LONG).show();
@@ -813,20 +817,37 @@ public final class FilesActivity extends Activity {
             return;
         }
         final org.communitycomms.app.geo.MapPrefs mp = new org.communitycomms.app.geo.MapPrefs(this);
-        final List<String> names = new ArrayList<String>();
+        final List<String> names = new ArrayList<String>(), prefixes = new ArrayList<String>();
         final List<File> roots = new ArrayList<File>();
         for (String s : mp.offlineSets()) {
             names.add("Offline set \"" + s + "\"");
             roots.add(new File(org.communitycomms.app.geo.MapPrefs.mapsRoot(this), s));
+            prefixes.add("more/set/" + s + "/");
         }
-        File cache = mp.onlineCache();
-        String[] cached = cache.list();
-        if (cached != null && cached.length > 0) {
-            names.add("Online tiles already viewed (" + org.communitycomms.app.geo.MapPrefs.ONLINE_NAMES[mp.onlinePreset()].split(" \\(")[0] + ")");
-            roots.add(cache);
+        // Each map type's own folder (tiles viewed or prefetched), named where the source is known.
+        File cacheRoot = new File(org.communitycomms.app.geo.MapPrefs.mapsRoot(this), "_tile-cache");
+        File[] caches = cacheRoot.listFiles();
+        if (caches != null) {
+            java.util.Arrays.sort(caches);
+            for (File c : caches) {
+                String[] in = c.list();
+                if (!c.isDirectory() || in == null || in.length == 0) continue;
+                String label = "Map tiles (" + c.getName() + ")";
+                for (int i = 0; i < org.communitycomms.app.geo.MapPrefs.ONLINE_URLS.length; i++) {
+                    String u = i == org.communitycomms.app.geo.MapPrefs.CUSTOM ? mp.customUrl() : org.communitycomms.app.geo.MapPrefs.ONLINE_URLS[i];
+                    if (u.length() > 0 && Integer.toHexString(u.hashCode()).equals(c.getName())) {
+                        label = org.communitycomms.app.geo.MapPrefs.ONLINE_NAMES[i].split(" \\(")[0];
+                    }
+                }
+                if (Integer.toHexString(org.communitycomms.app.geo.MapPrefs.OLD_ANDROID_URL.hashCode()).equals(c.getName())) label = "Google road map (Android 4)";
+                names.add(label);
+                roots.add(c);
+                prefixes.add("more/cache/" + c.getName() + "/");
+            }
         }
-        if (roots.isEmpty()) {
-            Toast.makeText(this, "No map tiles on this phone yet", Toast.LENGTH_LONG).show();
+        final boolean haveRouting = org.communitycomms.app.geo.Routing.stats(this)[0] > 0;
+        if (roots.isEmpty() && !haveRouting) {
+            Toast.makeText(this, "No map tiles or street routing data on this phone yet", Toast.LENGTH_LONG).show();
             return;
         }
         float d = getResources().getDisplayMetrics().density;
@@ -837,10 +858,21 @@ public final class FilesActivity extends Activity {
         TextView where = new TextView(this);
         where.setText("Around the last map view: " + org.communitycomms.app.geo.Geo.latLon(lat, lon));
         box.addView(where);
-        box.addView(label("Tiles from"));
-        final android.widget.Spinner src = new android.widget.Spinner(this);
-        src.setAdapter(new ArrayAdapter<String>(this, android.R.layout.simple_spinner_dropdown_item, names));
-        box.addView(src);
+        box.addView(label("Send"));
+        final List<android.widget.CheckBox> ticks = new ArrayList<android.widget.CheckBox>();
+        File current = mp.onlineCache();
+        for (int i = 0; i < roots.size(); i++) {
+            android.widget.CheckBox cb = new android.widget.CheckBox(this);
+            cb.setText(names.get(i));
+            cb.setChecked(roots.get(i).equals(current) || roots.get(i).getName().equals(mp.offlineSetName()));
+            ticks.add(cb);
+            box.addView(cb);
+        }
+        final android.widget.CheckBox routing = new android.widget.CheckBox(this);
+        routing.setText("Street routing data (offline directions)");
+        routing.setChecked(haveRouting);
+        routing.setEnabled(haveRouting);
+        box.addView(routing);
         box.addView(label("Distance around it"));
         String[] radii = new String[TILE_RADII_KM.length];
         for (int i = 0; i < radii.length; i++) radii[i] = org.communitycomms.app.geo.Geo.imperial ? String.format(java.util.Locale.US, "%.0f mi", TILE_RADII_KM[i] / 1.609344) : (int) TILE_RADII_KM[i] + " km";
@@ -860,11 +892,19 @@ public final class FilesActivity extends Activity {
         final Runnable estimate = new Runnable() {
             @Override
             public void run() {
-                long[] c = org.communitycomms.app.geo.TilePack.count(new File[]{roots.get(src.getSelectedItemPosition())},
-                        tileArea(lat, lon, radius, zoom));
-                est.setText(c[0] + " tiles, " + size(c[1])
-                        + (c[1] > 40L * 1048576 ? "\nToo big: pick a smaller distance or less detail."
-                        : c[1] > 5L * 1048576 ? "\nLarge: this will take a while on the radio." : ""));
+                long n = 0, bytes = 0;
+                org.communitycomms.app.geo.TilePack.Area a = tileArea(lat, lon, radius, zoom);
+                for (int i = 0; i < roots.size(); i++) {
+                    if (!ticks.get(i).isChecked()) continue;
+                    long[] c = org.communitycomms.app.geo.TilePack.count(new File[]{roots.get(i)}, a);
+                    n += c[0];
+                    bytes += c[1];
+                }
+                List<File> rf = routing.isChecked() ? routingFiles(lat, lon, TILE_RADII_KM[radius.getSelectedItemPosition()]) : new ArrayList<File>();
+                for (File f : rf) bytes += f.length();
+                est.setText(n + " tiles" + (rf.isEmpty() ? "" : " and " + rf.size() + " street routing area(s)") + ", " + size(bytes)
+                        + (bytes > 40L * 1048576 ? "\nToo big: pick a smaller distance, less detail or fewer map types."
+                        : bytes > 5L * 1048576 ? "\nLarge: this will take a while on the radio." : ""));
             }
         };
         AdapterView.OnItemSelectedListener re = new AdapterView.OnItemSelectedListener() {
@@ -877,22 +917,61 @@ public final class FilesActivity extends Activity {
             public void onNothingSelected(AdapterView<?> p) {
             }
         };
-        src.setOnItemSelectedListener(re);
+        CompoundButton.OnCheckedChangeListener tick = new CompoundButton.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(CompoundButton b, boolean on) {
+                estimate.run();
+            }
+        };
+        for (android.widget.CheckBox cb : ticks) cb.setOnCheckedChangeListener(tick);
+        routing.setOnCheckedChangeListener(tick);
         radius.setOnItemSelectedListener(re);
         zoom.setOnItemSelectedListener(re);
+        android.widget.ScrollView sv = new android.widget.ScrollView(this);
+        sv.addView(box);
         new AlertDialog.Builder(this)
                 .setTitle("Send map tiles")
-                .setView(box)
+                .setView(sv)
                 .setPositiveButton("Send", new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface dlg, int w) {
-                        File root = roots.get(src.getSelectedItemPosition());
-                        String set = root.equals(mp.onlineCache()) ? "Online tiles" : root.getName();
-                        buildAndSendTiles(root, set, tileArea(lat, lon, radius, zoom));
+                        List<File> sr = new ArrayList<File>();
+                        List<String> sp = new ArrayList<String>();
+                        String set = "Received tiles";
+                        boolean plainUsed = false;
+                        for (int i = 0; i < roots.size(); i++) {
+                            if (!ticks.get(i).isChecked()) continue;
+                            sr.add(roots.get(i));
+                            String pre = prefixes.get(i);
+                            if (!plainUsed && pre.startsWith("more/set/")) {
+                                // The first offline set goes in plainly, so older versions still import it.
+                                pre = "";
+                                plainUsed = true;
+                                set = roots.get(i).getName();
+                            }
+                            sp.add(pre);
+                        }
+                        List<File> rf = routing.isChecked() ? routingFiles(lat, lon, TILE_RADII_KM[radius.getSelectedItemPosition()]) : new ArrayList<File>();
+                        if (sr.isEmpty() && rf.isEmpty()) {
+                            Toast.makeText(FilesActivity.this, "Tick something to send", Toast.LENGTH_SHORT).show();
+                            return;
+                        }
+                        buildAndSendTiles(sr, sp, set, tileArea(lat, lon, radius, zoom), rf);
                     }
                 })
                 .setNegativeButton(android.R.string.cancel, null)
                 .show();
+        estimate.run();
+    }
+
+    /** The street routing cells on this phone within km of a point. */
+    private List<File> routingFiles(double lat, double lon, double km) {
+        List<File> out = new ArrayList<File>();
+        for (int[] k : org.communitycomms.app.geo.Routing.cellsAround(lat, lon, km)) {
+            File f = org.communitycomms.app.geo.Routing.file(this, k[0], k[1]);
+            if (f.isFile()) out.add(f);
+        }
+        return out;
     }
 
     private static org.communitycomms.app.geo.TilePack.Area tileArea(double lat, double lon, android.widget.Spinner radius,
@@ -901,7 +980,8 @@ public final class FilesActivity extends Activity {
         return new org.communitycomms.app.geo.TilePack.Area(lat, lon, TILE_RADII_KM[radius.getSelectedItemPosition()], 6, zMax);
     }
 
-    private void buildAndSendTiles(final File root, final String set, final org.communitycomms.app.geo.TilePack.Area area) {
+    private void buildAndSendTiles(final List<File> roots, final List<String> prefixes, final String set,
+                                   final org.communitycomms.app.geo.TilePack.Area area, final List<File> routing) {
         status.setText("Packing map tiles…");
         new AsyncTask<Void, Void, String>() {
             File pack;
@@ -912,8 +992,8 @@ public final class FilesActivity extends Activity {
                     File dir = new File(getCacheDir(), "outgoing");
                     dir.mkdirs();
                     pack = new File(dir, set.replaceAll("[^A-Za-z0-9 _.()-]", "") + org.communitycomms.app.geo.TilePack.SUFFIX);
-                    int n = org.communitycomms.app.geo.TilePack.build(new File[]{root}, area, set, pack);
-                    if (n == 0) return "No tiles in that area";
+                    int[] n = org.communitycomms.app.geo.TilePack.buildMulti(roots, prefixes, area, set, routing, pack);
+                    if (n[0] == 0 && n[1] == 0) return "No tiles or routing data in that area";
                     if (pack.length() > 40L * 1048576) return "Too big (" + size(pack.length()) + "): pick a smaller area";
                     return null;
                 } catch (IOException e) {
@@ -932,7 +1012,6 @@ public final class FilesActivity extends Activity {
             }
         }.execute();
     }
-
     private void doPrepare(final Uri uri, final String knownName, final String knownMime) {
         final boolean doShrink = shrink.isChecked();
         final boolean camera = fromCamera;

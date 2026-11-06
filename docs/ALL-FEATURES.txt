@@ -82,7 +82,7 @@ MAPS AND LOCATION
   custom), a see-through layer on top, and online for 5 minutes, an hour, a day, or always.
 - LAN storage tiles: maps read from the server first and save every online tile to it, so the whole
   group builds one shared offline map cache.
-- Map tiles can be sent to another phone over the radio.
+- Map tiles (any offline sets and map types: street, satellite, topographic) and street routing data can be sent to another phone over the radio in one pack.
 - Map points with icons by category, quick-point profiles (Friends, Security, Firefighting, Military,
   Emergency services, custom), shapes (rectangle, circle, oval, line, arrow, text box) and colours,
   photo points with their direction cone, move, edit, remove, announce, and sync with everyone.
@@ -90,7 +90,11 @@ MAPS AND LOCATION
 - Send my location when I transmit (optional).
 - Bearing and distance to the map cross, lat/lon and MGRS of the cross.
 - Full-screen baseplate compass with bearings to points and people, true or magnetic north.
-- Navigate to a point in Google Maps or another map app.
+- Navigate to a point online (Google Maps or another map app) or offline on the app's own map, driving or walking, with turn prompts; missing street routing data is offered for download.
+- Personal map points: kept on this phone only, never shared.
+- Offline routes: plan first, close roads at the +, go via points (convoys), share the route to the channel, a person or another app; automatic rerouting off by default.
+- Geofences: an area shape alerts when a contact leaves it, on this phone or also to the channel.
+- Offline routes warn when more than 500 m off the route (this phone, or also the channel).
 - Fake GPS for training: a random spot near a chosen centre, marked "Fake" for everyone.
 - Obscure location: others get a spot up to 0-10 km (2 km default) from your real position; turning Fake GPS off asks whether to keep obscuring.
 - Units: metric (default) or imperial, chosen in the wizard or Settings.

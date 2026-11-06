@@ -414,6 +414,48 @@ public final class MapActivity extends Activity {
         });
         moveBar.addView(moveCancel);
         root.addView(moveBar);
+        // Shown while following an offline route: the next instruction, what is left, voice and Stop.
+        navBar = new LinearLayout(this);
+        navBar.setOrientation(LinearLayout.VERTICAL);
+        final LinearLayout navBtns = new LinearLayout(this);
+        navBar.setBackgroundColor(0xff0d47a1);
+        navBar.setPadding((int) (8 * d), (int) (4 * d), (int) (4 * d), (int) (4 * d));
+        navBar.setVisibility(View.GONE);
+        navText = new TextView(this);
+        navText.setTextColor(0xffffffff);
+        navText.setTextSize(16);
+        navBar.addView(navText);
+        navBar.addView(navBtns);
+        navVoiceBtn = new android.widget.Button(this);
+        navVoiceBtn.setAllCaps(false);
+        navVoiceBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                navMainButton();
+            }
+        });
+        navBtns.addView(navVoiceBtn, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        android.widget.Button navMenu = new android.widget.Button(this);
+        navMenu.setText("Route…");
+        navMenu.setAllCaps(false);
+        navMenu.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                routeMenu();
+            }
+        });
+        navBtns.addView(navMenu, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        android.widget.Button navStop = new android.widget.Button(this);
+        navStop.setText("Stop");
+        navStop.setAllCaps(false);
+        navStop.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                stopNav();
+            }
+        });
+        navBtns.addView(navStop, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        root.addView(navBar);
         map = new TileMapView(this, null);
         // Over the map: fold the panel below away (▼ / ▲) and add a point at the + straight away.
         android.widget.FrameLayout mapBox = new android.widget.FrameLayout(this);
@@ -773,10 +815,21 @@ public final class MapActivity extends Activity {
             public void onMyPosition(Location loc, float heading) {
                 if (loc != null) me = loc;
                 map.setMe(loc, heading);
+                if (loc != null && navRoute != null) navUpdate(loc);
             }
         });
         locate(false);
         // Tapped on the home map: open that point straight away (details, edit, remove).
+        // A route shared in Chat: plan the same route.
+        final String sharedRoute = getIntent().getStringExtra(EXTRA_ROUTE);
+        if (sharedRoute != null && b == null) {
+            map.post(new Runnable() {
+                @Override
+                public void run() {
+                    openSharedRoute(sharedRoute);
+                }
+            });
+        }
         long poiId = getIntent().getLongExtra(EXTRA_POI, 0);
         if (poiId != 0 && b == null) {
             for (org.communitycomms.app.geo.Poi p : org.communitycomms.app.geo.PoiStore.get(this).all()) {
@@ -1510,12 +1563,14 @@ public final class MapActivity extends Activity {
         int pad = (int) (12 * getResources().getDisplayMetrics().density);
         box.setPadding(pad, 0, pad, 0);
         android.widget.Button nav = new android.widget.Button(this);
-        nav.setText("Navigate / open in Google Maps…");
+        nav.setText("Navigate…");
         nav.setAllCaps(false);
+        final AlertDialog[] shown = {null};
         nav.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                openInMaps(MapActivity.this, p.lat, p.lon, org.communitycomms.app.geo.Poi.readable(p.note));
+                if (shown[0] != null) shown[0].dismiss();
+                chooseNav(p.lat, p.lon, org.communitycomms.app.geo.Poi.readable(p.note).split("\n")[0]);
             }
         });
         box.addView(nav);
@@ -1543,7 +1598,7 @@ public final class MapActivity extends Activity {
         } else if (org.communitycomms.app.geo.Poi.photoKey(p.note) != null) {
             sb.append("\n(The photo has not reached this phone.)");
         }
-        b.setTitle(note.length() == 0 ? "POI" : note)
+        shown[0] = b.setTitle(note.length() == 0 ? "POI" : note)
                 .setMessage(sb)
                 .setPositiveButton("Edit & resend", new android.content.DialogInterface.OnClickListener() {
                     @Override
@@ -1590,6 +1645,559 @@ public final class MapActivity extends Activity {
         }
     }
 
+    // ---- navigation: online (Google Maps or another app) or offline on this map ----
+
+    private LinearLayout navBar;
+    private TextView navText;
+    private android.widget.Button navVoiceBtn;
+    private boolean navVoice = true;
+    private org.communitycomms.app.geo.RoadGraph.Route navRoute;
+    private double navLat, navLon, navAlongNow;
+    private String navName = "";
+    private int navMode, navIdx, navOff, navSpokenStep = -1, navSpokenNear = -1;
+    private boolean navRerouting, navArrived, navFarWarned;
+    /** Planning: the route is shown and can be changed (closed roads, via points) or shared before Start. */
+    private boolean navPlanning;
+    private final List<double[]> navVias = new java.util.ArrayList<double[]>(), navBlocked = new java.util.ArrayList<double[]>();
+    private double navStartLat, navStartLon;
+    static final String EXTRA_ROUTE = "route";
+    static final String ROUTE_TAG = "[route] ";
+
+    private void chooseNav(final double lat, final double lon, final String name) {
+        new AlertDialog.Builder(this).setTitle("Navigate to " + (name.length() > 0 ? name : "this point"))
+                .setItems(new String[]{"Online: Google Maps or another map app", "Offline on this map: driving", "Offline on this map: walking"},
+                        new android.content.DialogInterface.OnClickListener() {
+                            @Override
+                            public void onClick(android.content.DialogInterface d, int which) {
+                                if (which == 0) openInMaps(MapActivity.this, lat, lon, name);
+                                else startNav(lat, lon, name, which == 1 ? org.communitycomms.app.geo.RoadGraph.CAR : org.communitycomms.app.geo.RoadGraph.FOOT);
+                            }
+                        })
+                .setNegativeButton(android.R.string.cancel, null).show();
+    }
+
+    /** Offline route from my position: planned first (change or share it), then Start. */
+    private void startNav(double lat, double lon, String name, int mode) {
+        if (me == null) {
+            android.widget.Toast.makeText(this, "No GPS position yet: wait for a fix, then try again", android.widget.Toast.LENGTH_LONG).show();
+            return;
+        }
+        navVias.clear();
+        navBlocked.clear();
+        navLat = lat;
+        navLon = lon;
+        navName = name;
+        navMode = mode;
+        navStartLat = me.getLatitude();
+        navStartLon = me.getLongitude();
+        planRoute(false, navStartLat, navStartLon);
+    }
+
+    private double[] routePoints(double fromLat, double fromLon) {
+        double[] pts = new double[(navVias.size() + 2) * 2];
+        pts[0] = fromLat;
+        pts[1] = fromLon;
+        for (int i = 0; i < navVias.size(); i++) {
+            pts[2 + i * 2] = navVias.get(i)[0];
+            pts[3 + i * 2] = navVias.get(i)[1];
+        }
+        pts[pts.length - 2] = navLat;
+        pts[pts.length - 1] = navLon;
+        return pts;
+    }
+
+    private static double[] flat(List<double[]> l) {
+        if (l.isEmpty()) return null;
+        double[] out = new double[l.size() * 2];
+        for (int i = 0; i < l.size(); i++) {
+            out[i * 2] = l.get(i)[0];
+            out[i * 2 + 1] = l.get(i)[1];
+        }
+        return out;
+    }
+
+    /** Works out the street routing data the route needs, offers to download what is missing, then the route. */
+    private void planRoute(final boolean reroute, double fromLat, double fromLon) {
+        final double[] pts = routePoints(fromLat, fromLon);
+        final List<int[]> cells = org.communitycomms.app.geo.Routing.cellsFor(pts);
+        if (cells.size() > org.communitycomms.app.geo.Routing.MAX_CELLS) {
+            if (!reroute) android.widget.Toast.makeText(this, "Too far for offline directions (about 150 km across at most): use Online", android.widget.Toast.LENGTH_LONG).show();
+            return;
+        }
+        final List<int[]> missing = org.communitycomms.app.geo.Routing.missing(this, cells);
+        if (missing.isEmpty() || reroute) {
+            computeNav(pts, cells, reroute);
+            return;
+        }
+        new AlertDialog.Builder(this).setTitle("Street routing data needed")
+                .setMessage("Offline directions need the street routing data for " + org.communitycomms.app.geo.Routing.cellWords(missing.size())
+                        + " that " + (missing.size() == 1 ? "is" : "are") + " not on this phone yet.\n\nDownload " + (missing.size() == 1 ? "it" : "them")
+                        + " now? It comes from the LAN storage if it has it, otherwise the internet (OpenStreetMap), and the LAN storage keeps a copy for the other phones. "
+                        + "Map menu > Data Tile Management can get a whole area ahead of time.")
+                .setPositiveButton("Download", new android.content.DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(android.content.DialogInterface d, int w) {
+                        downloadThenNav(pts, cells, missing);
+                    }
+                })
+                .setNegativeButton(android.R.string.cancel, null).show();
+    }
+
+    private void downloadThenNav(final double[] pts, final List<int[]> cells, final List<int[]> missing) {
+        final AlertDialog dlg = new AlertDialog.Builder(this).setTitle("Street routing data").setMessage("Starting…")
+                .setCancelable(false).setNegativeButton("Stop", null).show();
+        final boolean[] stop = {false};
+        dlg.getButton(AlertDialog.BUTTON_NEGATIVE).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                stop[0] = true;
+                dlg.setMessage("Stopping after this area…");
+            }
+        });
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                String err = null;
+                for (int i = 0; i < missing.size() && !stop[0]; i++) {
+                    final int k = i;
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            dlg.setMessage("Area " + (k + 1) + " of " + missing.size() + "…\nA city area can take a minute or two to arrive from the internet.");
+                        }
+                    });
+                    try {
+                        org.communitycomms.app.geo.Routing.fetch(MapActivity.this, missing.get(i)[0], missing.get(i)[1]);
+                    } catch (Exception e) {
+                        err = e.getMessage();
+                    }
+                }
+                final String error = err;
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        if (isFinishing()) return;
+                        dlg.dismiss();
+                        if (stop[0]) return;
+                        if (error != null && !org.communitycomms.app.geo.Routing.missing(MapActivity.this, cells).isEmpty()) {
+                            new AlertDialog.Builder(MapActivity.this).setTitle("Some street routing data did not arrive")
+                                    .setMessage(error + "\n\nRouting will use what is on the phone; a route may not be found.")
+                                    .setPositiveButton(android.R.string.ok, null).show();
+                        }
+                        computeNav(pts, cells, false);
+                    }
+                });
+            }
+        }, "routing-download").start();
+    }
+
+    /** Works out the route in the background; a new one is shown for planning, a reroute is followed straight away. */
+    private void computeNav(final double[] pts, final List<int[]> cells, final boolean reroute) {
+        if (!reroute) android.widget.Toast.makeText(this, "Working out the route…", android.widget.Toast.LENGTH_SHORT).show();
+        navRerouting = true;
+        final double[] blocked = flat(navBlocked);
+        final int mode = navMode;
+        final String name = navName;
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                org.communitycomms.app.geo.RoadGraph.Route r = null;
+                String err = null;
+                try {
+                    org.communitycomms.app.geo.RoadGraph g = org.communitycomms.app.geo.Routing.graph(MapActivity.this, cells);
+                    if (g != null) {
+                        synchronized (g) {
+                            g.setBlocked(blocked);
+                            r = g.routeVia(pts, mode, name);
+                        }
+                    }
+                    if (r == null) err = "No way along the roads in the street routing data on this phone"
+                            + (blocked != null ? " (with the closed roads avoided)" : "") + ".";
+                } catch (OutOfMemoryError e) {
+                    err = "Not enough memory on this phone for a trip this big: try a shorter one.";
+                } catch (Exception e) {
+                    err = "Could not read the street routing data: " + e.getMessage();
+                }
+                final org.communitycomms.app.geo.RoadGraph.Route route = r;
+                final String error = err;
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        navRerouting = false;
+                        if (isFinishing()) return;
+                        if (route == null) {
+                            if (!reroute) new AlertDialog.Builder(MapActivity.this).setTitle("No route").setMessage(error)
+                                    .setPositiveButton(android.R.string.ok, null).show();
+                            return;
+                        }
+                        navRoute = route;
+                        navIdx = 0;
+                        navOff = 0;
+                        navSpokenStep = -1;
+                        navSpokenNear = -1;
+                        navArrived = false;
+                        navFarWarned = false;
+                        navVoice = getSharedPreferences("map", MODE_PRIVATE).getBoolean("navVoice", true);
+                        navBar.setVisibility(View.VISIBLE);
+                        map.setRoute(route.pts);
+                        map.setRouteMarks(flat(navBlocked), flat(navVias));
+                        if (!reroute) {
+                            navPlanning = true;
+                            fitRoute(route.pts);
+                            showPlanning();
+                        } else {
+                            navSay("Route updated.");
+                            if (me != null) navUpdate(me);
+                        }
+                        renderNavButtons();
+                    }
+                });
+            }
+        }, "routing").start();
+    }
+
+    private void renderNavButtons() {
+        navVoiceBtn.setText(navPlanning ? "Start" : navVoice ? "Voice on" : "Voice off");
+    }
+
+    /** The first bar button: Start while planning, then voice on / off. */
+    private void navMainButton() {
+        if (navPlanning) {
+            navPlanning = false;
+            org.communitycomms.app.geo.RoadGraph.Route r = navRoute;
+            if (r != null) navSay(r.steps.get(0).text + ". " + org.communitycomms.app.geo.Geo.spoken(r.lengthM) + " to go.");
+            if (me != null) navUpdate(me);
+        } else {
+            navVoice = !navVoice;
+            getSharedPreferences("map", MODE_PRIVATE).edit().putBoolean("navVoice", navVoice).apply();
+        }
+        renderNavButtons();
+    }
+
+    private String modeWord() {
+        return navMode == org.communitycomms.app.geo.RoadGraph.CAR ? "driving" : "walking";
+    }
+
+    private void showPlanning() {
+        org.communitycomms.app.geo.RoadGraph.Route r = navRoute;
+        if (r == null) return;
+        long mins = Math.round(r.seconds / 60);
+        navText.setText("Route to " + (navName.length() > 0 ? navName : "the point") + " (" + modeWord() + "): " + Geo.distance(r.lengthM) + ", "
+                + (mins >= 60 ? (mins / 60) + " h " + (mins % 60) + " min" : mins + " min")
+                + (navVias.isEmpty() ? "" : ", via " + navVias.size()) + (navBlocked.isEmpty() ? "" : ", " + navBlocked.size() + " closed")
+                + "\nRoute… to change or share it, then Start");
+    }
+
+    private boolean autoReroute() {
+        return !new Prefs(this).navNoReroute();
+    }
+
+    /** Route…: change the route (closed roads, via points), share it, reroute. */
+    private void routeMenu() {
+        final List<String> items = new java.util.ArrayList<String>();
+        final List<Integer> ids = new java.util.ArrayList<Integer>();
+        items.add("Close the road at the + (a tree down, a flood…)");
+        ids.add(1);
+        items.add("Go via the + (a set way for a convoy)");
+        ids.add(2);
+        if (!navBlocked.isEmpty() || !navVias.isEmpty()) {
+            items.add("Undo the last change");
+            ids.add(3);
+            items.add("Clear all changes");
+            ids.add(4);
+        }
+        items.add("Share this route…");
+        ids.add(5);
+        if (!navPlanning) {
+            items.add("Work out a new route from here now");
+            ids.add(6);
+        }
+        items.add(autoReroute() ? "Automatic new route when off it: on (tap for off)" : "Automatic new route when off it: off (tap for on)");
+        ids.add(7);
+        new AlertDialog.Builder(this).setTitle("Route")
+                .setItems(items.toArray(new String[0]), new android.content.DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(android.content.DialogInterface d, int which) {
+                        int id = ids.get(which);
+                        if (id == 1 || id == 2) {
+                            (id == 1 ? navBlocked : navVias).add(new double[]{map.centerLat(), map.centerLon()});
+                            if (id == 1) navLastChange.add(1);
+                            else navLastChange.add(2);
+                            replan();
+                        } else if (id == 3) {
+                            if (!navLastChange.isEmpty()) {
+                                int last = navLastChange.remove(navLastChange.size() - 1);
+                                List<double[]> l = last == 1 ? navBlocked : navVias;
+                                if (!l.isEmpty()) l.remove(l.size() - 1);
+                            }
+                            replan();
+                        } else if (id == 4) {
+                            navBlocked.clear();
+                            navVias.clear();
+                            navLastChange.clear();
+                            replan();
+                        } else if (id == 5) {
+                            shareRoute();
+                        } else if (id == 6) {
+                            if (me != null) {
+                                dropPassedVias();
+                                planRoute(true, me.getLatitude(), me.getLongitude());
+                            }
+                        } else if (id == 7) {
+                            Prefs pr = new Prefs(MapActivity.this);
+                            pr.setNavNoReroute(!pr.navNoReroute());
+                            android.widget.Toast.makeText(MapActivity.this, pr.navNoReroute() ? "No automatic new route: Route… > Work out a new route when you want one"
+                                    : "A new route is worked out when you leave this one", android.widget.Toast.LENGTH_LONG).show();
+                        }
+                    }
+                }).setNegativeButton(android.R.string.cancel, null).show();
+    }
+
+    private final List<Integer> navLastChange = new java.util.ArrayList<Integer>();
+
+    /** After a change: planning starts again from the planned start; following, from where I am now. */
+    private void replan() {
+        if (navPlanning || me == null) planRoute(false, navStartLat, navStartLon);
+        else {
+            dropPassedVias();
+            planRoute(true, me.getLatitude(), me.getLongitude());
+        }
+    }
+
+    /** Via points already passed on the current route are left out of a new route from here. */
+    private void dropPassedVias() {
+        org.communitycomms.app.geo.RoadGraph.Route r = navRoute;
+        if (r == null || navPlanning) return;
+        int passed = 0;
+        for (Double a : r.viaAlong) if (a <= navAlongNow) passed++;
+        for (int i = 0; i < passed && !navVias.isEmpty(); i++) navVias.remove(0);
+    }
+
+    /** The route as a chat message: a line people read, and a line the app reads to show the same route. */
+    private String routeText() {
+        double[] pts = routePoints(navStartLat, navStartLon);
+        StringBuilder sb = new StringBuilder();
+        org.communitycomms.app.geo.RoadGraph.Route r = navRoute;
+        sb.append("Route to ").append(navName.length() > 0 ? navName : Geo.latLon(navLat, navLon)).append(" (").append(modeWord());
+        if (r != null) sb.append(", ").append(Geo.distance(r.lengthM));
+        if (!navVias.isEmpty()) sb.append(", via ").append(navVias.size()).append(" point").append(navVias.size() == 1 ? "" : "s");
+        if (!navBlocked.isEmpty()) sb.append(", ").append(navBlocked.size()).append(" road").append(navBlocked.size() == 1 ? "" : "s").append(" closed");
+        sb.append("): tap it in Chat to follow it\n").append(ROUTE_TAG).append("m=").append(navMode).append(";n=")
+                .append(navName.replace(";", ",").replace("\n", " ")).append(";p=");
+        for (int i = 0; i + 1 < pts.length; i += 2) sb.append(i > 0 ? "|" : "").append(String.format(java.util.Locale.US, "%.6f,%.6f", pts[i], pts[i + 1]));
+        sb.append(";x=");
+        for (int i = 0; i < navBlocked.size(); i++) {
+            sb.append(i > 0 ? "|" : "").append(String.format(java.util.Locale.US, "%.6f,%.6f", navBlocked.get(i)[0], navBlocked.get(i)[1]));
+        }
+        return sb.toString();
+    }
+
+    private void shareRoute() {
+        final String text = routeText();
+        new AlertDialog.Builder(this).setTitle("Share this route")
+                .setItems(new String[]{"To the channel (Chat)", "To one person (private message)", "Another app (as text)"},
+                        new android.content.DialogInterface.OnClickListener() {
+                            @Override
+                            public void onClick(android.content.DialogInterface d, int which) {
+                                RadioService rs = RadioService.instance();
+                                if (which == 0) {
+                                    boolean ok = rs != null && rs.sendAlertText(text);
+                                    android.widget.Toast.makeText(MapActivity.this, ok ? "Route sent to the channel" : "Join a channel first", android.widget.Toast.LENGTH_SHORT).show();
+                                } else if (which == 1) {
+                                    sharePrivate(text);
+                                } else {
+                                    android.content.Intent s = new android.content.Intent(android.content.Intent.ACTION_SEND).setType("text/plain")
+                                            .putExtra(android.content.Intent.EXTRA_TEXT, text);
+                                    startActivity(android.content.Intent.createChooser(s, "Share the route"));
+                                }
+                            }
+                        })
+                .setNegativeButton(android.R.string.cancel, null).show();
+    }
+
+    private void sharePrivate(final String text) {
+        final List<String> names = new java.util.ArrayList<String>();
+        for (Contacts.Contact c : Contacts.get(this).all()) names.add(c.name);
+        if (names.isEmpty()) {
+            android.widget.Toast.makeText(this, "Nobody heard yet", android.widget.Toast.LENGTH_SHORT).show();
+            return;
+        }
+        new AlertDialog.Builder(this).setTitle("Send the route to")
+                .setItems(names.toArray(new String[0]), new android.content.DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(android.content.DialogInterface d, int which) {
+                        RadioService rs = RadioService.instance();
+                        String why = rs == null || rs.messages() == null ? "Join a channel first" : rs.messages().sendPrivate(names.get(which), text);
+                        android.widget.Toast.makeText(MapActivity.this, why == null ? "Route sent to " + names.get(which) : why, android.widget.Toast.LENGTH_LONG).show();
+                    }
+                }).setNegativeButton(android.R.string.cancel, null).show();
+    }
+
+    /** A route shared in Chat: the same points and closed roads, planned from the same start, ready to Start. */
+    private void openSharedRoute(String body) {
+        int at = body.indexOf(ROUTE_TAG);
+        if (at < 0) return;
+        String def = body.substring(at + ROUTE_TAG.length()).split("\n")[0];
+        int mode = org.communitycomms.app.geo.RoadGraph.CAR;
+        String name = "";
+        List<double[]> p = new java.util.ArrayList<double[]>(), x = new java.util.ArrayList<double[]>();
+        for (String part : def.split(";")) {
+            int eq = part.indexOf('=');
+            if (eq < 0) continue;
+            String k = part.substring(0, eq), v = part.substring(eq + 1);
+            if (k.equals("m")) mode = "1".equals(v.trim()) ? org.communitycomms.app.geo.RoadGraph.FOOT : org.communitycomms.app.geo.RoadGraph.CAR;
+            else if (k.equals("n")) name = v;
+            else if (k.equals("p") || k.equals("x")) {
+                for (String ll : v.split("\\|")) {
+                    String[] q = ll.split(",");
+                    if (q.length != 2) continue;
+                    try {
+                        (k.equals("p") ? p : x).add(new double[]{Double.parseDouble(q[0]), Double.parseDouble(q[1])});
+                    } catch (NumberFormatException ignored) {
+                    }
+                }
+            }
+        }
+        if (p.size() < 2) {
+            android.widget.Toast.makeText(this, "That route could not be read", android.widget.Toast.LENGTH_LONG).show();
+            return;
+        }
+        navMode = mode;
+        navName = name;
+        navStartLat = p.get(0)[0];
+        navStartLon = p.get(0)[1];
+        navLat = p.get(p.size() - 1)[0];
+        navLon = p.get(p.size() - 1)[1];
+        navVias.clear();
+        navVias.addAll(p.subList(1, p.size() - 1));
+        navBlocked.clear();
+        navBlocked.addAll(x);
+        navLastChange.clear();
+        planRoute(false, navStartLat, navStartLon);
+    }
+
+    private void fitRoute(double[] pts) {
+        double minLat = 90, maxLat = -90, minLon = 180, maxLon = -180;
+        for (int i = 0; i + 1 < pts.length; i += 2) {
+            minLat = Math.min(minLat, pts[i]);
+            maxLat = Math.max(maxLat, pts[i]);
+            minLon = Math.min(minLon, pts[i + 1]);
+            maxLon = Math.max(maxLon, pts[i + 1]);
+        }
+        int zoom = 17;
+        while (zoom > 3) {
+            double w = (Geo.lonToX(maxLon, zoom) - Geo.lonToX(minLon, zoom)) * 256, h = (Geo.latToY(minLat, zoom) - Geo.latToY(maxLat, zoom)) * 256;
+            if (w < map.getWidth() * 0.8 && h < map.getHeight() * 0.8) break;
+            zoom--;
+        }
+        map.center((minLat + maxLat) / 2, (minLon + maxLon) / 2, zoom);
+    }
+
+    private void navSay(String text) {
+        if (!navVoice) return;
+        RadioService rs = RadioService.instance();
+        if (rs != null) rs.speakLocal(text);
+    }
+
+    /** Each new position: where along the route, the next instruction, spoken prompts, warnings and (if on) a new route. */
+    private void navUpdate(Location loc) {
+        org.communitycomms.app.geo.RoadGraph.Route r = navRoute;
+        if (r == null) return;
+        if (navPlanning) return; // not started yet: the bar shows the plan
+        double lat = loc.getLatitude(), lon = loc.getLongitude();
+        double kx = 111320 * Math.cos(Math.toRadians(lat)), ky = 110540;
+        int cnt = r.pts.length / 2;
+        double bestD = Double.MAX_VALUE, bestAlong = 0;
+        int bestI = navIdx;
+        int from = Math.max(0, navIdx - 3), to = Math.min(cnt - 1, navIdx + 400);
+        for (int pass = 0; pass < 2; pass++) {
+            for (int i = from; i < to; i++) {
+                double ax = (r.pts[i * 2 + 1] - lon) * kx, ay = (r.pts[i * 2] - lat) * ky;
+                double bx = (r.pts[i * 2 + 3] - lon) * kx, by = (r.pts[i * 2 + 2] - lat) * ky;
+                double dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy;
+                double t = l2 == 0 ? 0 : Math.max(0, Math.min(1, -(ax * dx + ay * dy) / l2));
+                double px = ax + t * dx, py = ay + t * dy, dd = Math.sqrt(px * px + py * py);
+                if (dd < bestD) {
+                    bestD = dd;
+                    bestI = i;
+                    bestAlong = r.along[i] + t * (r.along[i + 1] - r.along[i]);
+                }
+            }
+            if (bestD < 60 || (from == 0 && to == cnt - 1)) break;
+            from = 0; // lost: look along the whole route
+            to = cnt - 1;
+        }
+        navIdx = bestI;
+        navAlongNow = bestAlong;
+        double left = Math.max(0, r.lengthM - bestAlong);
+        if (left < 25 && !navArrived) {
+            navArrived = true;
+            navText.setText("Arrived" + (navName.length() > 0 ? " at " + navName : ""));
+            navSay("You have arrived" + (navName.length() > 0 ? " at " + navName : "") + ".");
+            return;
+        }
+        if (navArrived) return;
+        // More than 500 m off: a warning (Settings: this phone only, or the channel too), and no automatic
+        // new route (well away from the roads, a new route would only lead back to the nearest one).
+        if (bestD > 500) {
+            if (!navFarWarned) {
+                navFarWarned = true;
+                Prefs pr = new Prefs(this);
+                RadioService rs = RadioService.instance();
+                if (pr.offRouteAlert() && rs != null) rs.alertLocal("Warning: more than 500 metres off the route.");
+                if (pr.offRouteChannel() && rs != null) {
+                    rs.sendAlertText(pr.callsign() + " is more than 500 m off their route" + (navName.length() > 0 ? " to " + navName : "")
+                            + " (at " + Geo.latLon(lat, lon) + ")");
+                }
+            }
+        } else if (bestD < 300) {
+            navFarWarned = false;
+        }
+        // Well off the route for a while: work it out again from here (only with automatic new routes on).
+        double offLimit = Math.max(50, loc.hasAccuracy() ? loc.getAccuracy() * 1.5 : 50);
+        if (bestD > offLimit && bestD <= 500 && autoReroute()) {
+            if (++navOff >= 3 && !navRerouting) {
+                navOff = 0;
+                dropPassedVias();
+                planRoute(true, lat, lon);
+            }
+        } else {
+            navOff = 0;
+        }
+        int next = -1;
+        for (int i = 0; i < r.steps.size(); i++) {
+            if (r.steps.get(i).atM > bestAlong + 3) {
+                next = i;
+                break;
+            }
+        }
+        if (next < 0) next = r.steps.size() - 1;
+        org.communitycomms.app.geo.RoadGraph.Step st = r.steps.get(next);
+        double toStep = Math.max(0, st.atM - bestAlong);
+        double speed = r.seconds > 0 ? r.lengthM / r.seconds : 1;
+        long mins = Math.round(left / speed / 60);
+        navText.setText("In " + Geo.distance(toStep) + ": " + st.text + "\n" + Geo.distance(left) + " · "
+                + (mins >= 60 ? (mins / 60) + " h " + (mins % 60) + " min" : mins + " min") + " left"
+                + (bestD > offLimit ? " · off the route (" + Geo.distance(bestD) + ")" : ""));
+        // Spoken: once well before the turn, and again just before it.
+        double early = navMode == org.communitycomms.app.geo.RoadGraph.CAR ? 300 : 60, near = navMode == org.communitycomms.app.geo.RoadGraph.CAR ? 40 : 15;
+        if (toStep <= early && toStep > near * 2 && navSpokenStep != next) {
+            navSpokenStep = next;
+            navSay("In " + org.communitycomms.app.geo.Geo.spoken(toStep) + ", " + st.text + ".");
+        } else if (toStep <= near && navSpokenNear != next && st.turn != 999) {
+            navSpokenNear = next;
+            navSpokenStep = next;
+            navSay(st.text + ".");
+        }
+    }
+
+    private void stopNav() {
+        navRoute = null;
+        navPlanning = false;
+        navBar.setVisibility(View.GONE);
+        map.setRoute(null);
+        map.setRouteMarks(null, null);
+    }
     /** Remove for everyone, asking whether to announce it (ticked by default). */
     private void confirmRemove(final org.communitycomms.app.geo.Poi p) {
         final android.widget.CheckBox announce = new android.widget.CheckBox(this);
@@ -1747,6 +2355,17 @@ public final class MapActivity extends Activity {
         bgSpin.setSelection(oldShape == null ? 1 : ((oldShape.bg >>> 24) == 0 ? 0 : colourIndex(oldShape.bg | 0xff000000, 0) + 1));
         shapeBox.addView(fgSpin);
         shapeBox.addView(bgSpin);
+        // Geofence: rectangles, circles and ovals can alert when someone leaves them.
+        final android.widget.CheckBox fenceOn = new android.widget.CheckBox(this);
+        fenceOn.setText("Geofence: alert me when a contact leaves it");
+        final android.widget.Spinner fenceWho = new android.widget.Spinner(this);
+        fenceWho.setAdapter(new android.widget.ArrayAdapter<String>(this, android.R.layout.simple_spinner_dropdown_item,
+                new String[]{"Alert: this phone only", "Alert: this phone and a message to the channel"}));
+        int oldFence = old == null ? 0 : org.communitycomms.app.geo.Poi.fence(old.note);
+        fenceOn.setChecked(oldFence != 0);
+        fenceWho.setSelection(oldFence == org.communitycomms.app.geo.Poi.FENCE_TELL_CHANNEL ? 1 : 0);
+        shapeBox.addView(fenceOn);
+        shapeBox.addView(fenceWho);
         box.addView(shapeBox);
         if (oldShape != null) {
             double[] ab = shapeSizes(old.lat, old.lon, oldShape);
@@ -1762,6 +2381,9 @@ public final class MapActivity extends Activity {
                 poseBox.setVisibility(t < 0 ? View.VISIBLE : View.GONE);
                 sizeB.setVisibility(t == org.communitycomms.app.geo.Poi.CIRCLE || t == org.communitycomms.app.geo.Poi.TEXT ? View.GONE : View.VISIBLE);
                 sizeA.setVisibility(t == org.communitycomms.app.geo.Poi.TEXT ? View.GONE : View.VISIBLE);
+                boolean area = t == org.communitycomms.app.geo.Poi.RECT || t == org.communitycomms.app.geo.Poi.CIRCLE || t == org.communitycomms.app.geo.Poi.OVAL;
+                fenceOn.setVisibility(area ? View.VISIBLE : View.GONE);
+                fenceWho.setVisibility(area ? View.VISIBLE : View.GONE);
                 sizeA.setHint(t == org.communitycomms.app.geo.Poi.CIRCLE ? "Radius (m)" : t >= org.communitycomms.app.geo.Poi.LINE ? "Length (m)" : "Width (m)");
                 sizeB.setHint(t >= org.communitycomms.app.geo.Poi.LINE ? "Bearing (°)" : "Height (m)");
                 sizeHelp.setText(t == org.communitycomms.app.geo.Poi.TEXT ? "The note is shown in a box on the map."
@@ -1797,6 +2419,22 @@ public final class MapActivity extends Activity {
         announce.setChecked(true);
         box.addView(announce);
         box.addView(toPublic);
+        // Personal: only on this phone, never sent or shared (Public and the announcement do not apply).
+        final android.widget.CheckBox personal = new android.widget.CheckBox(this);
+        personal.setText("Personal: keep on this phone only, never share it");
+        final boolean wasPersonal = old != null && org.communitycomms.app.geo.Poi.isPersonal(old.note);
+        personal.setChecked(wasPersonal);
+        android.widget.CompoundButton.OnCheckedChangeListener pc = new android.widget.CompoundButton.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(android.widget.CompoundButton b, boolean on) {
+                toPublic.setEnabled(!on);
+                announce.setEnabled(!on);
+                if (on) toPublic.setChecked(false);
+            }
+        };
+        personal.setOnCheckedChangeListener(pc);
+        pc.onCheckedChanged(personal, wasPersonal);
+        box.addView(personal);
         android.widget.ScrollView scroll = new android.widget.ScrollView(this);
         scroll.addView(box);
         AlertDialog.Builder dlg = new AlertDialog.Builder(this);
@@ -1858,6 +2496,9 @@ public final class MapActivity extends Activity {
                             sh.bg = bi == 0 ? 0 : (COLOURS[bi - 1] & 0x00ffffff) | 0x50000000;
                         }
                         p.note = org.communitycomms.app.geo.Poi.withShape(p.note, sh);
+                        boolean areaShape = t == org.communitycomms.app.geo.Poi.RECT || t == org.communitycomms.app.geo.Poi.CIRCLE || t == org.communitycomms.app.geo.Poi.OVAL;
+                        p.note = org.communitycomms.app.geo.Poi.withFence(p.note, !areaShape || !fenceOn.isChecked() ? 0
+                                : fenceWho.getSelectedItemPosition() == 1 ? org.communitycomms.app.geo.Poi.FENCE_TELL_CHANNEL : org.communitycomms.app.geo.Poi.FENCE_PRIVATE);
                         p.note = org.communitycomms.app.geo.Poi.withPublic(p.note, toPublic.isChecked());
                         boolean arrowChanged = arrow.isChecked() != (oldPose[2] == 1);
                         if (t < 0) p.note = org.communitycomms.app.geo.Poi.withPose(p.note, rot.getProgress() * 5,
@@ -1869,6 +2510,23 @@ public final class MapActivity extends Activity {
                                 && org.communitycomms.app.geo.Poi.shape(old.note) == null;
                         p.note = org.communitycomms.app.geo.Poi.withQuiet(p.note, poseOnly || !announce.isChecked());
                         RadioService rs = RadioService.instance();
+                        if (personal.isChecked()) {
+                            if (old != null && !wasPersonal && rs != null) {
+                                // It was shared: take it off everyone else's map, quietly, before keeping it here only.
+                                org.communitycomms.app.geo.Poi gone = copy(old);
+                                gone.version++;
+                                gone.expiresAt = System.currentTimeMillis() - 1;
+                                gone.editor = myName();
+                                gone.note = org.communitycomms.app.geo.Poi.withQuiet(gone.note, true);
+                                rs.sendPoi(gone);
+                                p.version = gone.version + 1;
+                            }
+                            p.note = org.communitycomms.app.geo.Poi.withPersonal(org.communitycomms.app.geo.Poi.withQuiet(p.note, true), true);
+                            org.communitycomms.app.geo.PoiStore.get(MapActivity.this).apply(p);
+                            android.widget.Toast.makeText(MapActivity.this, "Personal map point: kept on this phone only", android.widget.Toast.LENGTH_SHORT).show();
+                            refresh();
+                            return;
+                        }
                         boolean sent = rs != null && rs.sendPoi(p);
                         if (!sent) {
                             org.communitycomms.app.geo.PoiStore.get(MapActivity.this).apply(p);

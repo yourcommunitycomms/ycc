@@ -197,6 +197,24 @@ public final class SettingsActivity extends Activity {
                 prefs.setCallReminder(on);
             }
         });
+        bindCheck(R.id.nav_no_reroute, prefs.navNoReroute(), new Toggle() {
+            @Override
+            public void set(boolean on) {
+                prefs.setNavNoReroute(on);
+            }
+        });
+        bindCheck(R.id.off_route_alert, prefs.offRouteAlert(), new Toggle() {
+            @Override
+            public void set(boolean on) {
+                prefs.setOffRouteAlert(on);
+            }
+        });
+        bindCheck(R.id.off_route_channel, prefs.offRouteChannel(), new Toggle() {
+            @Override
+            public void set(boolean on) {
+                prefs.setOffRouteChannel(on);
+            }
+        });
         bindCheck(R.id.call_wakes_volume, prefs.callWakesVolume(), new Toggle() {
             @Override
             public void set(boolean on) {

@@ -935,7 +935,7 @@ public final class MessageCenter {
         if (e == null) return;
         if (type == MessageLog.TYPE_POI) {
             for (Poi p : PoiStore.get(ctx).all()) {
-                if (p.id == id) {
+                if (p.id == id && !Poi.isPersonal(p.note)) {
                     synchronized (recentlyOnAir) {
                         recentlyOnAir.put(id, System.currentTimeMillis());
                     }

@@ -511,6 +511,8 @@ public final class TileMapView extends View {
         for (Marker m : markers) {
             if (m.area != null) drawArea(c, m);
         }
+        if (route != null) drawRoute(c);
+        if (routeBlocked != null || routeVias != null) drawRouteMarks(c, getResources().getDisplayMetrics().density);
         for (Marker m : markers) {
             float mx = sx(Geo.lonToX(m.lon, z)), my = sy(Geo.latToY(m.lat, z));
             if (m.shape != null) {
@@ -670,6 +672,72 @@ public final class TileMapView extends View {
             c.drawLine(x1, y1, x1 - ux * hx + uy * hx * 0.7f, y1 - uy * hx - ux * hx * 0.7f, headingPaint);
             c.drawLine(x1, y1, x1 - ux * hx - uy * hx * 0.7f, y1 - uy * hx + ux * hx * 0.7f, headingPaint);
         }
+    }
+
+    // ---- an offline route (lat, lon pairs), drawn under the markers ----
+
+    private volatile double[] route;
+    private final Paint routeLine = new Paint(Paint.ANTI_ALIAS_FLAG), routeHalo = new Paint(Paint.ANTI_ALIAS_FLAG);
+
+    public void setRoute(double[] latLonPairs) {
+        route = latLonPairs;
+        invalidate();
+    }
+
+    /** Route planning marks: closed roads (red, crossed) and via points (numbered), lat, lon pairs. */
+    private volatile double[] routeBlocked, routeVias;
+
+    public void setRouteMarks(double[] blocked, double[] vias) {
+        routeBlocked = blocked;
+        routeVias = vias;
+        invalidate();
+    }
+
+    private void drawRouteMarks(Canvas c, float d) {
+        double[] b = routeBlocked, v = routeVias;
+        Paint p = routeHalo;
+        p.setStyle(Paint.Style.FILL);
+        if (b != null) for (int i = 0; i + 1 < b.length; i += 2) {
+            float x = sx(Geo.lonToX(b[i + 1], z)), y = sy(Geo.latToY(b[i], z));
+            p.setColor(0xffd32f2f);
+            c.drawCircle(x, y, 11 * d, p);
+            routeLine.setColor(0xffffffff);
+            routeLine.setStrokeWidth(3 * d);
+            c.drawLine(x - 6 * d, y - 6 * d, x + 6 * d, y + 6 * d, routeLine);
+            c.drawLine(x - 6 * d, y + 6 * d, x + 6 * d, y - 6 * d, routeLine);
+        }
+        if (v != null) for (int i = 0; i + 1 < v.length; i += 2) {
+            float x = sx(Geo.lonToX(v[i + 1], z)), y = sy(Geo.latToY(v[i], z));
+            p.setColor(0xff1565c0);
+            c.drawCircle(x, y, 11 * d, p);
+            Paint.Align a = textPaint.getTextAlign();
+            textPaint.setTextAlign(Paint.Align.CENTER);
+            c.drawText(String.valueOf(i / 2 + 1), x, y + textPaint.getTextSize() / 3, textPaint);
+            textPaint.setTextAlign(a);
+        }
+    }
+
+    private void drawRoute(Canvas c) {
+        double[] r = route;
+        if (r == null || r.length < 4) return;
+        float d = getResources().getDisplayMetrics().density;
+        android.graphics.Path p = new android.graphics.Path();
+        for (int i = 0; i + 1 < r.length; i += 2) {
+            float x = sx(Geo.lonToX(r[i + 1], z)), y = sy(Geo.latToY(r[i], z));
+            if (i == 0) p.moveTo(x, y);
+            else p.lineTo(x, y);
+        }
+        for (Paint pt : new Paint[]{routeHalo, routeLine}) {
+            pt.setStyle(Paint.Style.STROKE);
+            pt.setStrokeJoin(Paint.Join.ROUND);
+            pt.setStrokeCap(Paint.Cap.ROUND);
+        }
+        routeHalo.setStrokeWidth(9 * d);
+        routeHalo.setColor(0xccffffff);
+        routeLine.setStrokeWidth(5 * d);
+        routeLine.setColor(0xff1e88e5);
+        c.drawPath(p, routeHalo);
+        c.drawPath(p, routeLine);
     }
 
     private final Paint areaFill = new Paint(Paint.ANTI_ALIAS_FLAG), areaLine = new Paint(Paint.ANTI_ALIAS_FLAG);
