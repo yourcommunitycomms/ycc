@@ -67,8 +67,9 @@ public final class TrainFeed {
         return sp.getBoolean("enabled", false);
     }
 
+    /** The Melbourne preset: ticked here, and its specialised menu on (Settings > Home screen and menus). */
     public boolean melbourne() {
-        return sp.getBoolean("melbourne", false);
+        return sp.getBoolean("melbourne", false) && new org.communitycomms.app.Prefs(ctx).menuOn("trains");
     }
 
     public String key() {
@@ -622,19 +623,23 @@ public final class TrainFeed {
         on.setText("Show live trains on the map (needs internet)");
         on.setChecked(enabled() || !configured());
         box.addView(on);
+        // The Melbourne preset shows when ticked in Settings > Home screen and menus (or already in use).
+        boolean showMel = new org.communitycomms.app.Prefs(a).menuOn("trains");
         final CheckBox mel = new CheckBox(a);
         mel.setText("Melbourne: Metro Trains and V/Line (Transport Victoria open data)");
         mel.setChecked(melbourne());
-        box.addView(mel);
         TextView kl = new TextView(a);
-        kl.setText("Transport Victoria API key (free: register at opendata.transport.vic.gov.au)");
-        box.addView(kl);
+        kl.setText("Transport Victoria API key (free: register at opendata.transport.vic.gov.au; My Account > Profile > API Tokens)");
         final EditText key = new EditText(a);
         key.setSingleLine(true);
         key.setText(key());
-        box.addView(key);
+        if (showMel) {
+            box.addView(mel);
+            box.addView(kl);
+            box.addView(key);
+        }
         TextView other = new TextView(a);
-        other.setText("\nAnother city or your home town: its GTFS Realtime feed addresses (from its transport agency's open data page)");
+        other.setText((showMel ? "\n" : "") + "Your home town (recommended): its GTFS Realtime feed addresses, from its transport agency's open data page");
         box.addView(other);
         final EditText url = new EditText(a), trips = new EditText(a), header = new EditText(a), ckey = new EditText(a);
         url.setSingleLine(true);
@@ -660,6 +665,7 @@ public final class TrainFeed {
         TextView names = new TextView(a);
         names.setText("\nStation names: " + stopCount() + " loaded" + (loadStopsFile != null ? ". Load stops.txt from the timetable (GTFS) for station names in a train's next stops." : "."));
         box.addView(names);
+        final boolean showMelFinal = showMel;
         android.widget.ScrollView sv = new android.widget.ScrollView(a);
         sv.addView(box);
         AlertDialog.Builder bld = new AlertDialog.Builder(a)
@@ -668,7 +674,7 @@ public final class TrainFeed {
                 .setPositiveButton(android.R.string.ok, new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface dlg, int w) {
-                        sp.edit().putBoolean("melbourne", mel.isChecked()).putString("key", key.getText().toString().trim())
+                        sp.edit().putBoolean("melbourne", mel.isChecked() || (!showMelFinal && sp.getBoolean("melbourne", false))).putString("key", key.getText().toString().trim())
                                 .putString("url", url.getText().toString().trim()).putString("trips", trips.getText().toString().trim())
                                 .putString("header", header.getText().toString().trim()).putString("ckey", ckey.getText().toString().trim())
                                 .putBoolean("slow", slow.isChecked()).commit();

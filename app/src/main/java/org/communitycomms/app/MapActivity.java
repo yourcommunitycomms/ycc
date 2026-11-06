@@ -159,7 +159,7 @@ public final class MapActivity extends Activity {
             }
         });
         if (trains == null) trains = new org.communitycomms.app.geo.TrainFeed(this);
-        if (menus.menuOn("trains")) layerTick(box, "Trains (live)", trains.enabled(), dlg, new LayerFeed() {
+        layerTick(box, "Trains (live)", trains.enabled(), dlg, new LayerFeed() {
             @Override
             public boolean set(boolean on) {
                 return trains.setOn(on);
@@ -260,10 +260,7 @@ public final class MapActivity extends Activity {
 
     private void startTrains() {
         if (trains == null) trains = new org.communitycomms.app.geo.TrainFeed(this);
-        if (!new Prefs(this).menuOn("trains")) {
-            trains.stop();
-            return;
-        }
+
         trains.setCentre(map.centerLat(), map.centerLon());
         trains.start(new Runnable() {
             @Override
@@ -1326,14 +1323,16 @@ public final class MapActivity extends Activity {
         m.add(0, 1, 0, "Aircraft (ADS-B)…");
         m.add(0, 3, 0, "Ships (AIS)…");
         Prefs menus = new Prefs(this);
-        if (menus.menuOn("trains")) m.add(0, 12, 0, "Trains (live)…");
+        m.add(0, 12, 0, "Trains (live)…");
         if (menus.menuOn("vicemergency")) m.add(0, 7, 0, "Emergency alerts (CAP)…");
         m.add(0, 8, 0, "Bulk add points…");
         m.add(0, 9, 0, "Export points…");
         m.add(0, 11, 0, "Routes…");
-        m.add(0, 4, 0, "Import map file (ATAK, MBTiles)…");
-        m.add(0, 5, 0, "Export this area for ATAK…");
-        m.add(0, 6, 0, "ATAK map source for the LAN tiles…");
+        if (menus.menuOn("atak")) {
+            m.add(0, 4, 0, "Import map file (ATAK, MBTiles)…");
+            m.add(0, 5, 0, "Export this area for ATAK…");
+            m.add(0, 6, 0, "ATAK map source for the LAN tiles…");
+        }
         return true;
     }
 
@@ -1613,7 +1612,7 @@ public final class MapActivity extends Activity {
         if (rail == null) rail = new org.communitycomms.app.geo.ArtcRail(this);
         map.setRailLines(new Prefs(this).menuOn("artc") ? rail.lines(map.screenBox(), map.zoom(), railArrived)
                 : new java.util.ArrayList<double[]>());
-        if (trains != null && new Prefs(this).menuOn("trains")) {
+        if (trains != null) {
             for (org.communitycomms.app.geo.TrainFeed.Train t : trains.trains()) {
                 marks.add(new TileMapView.Marker(org.communitycomms.app.geo.TrainFeed.label(t), t.lat, t.lon, 0xff1e88e5, t, org.communitycomms.app.geo.TrainFeed.ICON));
             }

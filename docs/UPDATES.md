@@ -90,3 +90,6 @@
 - 2026-11-06: Live trains on the map (map menu > Trains, and a Layer tick), with each train's next stops and delays. Melbourne (Metro and V/Line) is a tick with a free Transport Victoria key; we recommend adding your own home town's GTFS Realtime feed.
 - 2026-11-06: ARTC rail network overlay (Layer tick): Australia's interstate and freight track drawn over the map, kept for offline use once seen.
 - 2026-11-06: Settings > Home screen and menus (renamed) has Specialised menus: Channel array, Report to leaders, Tasks and notes, Project NOMAD, VicEmergency, live trains, Load station names and ARTC rail are now hidden until ticked (off by default), and setup QR codes can turn them on.
+- 2026-11-06: Trains (live) is back in the map menu and Layer ticks for everyone (your home town's feed); only its Melbourne preset is a specialised menu.
+- 2026-11-06: The map menu's ATAK items (import map file, export for ATAK, ATAK map source) are a specialised menu too ("ATAK items"); the OpenMANET / ATAK settings under Channels stay.
+- 2026-11-06: Fix: the Melbourne trains tick and key box (and the Melbourne feeds) stay hidden unless Melbourne trains preset is ticked in Settings, even if Melbourne was set up before.
