@@ -403,6 +403,37 @@ public final class Prefs {
         sp.edit().putBoolean("callReminder", on).commit();
     }
 
+    /**
+     * Specialised menus (Settings > Home screen and menus), all off by default and settable by a setup QR
+     * code ("menus": the keys to turn on). Most people never need these.
+     */
+    public static final String[] MENU_KEYS = {"array", "report", "tasks", "nomad", "vicemergency", "trains", "stopnames", "artc"};
+    public static final String[] MENU_LABELS = {"Channel array", "Report to leaders", "Tasks and notes", "Project NOMAD",
+            "VicEmergency alerts on the map", "Live trains on the map", "Load station names button (live trains)", "ARTC rail network on the map"};
+
+    public boolean menuOn(String key) {
+        return sp.getBoolean("menu_" + key, false);
+    }
+
+    public void setMenuOn(String key, boolean on) {
+        sp.edit().putBoolean("menu_" + key, on).commit();
+    }
+
+    /** The menus turned on, comma separated (for a setup QR code). */
+    public String menusOn() {
+        StringBuilder b = new StringBuilder();
+        for (String k : MENU_KEYS) if (menuOn(k)) b.append(b.length() > 0 ? "," : "").append(k);
+        return b.toString();
+    }
+
+    /** Turns on the menus listed (comma separated); unknown keys are ignored. */
+    public void turnOnMenus(String list) {
+        for (String k : list.split(",")) {
+            k = k.trim();
+            if (java.util.Arrays.asList(MENU_KEYS).contains(k)) setMenuOn(k, true);
+        }
+    }
+
     /** Offline directions: no automatic new route when off it (Route… > work out a new route). On by default. */
     public boolean navNoReroute() {
         return sp.getBoolean("navNoReroute", true);

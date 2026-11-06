@@ -323,7 +323,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         findViewById(R.id.reports).setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                startActivity(new Intent(MainActivity.this, prefs.reportCode().length() > 0 ? ReportUpActivity.class : ReportsActivity.class));
+                startActivity(new Intent(MainActivity.this, prefs.reportCode().length() > 0 && prefs.menuOn("report") ? ReportUpActivity.class : ReportsActivity.class));
             }
         });
         findViewById(R.id.map).setOnClickListener(open(MapActivity.class));
@@ -511,7 +511,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         View black = findViewById(R.id.black_screen);
         if (black != null) black.setVisibility(prefs.blackScreenButton() ? View.VISIBLE : View.GONE);
         View reports = findViewById(R.id.reports);
-        boolean canReport = prefs.reportCode().length() > 0;
+        boolean canReport = prefs.reportCode().length() > 0 && prefs.menuOn("report");
         if (reports != null) reports.setVisibility(prefs.simple() && !canReport ? View.GONE : View.VISIBLE); // simple modes: no reports
         if (reports instanceof Button && canReport) ((Button) reports).setText("Report to leaders");
         View chal = findViewById(R.id.challenge_btn);
@@ -1600,6 +1600,13 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         }
         MenuItem st = menu.findItem(MENU_STREAMS);
         if (st != null) st.setVisible(prefs.streamsEnabled()); // Settings: Internet audio
+        // Specialised menus: only when ticked (Settings > Home screen and menus, or a setup QR code).
+        int[] special = {MENU_ARRAY, MENU_REPORT_UP, MENU_TASKS, MENU_NOMAD};
+        String[] keys = {"array", "report", "tasks", "nomad"};
+        for (int i = 0; i < special.length; i++) {
+            MenuItem it = menu.findItem(special[i]);
+            if (it != null && !prefs.menuOn(keys[i])) it.setVisible(false);
+        }
         MenuItem ic = menu.findItem(MENU_INTERCOM);
         if (ic != null) ic.setVisible(prefs.appMode() == Prefs.MODE_INTERCOM);
         return super.onPrepareOptionsMenu(menu);

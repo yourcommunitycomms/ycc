@@ -145,7 +145,32 @@ public final class MapActivity extends Activity {
                 setUpAdsb();
             }
         });
-        layerTick(box, "Emergency alerts", alerts.enabled(), dlg, new LayerFeed() {
+        if (rail == null) rail = new org.communitycomms.app.geo.ArtcRail(this);
+        Prefs menus = new Prefs(this);
+        if (menus.menuOn("artc")) layerTick(box, "ARTC rail network (Australia, zoom in to see it)", rail.enabled(), dlg, new LayerFeed() {
+            @Override
+            public boolean set(boolean on) {
+                rail.setOn(on);
+                return true;
+            }
+
+            @Override
+            public void setUp() {
+            }
+        });
+        if (trains == null) trains = new org.communitycomms.app.geo.TrainFeed(this);
+        if (menus.menuOn("trains")) layerTick(box, "Trains (live)", trains.enabled(), dlg, new LayerFeed() {
+            @Override
+            public boolean set(boolean on) {
+                return trains.setOn(on);
+            }
+
+            @Override
+            public void setUp() {
+                setUpTrains();
+            }
+        });
+        if (menus.menuOn("vicemergency")) layerTick(box, "Emergency alerts", alerts.enabled(), dlg, new LayerFeed() {
             @Override
             public boolean set(boolean on) {
                 return alerts.setOn(on);
@@ -188,7 +213,89 @@ public final class MapActivity extends Activity {
         startShips();
         startAdsb();
         startAlerts();
+        startTrains();
         refresh();
+    }
+
+    // ---- ARTC rail network overlay ----
+
+    private org.communitycomms.app.geo.ArtcRail rail;
+    private final Runnable railArrived = new Runnable() {
+        @Override
+        public void run() {
+            handler.post(new Runnable() {
+                @Override
+                public void run() {
+                    refresh();
+                }
+            });
+        }
+    };
+
+    // ---- live trains ----
+
+    private org.communitycomms.app.geo.TrainFeed trains;
+    private static final int REQ_STOPS = 46;
+
+    private void setUpTrains() {
+        if (trains == null) trains = new org.communitycomms.app.geo.TrainFeed(this);
+        trains.choose(this, !new Prefs(this).menuOn("stopnames") ? null : new Runnable() {
+            @Override
+            public void run() {
+                android.content.Intent i = new android.content.Intent(android.content.Intent.ACTION_GET_CONTENT).setType("*/*")
+                        .addCategory(android.content.Intent.CATEGORY_OPENABLE);
+                try {
+                    startActivityForResult(android.content.Intent.createChooser(i, "The timetable's stops.txt"), REQ_STOPS);
+                } catch (android.content.ActivityNotFoundException e) {
+                    android.widget.Toast.makeText(MapActivity.this, "No file picker on this phone", android.widget.Toast.LENGTH_LONG).show();
+                }
+            }
+        }, new Runnable() {
+            @Override
+            public void run() {
+                feedsChanged();
+            }
+        });
+    }
+
+    private void startTrains() {
+        if (trains == null) trains = new org.communitycomms.app.geo.TrainFeed(this);
+        if (!new Prefs(this).menuOn("trains")) {
+            trains.stop();
+            return;
+        }
+        trains.setCentre(map.centerLat(), map.centerLon());
+        trains.start(new Runnable() {
+            @Override
+            public void run() {
+                handler.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        trains.setCentre(map.centerLat(), map.centerLon());
+                        refresh();
+                    }
+                });
+            }
+        });
+    }
+
+    /** A train tapped: what it is, and its next stops (read now from the feed). */
+    private void showTrain(final org.communitycomms.app.geo.TrainFeed.Train t) {
+        final AlertDialog dlg = new AlertDialog.Builder(this).setTitle(org.communitycomms.app.geo.TrainFeed.label(t))
+                .setMessage(org.communitycomms.app.geo.TrainFeed.details(t) + "\n\nNext stops: reading…")
+                .setPositiveButton(android.R.string.ok, null).show();
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                final String next = trains.nextStops(t);
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        if (dlg.isShowing()) dlg.setMessage(org.communitycomms.app.geo.TrainFeed.details(t) + "\n\nNext stops:\n" + next);
+                    }
+                });
+            }
+        }, "train-stops").start();
     }
 
     private void setUpAlerts() {
@@ -790,6 +897,8 @@ public final class MapActivity extends Activity {
                     new android.app.AlertDialog.Builder(MapActivity.this).setTitle("Emergency alert")
                             .setMessage(org.communitycomms.app.geo.CapFeed.details((org.communitycomms.app.geo.CapFeed.Alert) m.tag))
                             .setPositiveButton(android.R.string.ok, null).show();
+                } else if (m.tag instanceof org.communitycomms.app.geo.TrainFeed.Train) {
+                    showTrain((org.communitycomms.app.geo.TrainFeed.Train) m.tag);
                 } else if (m.tag instanceof org.communitycomms.app.geo.ShipFeed.Ship) {
                     new android.app.AlertDialog.Builder(MapActivity.this)
                             .setMessage(org.communitycomms.app.geo.ShipFeed.details((org.communitycomms.app.geo.ShipFeed.Ship) m.tag))
@@ -866,6 +975,7 @@ public final class MapActivity extends Activity {
         startAdsb();
         startShips();
         startAlerts();
+        startTrains();
         RadioService.locationAsk = locationAsk;
         renderShareKeys();
     }
@@ -878,6 +988,30 @@ public final class MapActivity extends Activity {
     protected void onActivityResult(int req, int res, android.content.Intent data) {
         super.onActivityResult(req, res, data);
         if (BulkPois.onResult(this, req, res, data)) return; // bulk add: a QR part or a file
+        if (req == REQ_STOPS) {
+            if (res != RESULT_OK || data == null || data.getData() == null) return;
+            final android.net.Uri uri = data.getData();
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    String msg;
+                    try {
+                        int n = trains.importStops(getContentResolver().openInputStream(uri));
+                        msg = n + " station names loaded";
+                    } catch (Exception e) {
+                        msg = "Could not read that file: " + e.getMessage();
+                    }
+                    final String m2 = msg;
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            android.widget.Toast.makeText(MapActivity.this, m2, android.widget.Toast.LENGTH_LONG).show();
+                        }
+                    });
+                }
+            }, "stops-import").start();
+            return;
+        }
         if (req != REQ_MAP_FILE || res != RESULT_OK || data == null || data.getData() == null) return;
         // Copy the picked file in (SQLite needs a real file), then offer to import it.
         final android.net.Uri u = data.getData();
@@ -1122,6 +1256,10 @@ public final class MapActivity extends Activity {
 
     private void startAlerts() {
         if (alerts == null) alerts = new org.communitycomms.app.geo.CapFeed(this);
+        if (!new Prefs(this).menuOn("vicemergency")) {
+            alerts.stop();
+            return;
+        }
         alerts.setCentre(map.centerLat(), map.centerLon());
         alerts.start(new Runnable() {
             @Override
@@ -1187,9 +1325,12 @@ public final class MapActivity extends Activity {
         m.add(0, 10, 0, "Data Tile Management…");
         m.add(0, 1, 0, "Aircraft (ADS-B)…");
         m.add(0, 3, 0, "Ships (AIS)…");
-        m.add(0, 7, 0, "Emergency alerts (CAP)…");
+        Prefs menus = new Prefs(this);
+        if (menus.menuOn("trains")) m.add(0, 12, 0, "Trains (live)…");
+        if (menus.menuOn("vicemergency")) m.add(0, 7, 0, "Emergency alerts (CAP)…");
         m.add(0, 8, 0, "Bulk add points…");
         m.add(0, 9, 0, "Export points…");
+        m.add(0, 11, 0, "Routes…");
         m.add(0, 4, 0, "Import map file (ATAK, MBTiles)…");
         m.add(0, 5, 0, "Export this area for ATAK…");
         m.add(0, 6, 0, "ATAK map source for the LAN tiles…");
@@ -1238,6 +1379,14 @@ public final class MapActivity extends Activity {
                     refresh();
                 }
             });
+            return true;
+        }
+        if (item.getItemId() == 12) {
+            setUpTrains();
+            return true;
+        }
+        if (item.getItemId() == 11) {
+            showRoutes();
             return true;
         }
         if (item.getItemId() == 9) {
@@ -1304,6 +1453,10 @@ public final class MapActivity extends Activity {
         if (alerts != null && alerts.enabled()) {
             s += alerts.problem().length() > 0 ? "\n" + alerts.problem() : " · alerts: " + alerts.alerts().size();
         }
+        if (rail != null && rail.problem().length() > 0) s += "\n" + rail.problem();
+        if (trains != null && trains.enabled()) {
+            s += trains.problem().length() > 0 ? "\n" + trains.problem() : " · trains: " + trains.trains().size();
+        }
         return s;
     }
 
@@ -1319,6 +1472,7 @@ public final class MapActivity extends Activity {
         adsb.stop();
         if (ships != null) ships.stop();
         if (alerts != null) alerts.stop();
+        if (trains != null) trains.stop();
         if (RadioService.locationAsk == locationAsk) RadioService.locationAsk = null;
         if (RadioService.poiUi == poiRefresh) RadioService.poiUi = null;
         handler.removeCallbacks(tick);
@@ -1456,7 +1610,15 @@ public final class MapActivity extends Activity {
         List<TileMapView.Marker> marks = markers(this, me, thumbs);
         addAircraft(marks, adsb);
         addShips(marks, ships);
-        addAlerts(marks, alerts);
+        if (rail == null) rail = new org.communitycomms.app.geo.ArtcRail(this);
+        map.setRailLines(new Prefs(this).menuOn("artc") ? rail.lines(map.screenBox(), map.zoom(), railArrived)
+                : new java.util.ArrayList<double[]>());
+        if (trains != null && new Prefs(this).menuOn("trains")) {
+            for (org.communitycomms.app.geo.TrainFeed.Train t : trains.trains()) {
+                marks.add(new TileMapView.Marker(org.communitycomms.app.geo.TrainFeed.label(t), t.lat, t.lon, 0xff1e88e5, t, org.communitycomms.app.geo.TrainFeed.ICON));
+            }
+        }
+        if (new Prefs(this).menuOn("vicemergency")) addAlerts(marks, alerts);
         renderShareKeys();
         showSources();
         if (focus != null) {
@@ -1684,6 +1846,8 @@ public final class MapActivity extends Activity {
         }
         navVias.clear();
         navBlocked.clear();
+        navIgnored.clear();
+        navLastChange.clear();
         navLat = lat;
         navLon = lon;
         navName = name;
@@ -1845,6 +2009,8 @@ public final class MapActivity extends Activity {
                             navPlanning = true;
                             fitRoute(route.pts);
                             showPlanning();
+                            RouteStore.remember(MapActivity.this, currentSaved(false, ""));
+                            checkOldClosures(route);
                         } else {
                             navSay("Route updated.");
                             if (me != null) navUpdate(me);
@@ -1908,6 +2074,10 @@ public final class MapActivity extends Activity {
         }
         items.add("Share this route…");
         ids.add(5);
+        items.add("Save this route for later…");
+        ids.add(8);
+        items.add("Download detailed map tiles along this route…");
+        ids.add(9);
         if (!navPlanning) {
             items.add("Work out a new route from here now");
             ids.add(6);
@@ -1920,7 +2090,8 @@ public final class MapActivity extends Activity {
                     public void onClick(android.content.DialogInterface d, int which) {
                         int id = ids.get(which);
                         if (id == 1 || id == 2) {
-                            (id == 1 ? navBlocked : navVias).add(new double[]{map.centerLat(), map.centerLon()});
+                            (id == 1 ? navBlocked : navVias).add(new double[]{map.centerLat(), map.centerLon(), System.currentTimeMillis()});
+                            if (id == 1) RouteStore.addClosed(MapActivity.this, map.centerLat(), map.centerLon(), System.currentTimeMillis(), new Prefs(MapActivity.this).callsign());
                             if (id == 1) navLastChange.add(1);
                             else navLastChange.add(2);
                             replan();
@@ -1936,6 +2107,10 @@ public final class MapActivity extends Activity {
                             navVias.clear();
                             navLastChange.clear();
                             replan();
+                        } else if (id == 8) {
+                            saveRouteAsk();
+                        } else if (id == 9) {
+                            if (navRoute != null) org.communitycomms.app.geo.TilePrefetch.askRoute(MapActivity.this, navRoute.pts);
                         } else if (id == 5) {
                             shareRoute();
                         } else if (id == 6) {
@@ -1987,7 +2162,9 @@ public final class MapActivity extends Activity {
         for (int i = 0; i + 1 < pts.length; i += 2) sb.append(i > 0 ? "|" : "").append(String.format(java.util.Locale.US, "%.6f,%.6f", pts[i], pts[i + 1]));
         sb.append(";x=");
         for (int i = 0; i < navBlocked.size(); i++) {
-            sb.append(i > 0 ? "|" : "").append(String.format(java.util.Locale.US, "%.6f,%.6f", navBlocked.get(i)[0], navBlocked.get(i)[1]));
+            double[] b = navBlocked.get(i);
+            sb.append(i > 0 ? "|" : "").append(String.format(java.util.Locale.US, "%.6f,%.6f", b[0], b[1]));
+            if (b.length > 2) sb.append(",").append((long) b[2]); // when it was closed
         }
         return sb.toString();
     }
@@ -2050,9 +2227,10 @@ public final class MapActivity extends Activity {
             else if (k.equals("p") || k.equals("x")) {
                 for (String ll : v.split("\\|")) {
                     String[] q = ll.split(",");
-                    if (q.length != 2) continue;
+                    if (q.length < 2) continue;
                     try {
-                        (k.equals("p") ? p : x).add(new double[]{Double.parseDouble(q[0]), Double.parseDouble(q[1])});
+                        double t = q.length > 2 ? Double.parseDouble(q[2]) : System.currentTimeMillis();
+                        (k.equals("p") ? p : x).add(new double[]{Double.parseDouble(q[0]), Double.parseDouble(q[1]), t});
                     } catch (NumberFormatException ignored) {
                     }
                 }
@@ -2072,8 +2250,154 @@ public final class MapActivity extends Activity {
         navVias.addAll(p.subList(1, p.size() - 1));
         navBlocked.clear();
         navBlocked.addAll(x);
+        for (double[] b : x) RouteStore.addClosed(this, b[0], b[1], (long) b[2], "shared route");
         navLastChange.clear();
+        navIgnored.clear();
         planRoute(false, navStartLat, navStartLon);
+    }
+
+    // ---- routes kept on this phone, and closed roads remembered ----
+
+    private final List<double[]> navIgnored = new java.util.ArrayList<double[]>();
+
+    private RouteStore.Saved currentSaved(boolean kept, String name) {
+        RouteStore.Saved s = new RouteStore.Saved();
+        s.pts = routePoints(navStartLat, navStartLon);
+        double[] c = new double[navBlocked.size() * 2];
+        for (int i = 0; i < navBlocked.size(); i++) {
+            c[i * 2] = navBlocked.get(i)[0];
+            c[i * 2 + 1] = navBlocked.get(i)[1];
+        }
+        s.closed = c;
+        s.mode = navMode;
+        s.dest = navName;
+        s.name = name;
+        s.kept = kept;
+        s.time = System.currentTimeMillis();
+        return s;
+    }
+
+    private void saveRouteAsk() {
+        final android.widget.EditText name = new android.widget.EditText(this);
+        name.setSingleLine(true);
+        name.setText(navName.length() > 0 ? "To " + navName : "");
+        name.setHint("Name, e.g. Convoy route to camp");
+        int pad = (int) (16 * getResources().getDisplayMetrics().density);
+        LinearLayout box = new LinearLayout(this);
+        box.setPadding(pad, pad / 2, pad, 0);
+        box.addView(name, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        new AlertDialog.Builder(this).setTitle("Save this route for later").setView(box)
+                .setMessage("Kept with its via points and closed roads. Map menu > Routes… opens it again.")
+                .setPositiveButton("Save", new android.content.DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(android.content.DialogInterface d, int w) {
+                        RouteStore.remember(MapActivity.this, currentSaved(true, name.getText().toString().trim()));
+                        android.widget.Toast.makeText(MapActivity.this, "Route saved", android.widget.Toast.LENGTH_SHORT).show();
+                    }
+                })
+                .setNegativeButton(android.R.string.cancel, null).show();
+    }
+
+    /** Map menu > Routes…: saved routes, then the last ones planned; and the closed roads remembered. */
+    private void showRoutes() {
+        final List<RouteStore.Saved> all = RouteStore.all(this);
+        final int closedCount = RouteStore.closed(this).size();
+        List<String> labels = new java.util.ArrayList<String>();
+        for (RouteStore.Saved s : all) {
+            int vias = s.pts.length / 2 - 2, closed = s.closed.length / 2;
+            labels.add((s.kept ? "★ " : "") + (s.name.length() > 0 ? s.name : "To " + (s.dest.length() > 0 ? s.dest : "a point"))
+                    + " · " + (s.mode == org.communitycomms.app.geo.RoadGraph.CAR ? "driving" : "walking")
+                    + (vias > 0 ? " · via " + vias : "") + (closed > 0 ? " · " + closed + " closed" : "") + " · " + RouteStore.ago(s.time));
+        }
+        if (closedCount > 0) labels.add("Forget the " + closedCount + " remembered closed road" + (closedCount == 1 ? "" : "s"));
+        if (labels.isEmpty()) {
+            android.widget.Toast.makeText(this, "No routes yet: Navigate… on a map point, Offline on this map", android.widget.Toast.LENGTH_LONG).show();
+            return;
+        }
+        new AlertDialog.Builder(this).setTitle("Routes (★ = saved)")
+                .setItems(labels.toArray(new String[0]), new android.content.DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(android.content.DialogInterface d, int which) {
+                        if (which >= all.size()) {
+                            RouteStore.forgetAllClosed(MapActivity.this);
+                            android.widget.Toast.makeText(MapActivity.this, "Closed roads forgotten", android.widget.Toast.LENGTH_SHORT).show();
+                            return;
+                        }
+                        routeChoice(all.get(which));
+                    }
+                }).setNegativeButton(android.R.string.cancel, null).show();
+    }
+
+    private void routeChoice(final RouteStore.Saved s) {
+        String[] opts = s.kept ? new String[]{"Open (show and plan it)", "Delete"} : new String[]{"Open (show and plan it)", "Save for later", "Delete"};
+        new AlertDialog.Builder(this).setTitle(s.name.length() > 0 ? s.name : "To " + s.dest)
+                .setItems(opts, new android.content.DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(android.content.DialogInterface d, int which) {
+                        if (which == 0) openSaved(s);
+                        else if (!s.kept && which == 1) {
+                            s.kept = true;
+                            RouteStore.remember(MapActivity.this, s);
+                            android.widget.Toast.makeText(MapActivity.this, "Route saved", android.widget.Toast.LENGTH_SHORT).show();
+                        } else RouteStore.delete(MapActivity.this, s);
+                    }
+                }).setNegativeButton(android.R.string.cancel, null).show();
+    }
+
+    /** A kept route: the same start, via points and closed roads, planned again, ready to Start. */
+    private void openSaved(RouteStore.Saved s) {
+        int n = s.pts.length / 2;
+        navMode = s.mode;
+        navName = s.dest;
+        navStartLat = s.pts[0];
+        navStartLon = s.pts[1];
+        navLat = s.pts[n * 2 - 2];
+        navLon = s.pts[n * 2 - 1];
+        navVias.clear();
+        for (int i = 1; i < n - 1; i++) navVias.add(new double[]{s.pts[i * 2], s.pts[i * 2 + 1]});
+        navBlocked.clear();
+        for (int i = 0; i + 1 < s.closed.length; i += 2) navBlocked.add(new double[]{s.closed[i], s.closed[i + 1], s.time});
+        navLastChange.clear();
+        navIgnored.clear();
+        planRoute(false, navStartLat, navStartLon);
+    }
+
+    /** A new plan going along roads closed before: "closed X ago: avoid, ignore or forget?" */
+    private void checkOldClosures(org.communitycomms.app.geo.RoadGraph.Route r) {
+        List<double[]> skip = new java.util.ArrayList<double[]>(navBlocked);
+        skip.addAll(navIgnored);
+        final List<RouteStore.Closed> hits = RouteStore.onRoute(this, r.pts, skip);
+        if (hits.isEmpty()) return;
+        long newest = 0;
+        String by = "";
+        for (RouteStore.Closed k : hits) {
+            if (k.time > newest) {
+                newest = k.time;
+                by = k.by;
+            }
+        }
+        new AlertDialog.Builder(this).setTitle("Closed road on this route")
+                .setMessage(hits.size() == 1 ? "This route goes along a road marked closed " + RouteStore.ago(newest) + (by.length() > 0 ? " (" + by + ")" : "") + ". Ignore it?"
+                        : "This route goes along " + hits.size() + " roads marked closed before, the newest " + RouteStore.ago(newest) + ". Ignore them?")
+                .setPositiveButton("Avoid", new android.content.DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(android.content.DialogInterface d, int w) {
+                        for (RouteStore.Closed k : hits) navBlocked.add(new double[]{k.lat, k.lon, k.time});
+                        planRoute(false, navStartLat, navStartLon);
+                    }
+                })
+                .setNeutralButton("Forget " + (hits.size() == 1 ? "it" : "them"), new android.content.DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(android.content.DialogInterface d, int w) {
+                        RouteStore.forgetClosed(MapActivity.this, hits);
+                    }
+                })
+                .setNegativeButton("Ignore", new android.content.DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(android.content.DialogInterface d, int w) {
+                        for (RouteStore.Closed k : hits) navIgnored.add(new double[]{k.lat, k.lon});
+                    }
+                }).show();
     }
 
     private void fitRoute(double[] pts) {

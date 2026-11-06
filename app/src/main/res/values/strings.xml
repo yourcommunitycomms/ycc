@@ -158,7 +158,7 @@
     <string name="settings_pages">More settings</string>
     <string name="page_channels">Channel settings (names, Public, dual watch, catch-up)…</string>
     <string name="page_audio">Audio, PTT and alerts…</string>
-    <string name="page_home">Home screen (style, map points, TV)…</string>
+    <string name="page_home">Home screen and menus (style, map points, TV, specialised menus)…</string>
     <string name="ignore_it">Ignore it</string>
     <string name="page_power">Power and sleep (power modes, black screen, red light)…</string>
     <string name="page_network">Network and sync (WiFi, tunnel, LAN storage, ATAK)…</string>

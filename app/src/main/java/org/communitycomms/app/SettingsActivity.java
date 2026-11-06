@@ -197,6 +197,7 @@ public final class SettingsActivity extends Activity {
                 prefs.setCallReminder(on);
             }
         });
+        addSpecialisedMenus();
         bindCheck(R.id.nav_no_reroute, prefs.navNoReroute(), new Toggle() {
             @Override
             public void set(boolean on) {
@@ -1517,4 +1518,27 @@ public final class SettingsActivity extends Activity {
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK));
         finish();
     }
-}
+
+    /** Home screen and menus > Specialised menus: off by default; a setup QR code can turn them on. */
+    private void addSpecialisedMenus() {
+        android.widget.LinearLayout sec = (android.widget.LinearLayout) findViewById(R.id.sec_home);
+        if (sec == null || sec.findViewWithTag("specialised") != null) return;
+        TextView head = new TextView(this);
+        head.setTag("specialised");
+        head.setText("\nSpecialised menus (most people do not need these; a setup QR code can turn them on)");
+        head.setTextColor(0xffa5d6a7);
+        sec.addView(head);
+        for (int i = 0; i < Prefs.MENU_KEYS.length; i++) {
+            final String k = Prefs.MENU_KEYS[i];
+            android.widget.CheckBox cb = new android.widget.CheckBox(this);
+            cb.setText(Prefs.MENU_LABELS[i]);
+            cb.setChecked(prefs.menuOn(k));
+            cb.setOnCheckedChangeListener(new android.widget.CompoundButton.OnCheckedChangeListener() {
+                @Override
+                public void onCheckedChanged(android.widget.CompoundButton b, boolean on) {
+                    prefs.setMenuOn(k, on);
+                }
+            });
+            sec.addView(cb);
+        }
+    }}

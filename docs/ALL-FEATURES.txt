@@ -93,6 +93,11 @@ MAPS AND LOCATION
 - Navigate to a point online (Google Maps or another map app) or offline on the app's own map, driving or walking, with turn prompts; missing street routing data is offered for download.
 - Personal map points: kept on this phone only, never shared.
 - Offline routes: plan first, close roads at the +, go via points (convoys), share the route to the channel, a person or another app; automatic rerouting off by default.
+- Specialised menus (channel array, reports to leaders, tasks, Project NOMAD, VicEmergency, live trains, station names, ARTC rail) are off until ticked in Settings > Home screen and menus, or turned on by a setup QR code.
+- ARTC rail network overlay (Australian interstate and freight track), kept for offline use once seen.
+- Live trains on the map with their next stops (GTFS Realtime: Melbourne tick with a free key, or your own home town's feed - recommended).
+- Download detailed map tiles along a route (about 300 m either side, zoom levels and map types ticked).
+- Routes list in the map menu (saved and recent, with their markers); remembered closed roads are offered for later routes ("closed X ago: ignore it?").
 - Geofences: an area shape alerts when a contact leaves it, on this phone or also to the channel.
 - Offline routes warn when more than 500 m off the route (this phone, or also the channel).
 - Fake GPS for training: a random spot near a chosen centre, marked "Fake" for everyone.

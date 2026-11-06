@@ -337,6 +337,19 @@ public final class PoiIcons {
                 fill.setColor(BLUE);
                 c.drawRect(cx - 3.8f * u, cy + 1f * u, cx + 3.8f * u, cy + 2.6f * u, fill);
                 break;
+            case 100: // train (live trains feed, not a map point icon)
+                fill.setColor(0xff1e88e5);
+                r.set(cx - 2.8f * u, cy - 3.6f * u, cx + 2.8f * u, cy + 2.2f * u);
+                c.drawRoundRect(r, 1.2f * u, 1.2f * u, fill);
+                fill.setColor(0xffe3f2fd);
+                c.drawRect(cx - 2f * u, cy - 2.8f * u, cx + 2f * u, cy - 0.6f * u, fill);
+                c.drawCircle(cx - 1.4f * u, cy + 0.9f * u, 0.6f * u, fill);
+                c.drawCircle(cx + 1.4f * u, cy + 0.9f * u, 0.6f * u, fill);
+                stroke.setColor(WHITE);
+                stroke.setStrokeWidth(0.6f * u);
+                c.drawLine(cx - 2f * u, cy + 2.4f * u, cx - 3f * u, cy + 3.6f * u, stroke);
+                c.drawLine(cx + 2f * u, cy + 2.4f * u, cx + 3f * u, cy + 3.6f * u, stroke);
+                break;
             case 47: // grey dot (an imported icon this app does not have)
                 fill.setColor(0xff9e9e9e);
                 c.drawCircle(cx, cy, 2.6f * u, fill);

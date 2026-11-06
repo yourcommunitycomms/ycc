@@ -24,7 +24,7 @@ public final class TilePrefetchService extends Service {
     private static final String CHANNEL = "prefetch";
     private static final int NOTE = 7741;
     public static final String ACTION_PAUSE = "pause", ACTION_STOP = "stop";
-    private static final String EXTRA_LAT = "lat", EXTRA_LON = "lon", EXTRA_KM = "km", EXTRA_SYNC = "sync", EXTRA_TYPES = "types", EXTRA_ZOOMS = "zooms", EXTRA_SLOW = "slow";
+    private static final String EXTRA_LAT = "lat", EXTRA_LON = "lon", EXTRA_KM = "km", EXTRA_SYNC = "sync", EXTRA_TYPES = "types", EXTRA_ZOOMS = "zooms", EXTRA_SLOW = "slow", EXTRA_ROUTE = "route";
 
     private final Handler main = new Handler(Looper.getMainLooper());
     private PowerManager.WakeLock wake;
@@ -34,6 +34,14 @@ public final class TilePrefetchService extends Service {
     public static void start(Context c, double lat, double lon, int km, String types, int zooms, boolean slow) {
         Intent i = new Intent(c, TilePrefetchService.class).putExtra(EXTRA_LAT, lat).putExtra(EXTRA_LON, lon).putExtra(EXTRA_KM, km)
                 .putExtra(EXTRA_TYPES, types).putExtra(EXTRA_ZOOMS, zooms).putExtra(EXTRA_SLOW, slow);
+        if (Build.VERSION.SDK_INT >= 26) c.startForegroundService(i);
+        else c.startService(i);
+    }
+
+    /** Starts fetching the tiles along a route (lat, lon pairs). */
+    public static void startRoute(Context c, double[] pts, int zooms, int corridorM, String types) {
+        Intent i = new Intent(c, TilePrefetchService.class).putExtra(EXTRA_ROUTE, pts).putExtra(EXTRA_ZOOMS, zooms).putExtra(EXTRA_KM, corridorM)
+                .putExtra(EXTRA_TYPES, types);
         if (Build.VERSION.SDK_INT >= 26) c.startForegroundService(i);
         else c.startService(i);
     }
@@ -75,6 +83,9 @@ public final class TilePrefetchService extends Service {
             if (j != null) j.paused = !j.paused;
         } else if (ACTION_STOP.equals(action)) {
             if (j != null) j.stop();
+        } else if (i != null && i.hasExtra(EXTRA_ROUTE)) {
+            TilePrefetch.beginRoute(this, i.getDoubleArrayExtra(EXTRA_ROUTE), i.getIntExtra(EXTRA_ZOOMS, 0), i.getIntExtra(EXTRA_KM, 300),
+                    i.getStringExtra(EXTRA_TYPES));
         } else if (i != null && i.hasExtra(EXTRA_SYNC)) {
             TilePrefetch.beginSync(this, i.getIntExtra(EXTRA_SYNC, 0));
         } else if (i != null && i.hasExtra(EXTRA_KM)) {

@@ -47,6 +47,7 @@ public final class SetupQr {
                 put(o, "omh", sp.getString("openmanetHost", ""));
             }
             if (sp.getBoolean("homeNetOn", false)) put(o, "home", sp.getString("homeNetSsid", ""));
+            put(o, "menus", p.menusOn()); // specialised menus this phone has on
             o.put("defaults", 1);
         } catch (org.json.JSONException e) {
             return null;
@@ -127,6 +128,7 @@ public final class SetupQr {
             if (o.optString("omh").length() > 0) sb.append(", node ").append(o.optString("omh"));
         }
         if (o.optString("home").length() > 0) sb.append("\nHome WiFi: ").append(o.optString("home"));
+        if (o.optString("menus").length() > 0) sb.append("\nSpecialised menus: ").append(o.optString("menus").replace(",", ", "));
         if (o.optInt("defaults") == 1) {
             sb.append("\n\nThen it loads the network defaults and DRYAD sheets from the storage, replacing these "
                     + "settings and sheets. Your callsign, PIN and this phone's own settings stay.");
@@ -231,6 +233,10 @@ public final class SetupQr {
         if (!o.has("team")) return;
         p.setTeamName(o.optString("team"));
         if (o.has("code")) p.setReportCode(o.optString("code"));
+        // A team phone gets the team menus: tasks, and reports when it has an approved code.
+        p.setMenuOn("tasks", true);
+        if (o.has("code")) p.setMenuOn("report", true);
+        if (o.optString("menus").length() > 0) p.turnOnMenus(o.optString("menus"));
         if (o.has("chA") && o.has("pub")) { // talk on the team channel, hear Public
             p.setDualWatch(true, true, false);
             p.setListening(Prefs.SLOT_PUBLIC, true);
@@ -292,6 +298,7 @@ public final class SetupQr {
                             ed.putBoolean("homeNetOn", true).putString("homeNetSsid", o.optString("home"));
                         }
                         ed.commit();
+                        if (o.optString("menus").length() > 0) p.turnOnMenus(o.optString("menus"));
                         applyTeam(a, o, p);
                         p.setSetupDone();
                         Toast.makeText(a, done + (o.optString("tunnel").length() > 0

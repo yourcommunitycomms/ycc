@@ -442,62 +442,242 @@ public final class TilePrefetch {
 
     /** One map type: each tile from this phone, the LAN cache, then the internet; the LAN cache gets what it lacks. */
     private static void fetchType(Context c, final Job j, final String url, final File cache, double lat, double lon, int km, int zooms, final boolean slow) throws Exception {
-        final LanTiles lan = new LanTiles(c), second = LanTiles.secondary(c);
-        final boolean useLan = lan.configured() || second != null;
-        final String src = LanTiles.sourceId(url);
-        List<String> found = lan.configured() ? lan.namedSets() : new ArrayList<String>();
-        if (found.isEmpty() && second != null) found = second.namedSets();
-        final List<String> sets = LanTiles.isImagery(url) ? found : new ArrayList<String>(); // satellite sets only suit a satellite map
-        final long[] lastNet = {0};
+        final Getter g = new Getter(c, j, url, cache, slow);
         walk(lat, lon, km, zooms, new Each() {
             @Override
             public boolean tile(int z, int x, int y) throws Exception {
-                while (j.paused && !j.stop) Thread.sleep(500);
-                if (j.stop) return false;
-                if (haveLocal(cache, z, x, y)) {
-                    j.local++;
-                    // Already here: make sure the LAN cache has it too.
-                    File f = new File(cache, z + "/" + x + "/" + y + ".jpg");
-                    if (lan.configured() && f.isFile() && !lan.has(src, z, x, y) && lan.put(src, z, x, y, f)) j.sent++;
-                } else {
-                    byte[] d = null;
-                    if (useLan) {
-                        d = lan.configured() ? lan.get(src, z, x, y) : null;
-                        if (d == null && second != null) d = second.get(src, z, x, y);
-                        for (int i = 0; d == null && i < sets.size(); i++) {
-                            d = lan.configured() ? lan.get(sets.get(i), z, x, y) : null;
-                            if (d == null && second != null) d = second.get(sets.get(i), z, x, y);
-                        }
-                    }
-                    if (d != null) {
-                        j.fromLan++;
-                        save(cache, z, x, y, d);
-                    } else {
-                        long wait = (slow ? SLOW_GAP_MS : NET_GAP_MS) - (System.currentTimeMillis() - lastNet[0]);
-                        if (wait > 0) Thread.sleep(wait);
-                        lastNet[0] = System.currentTimeMillis();
-                        try {
-                            d = fromNet(url, z, x, y);
-                        } catch (Exception e) {
-                            d = null;
-                        }
-                        if (d == null) {
-                            j.failed++;
-                            for (int i = 0; slow && i < SLOW_REST_S && !j.stop; i++) Thread.sleep(1000);
-                        } else {
-                            j.fromNet++;
-                            save(cache, z, x, y, d);
-                            // The primary, or the secondary map server if the primary is off.
-                            if ((lan.configured() && lan.put(src, z, x, y, d)) || (second != null && second.put(src, z, x, y, d))) j.sent++;
-                        }
-                    }
-                }
-                j.done++;
-                return true;
+                return g.tile(z, x, y);
             }
         });
     }
 
+    /** Gets tiles of one map type: this phone, the LAN cache (and its named sets), then the internet, gently. */
+    private static final class Getter {
+        final Job j;
+        final String url, src;
+        final File cache;
+        final boolean slow, useLan;
+        final LanTiles lan, second;
+        final List<String> sets;
+        long lastNet;
+
+        Getter(Context c, Job j, String url, File cache, boolean slow) {
+            this.j = j;
+            this.url = url;
+            this.cache = cache;
+            this.slow = slow;
+            lan = new LanTiles(c);
+            second = LanTiles.secondary(c);
+            useLan = lan.configured() || second != null;
+            src = LanTiles.sourceId(url);
+            List<String> found = lan.configured() ? lan.namedSets() : new ArrayList<String>();
+            if (found.isEmpty() && second != null) found = second.namedSets();
+            sets = LanTiles.isImagery(url) ? found : new ArrayList<String>(); // satellite sets only suit a satellite map
+        }
+
+        boolean tile(int z, int x, int y) throws Exception {
+            while (j.paused && !j.stop) Thread.sleep(500);
+            if (j.stop) return false;
+            if (haveLocal(cache, z, x, y)) {
+                j.local++;
+                // Already here: make sure the LAN cache has it too.
+                File f = new File(cache, z + "/" + x + "/" + y + ".jpg");
+                if (lan.configured() && f.isFile() && !lan.has(src, z, x, y) && lan.put(src, z, x, y, f)) j.sent++;
+            } else {
+                byte[] d = null;
+                if (useLan) {
+                    d = lan.configured() ? lan.get(src, z, x, y) : null;
+                    if (d == null && second != null) d = second.get(src, z, x, y);
+                    for (int i = 0; d == null && i < sets.size(); i++) {
+                        d = lan.configured() ? lan.get(sets.get(i), z, x, y) : null;
+                        if (d == null && second != null) d = second.get(sets.get(i), z, x, y);
+                    }
+                }
+                if (d != null) {
+                    j.fromLan++;
+                    save(cache, z, x, y, d);
+                } else {
+                    long wait = (slow ? SLOW_GAP_MS : NET_GAP_MS) - (System.currentTimeMillis() - lastNet);
+                    if (wait > 0) Thread.sleep(wait);
+                    lastNet = System.currentTimeMillis();
+                    try {
+                        d = fromNet(url, z, x, y);
+                    } catch (Exception e) {
+                        d = null;
+                    }
+                    if (d == null) {
+                        j.failed++;
+                        for (int i = 0; slow && i < SLOW_REST_S && !j.stop; i++) Thread.sleep(1000);
+                    } else {
+                        j.fromNet++;
+                        save(cache, z, x, y, d);
+                        // The primary, or the secondary map server if the primary is off.
+                        if ((lan.configured() && lan.put(src, z, x, y, d)) || (second != null && second.put(src, z, x, y, d))) j.sent++;
+                    }
+                }
+            }
+            j.done++;
+            return true;
+        }
+    }
+
+    // ---- along a route ----
+
+    /**
+     * The tiles within corridorM of a route (lat, lon pairs) at the levels in zooms: each level's tiles
+     * touched by the line, plus enough neighbours to cover the corridor. Sorted by level, then along the way.
+     */
+    public static List<int[]> routeTiles(double[] pts, int zooms, int corridorM) {
+        List<int[]> out = new ArrayList<int[]>();
+        for (int z = MIN_Z; z <= 19; z++) {
+            if ((zooms & 1 << z) == 0) continue;
+            java.util.LinkedHashSet<Long> seen = new java.util.LinkedHashSet<Long>();
+            for (int i = 0; i + 1 < pts.length; i += 2) {
+                double la = pts[i], lo = pts[i + 1];
+                double tileM = 40075016.7 * Math.cos(Math.toRadians(la)) / (1 << z);
+                int r = (int) Math.ceil(corridorM / Math.max(1, tileM));
+                // Points along the segment to the next point, every half tile.
+                double nla = i + 3 < pts.length ? pts[i + 2] : la, nlo = i + 3 < pts.length ? pts[i + 3] : lo;
+                double segM = Geo.distanceM(la, lo, nla, nlo);
+                int steps = Math.max(1, (int) Math.ceil(segM / Math.max(1, tileM / 2)));
+                for (int s = 0; s < steps; s++) {
+                    double f = (double) s / steps, pla = la + (nla - la) * f, plo = lo + (nlo - lo) * f;
+                    int cx = (int) Geo.lonToX(plo, z), cy = (int) Geo.latToY(pla, z);
+                    for (int dx = -r; dx <= r; dx++) {
+                        for (int dy = -r; dy <= r; dy++) {
+                            int x = cx + dx, y = cy + dy;
+                            if (x < 0 || y < 0 || x >= 1 << z || y >= 1 << z) continue;
+                            seen.add(((long) x << 32) | (y & 0xffffffffL));
+                        }
+                    }
+                }
+            }
+            for (long k : seen) out.add(new int[]{z, (int) (k >> 32), (int) k});
+        }
+        return out;
+    }
+
+    /** Fetches the tiles along a route for each map type in types (presets, comma separated). Runs in TilePrefetchService. */
+    public static Job beginRoute(Context ctx, final double[] pts, final int zooms, final int corridorM, final String types) {
+        Job old = job;
+        if (old != null && !old.finished) return old;
+        final Context c = ctx.getApplicationContext();
+        final List<int[]> tiles = routeTiles(pts, zooms, corridorM);
+        final String[] list = types.split(",");
+        final Job j = new Job(1, tiles.size() * list.length);
+        j.title = "Map tiles along the route";
+        job = j;
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                MapPrefs mp = new MapPrefs(c);
+                try {
+                    for (String t : list) {
+                        int preset = Integer.parseInt(t.trim());
+                        String url = mp.urlOfPreset(preset);
+                        for (int i = 0; i < TYPE_PRESETS.length; i++) if (TYPE_PRESETS[i] == preset) j.where = TYPE_NAMES[i];
+                        Getter g = new Getter(c, j, url, mp.cacheOf(url), false);
+                        for (int[] k : tiles) if (!g.tile(k[0], k[1], k[2])) break;
+                        if (j.stop) break;
+                    }
+                } catch (Exception e) {
+                    j.error = e.getMessage();
+                }
+                j.finished = true;
+            }
+        }, "route-tiles").start();
+        return j;
+    }
+
+    /** Asks the levels and map types, then fetches the tiles along a route (lat, lon pairs). */
+    public static void askRoute(final Activity a, final double[] pts) {
+        if (new Prefs(a).radioSilent()) {
+            Toast.makeText(a, "Radio silent is on: no download", Toast.LENGTH_LONG).show();
+            return;
+        }
+        Job running = job;
+        if (running != null && !running.finished) {
+            progress(a, running, null);
+            return;
+        }
+        float dp = a.getResources().getDisplayMetrics().density;
+        LinearLayout box = new LinearLayout(a);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding((int) (20 * dp), (int) (8 * dp), (int) (20 * dp), 0);
+        TextView top = new TextView(a);
+        top.setText("Detailed map tiles for about 300 m either side of the route, kept for offline use (and given to the LAN storage).");
+        box.addView(top);
+        final int[] levels = {14, 15, 16, 17, 18};
+        final String[] words = {"all roads and tracks", "street names", "buildings", "houses and footpaths", "most detail"};
+        final android.widget.CheckBox[] ticks = new android.widget.CheckBox[levels.length];
+        final TextView size = new TextView(a);
+        final android.widget.CheckBox[] types = new android.widget.CheckBox[TYPE_NAMES.length];
+        final Runnable showSize = new Runnable() {
+            @Override
+            public void run() {
+                int zooms = 0, kinds = 0;
+                for (int i = 0; i < levels.length; i++) if (ticks[i].isChecked()) zooms |= 1 << levels[i];
+                for (android.widget.CheckBox t : types) if (t != null && t.isChecked()) kinds++;
+                int n = routeTiles(pts, zooms, 300).size() * kinds;
+                double mins = n * NET_GAP_MS / 60000.0;
+                size.setText(String.format(Locale.US, "\nAbout %,d tiles, %,d MB (satellite tiles are larger), %s from the internet.",
+                        n, Math.max(1, n * KB_PER_TILE / 1024), mins < 1 ? "under a minute" : String.format(Locale.US, "about %.0f minutes", mins)));
+            }
+        };
+        android.widget.CompoundButton.OnCheckedChangeListener re = new android.widget.CompoundButton.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(android.widget.CompoundButton b, boolean on) {
+                showSize.run();
+            }
+        };
+        for (int i = 0; i < levels.length; i++) {
+            ticks[i] = new android.widget.CheckBox(a);
+            ticks[i].setText("Zoom " + levels[i] + ": " + words[i]);
+            ticks[i].setChecked(levels[i] <= 17);
+            ticks[i].setOnCheckedChangeListener(re);
+            box.addView(ticks[i]);
+        }
+        TextView tt = new TextView(a);
+        tt.setText("\nMap types:");
+        box.addView(tt);
+        int cur = new MapPrefs(a).onlinePreset();
+        boolean any = false;
+        for (int i = 0; i < types.length; i++) {
+            types[i] = new android.widget.CheckBox(a);
+            types[i].setText(TYPE_NAMES[i]);
+            types[i].setChecked(TYPE_PRESETS[i] == cur);
+            any |= types[i].isChecked();
+            types[i].setOnCheckedChangeListener(re);
+            box.addView(types[i]);
+        }
+        if (!any) types[0].setChecked(true);
+        box.addView(size);
+        showSize.run();
+        ScrollView sv = new ScrollView(a);
+        sv.addView(box);
+        new AlertDialog.Builder(a).setTitle("Download map tiles along this route").setView(sv)
+                .setPositiveButton("Download", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface di, int w) {
+                        int zooms = 0;
+                        for (int i = 0; i < levels.length; i++) if (ticks[i].isChecked()) zooms |= 1 << levels[i];
+                        StringBuilder chosen = new StringBuilder();
+                        for (int i = 0; i < types.length; i++) if (types[i].isChecked()) chosen.append(chosen.length() > 0 ? "," : "").append(TYPE_PRESETS[i]);
+                        if (zooms == 0 || chosen.length() == 0) {
+                            Toast.makeText(a, "Tick at least one zoom level and one map type", Toast.LENGTH_SHORT).show();
+                            return;
+                        }
+                        org.communitycomms.app.TilePrefetchService.startRoute(a, pts, zooms, 300, chosen.toString());
+                        a.getWindow().getDecorView().postDelayed(new Runnable() {
+                            @Override
+                            public void run() {
+                                if (job != null) progress(a, job, null);
+                            }
+                        }, 800);
+                    }
+                })
+                .setNegativeButton(android.R.string.cancel, null).show();
+    }
     // ---- the screen ----
 
     private static String size(long bytes) {

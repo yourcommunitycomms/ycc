@@ -511,6 +511,7 @@ public final class TileMapView extends View {
         for (Marker m : markers) {
             if (m.area != null) drawArea(c, m);
         }
+        if (railLines != null && !railLines.isEmpty()) drawRail(c);
         if (route != null) drawRoute(c);
         if (routeBlocked != null || routeVias != null) drawRouteMarks(c, getResources().getDisplayMetrics().density);
         for (Marker m : markers) {
@@ -678,6 +679,36 @@ public final class TileMapView extends View {
 
     private volatile double[] route;
     private final Paint routeLine = new Paint(Paint.ANTI_ALIAS_FLAG), routeHalo = new Paint(Paint.ANTI_ALIAS_FLAG);
+
+    /** Rail lines (lat, lon pairs each), drawn under routes and markers. */
+    private volatile List<double[]> railLines;
+    private final Paint railPaint = new Paint(Paint.ANTI_ALIAS_FLAG), railCase = new Paint(Paint.ANTI_ALIAS_FLAG);
+
+    public void setRailLines(List<double[]> lines) {
+        railLines = lines;
+        invalidate();
+    }
+
+    private void drawRail(Canvas c) {
+        float d = getResources().getDisplayMetrics().density;
+        railCase.setStyle(Paint.Style.STROKE);
+        railCase.setStrokeWidth(4.5f * d);
+        railCase.setColor(0x99000000);
+        railPaint.setStyle(Paint.Style.STROKE);
+        railPaint.setStrokeWidth(2.5f * d);
+        railPaint.setColor(0xffff6d00);
+        railPaint.setPathEffect(new android.graphics.DashPathEffect(new float[]{8 * d, 5 * d}, 0));
+        android.graphics.Path p = new android.graphics.Path();
+        for (double[] r : railLines) {
+            for (int i = 0; i + 1 < r.length; i += 2) {
+                float x = sx(Geo.lonToX(r[i + 1], z)), y = sy(Geo.latToY(r[i], z));
+                if (i == 0) p.moveTo(x, y);
+                else p.lineTo(x, y);
+            }
+        }
+        c.drawPath(p, railCase);
+        c.drawPath(p, railPaint);
+    }
 
     public void setRoute(double[] latLonPairs) {
         route = latLonPairs;
