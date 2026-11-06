@@ -173,6 +173,31 @@ public final class Prefs {
         sp.edit().putBoolean("listen" + letter(slot), on).commit();
     }
 
+    /** Channels page pin: listened channels with their own one-touch PTT on the radio screen. */
+    public java.util.List<Integer> pttPins() {
+        java.util.List<Integer> out = new java.util.ArrayList<Integer>();
+        for (String s : sp.getString("pttPins", "").split(",")) {
+            try {
+                if (s.length() > 0) out.add(Integer.parseInt(s));
+            } catch (NumberFormatException ignored) {
+            }
+        }
+        return out;
+    }
+
+    public boolean pttPinned(int slot) {
+        return pttPins().contains(slot);
+    }
+
+    public void setPttPinned(int slot, boolean on) {
+        java.util.List<Integer> l = pttPins();
+        l.remove(Integer.valueOf(slot));
+        if (on) l.add(slot);
+        StringBuilder sb = new StringBuilder();
+        for (int s : l) sb.append(sb.length() == 0 ? "" : ",").append(s);
+        sp.edit().putString("pttPins", sb.toString()).commit();
+    }
+
     /** Broadcast: comma-separated slots that also get what is said on the channel on air ("" = off). */
     public String broadcast() {
         return sp.getString("broadcast", "");
@@ -407,9 +432,9 @@ public final class Prefs {
      * Specialised menus (Settings > Home screen and menus), all off by default and settable by a setup QR
      * code ("menus": the keys to turn on). Most people never need these.
      */
-    public static final String[] MENU_KEYS = {"array", "report", "tasks", "nomad", "vicemergency", "trains", "stopnames", "artc", "atak", "cast"};
+    public static final String[] MENU_KEYS = {"array", "report", "tasks", "nomad", "vicemergency", "trains", "stopnames", "artc", "atak", "cast", "calendar"};
     public static final String[] MENU_LABELS = {"Channel array", "Report to leaders", "Tasks and notes", "Project NOMAD",
-            "VicEmergency alerts on the map", "Melbourne trains preset (in Trains on the map)", "Load station names button (live trains)", "ARTC rail network on the map", "ATAK items in the map menu (map files, export, map source)", "Cast screen to TV (Google TV, Chromecast)"};
+            "VicEmergency alerts on the map", "Melbourne trains preset (in Trains on the map)", "Load station names button (live trains)", "ARTC rail network on the map", "ATAK items in the map menu (map files, export, map source)", "Cast screen to TV (Google TV, Chromecast)", "Calendar and notes (mine, team, both; notes with pictures)"};
 
     public boolean menuOn(String key) {
         return sp.getBoolean("menu_" + key, false);

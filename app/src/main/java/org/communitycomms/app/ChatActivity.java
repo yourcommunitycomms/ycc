@@ -233,7 +233,7 @@ public final class ChatActivity extends Activity {
         java.util.Set<Long> down = org.communitycomms.app.msg.MessageCenter.unpinned(all);
         List<MessageLog.Entry> pins = new ArrayList<MessageLog.Entry>();
         for (MessageLog.Entry m : all) {
-            if (org.communitycomms.app.msg.MessageCenter.isUnpin(m) || Tasks.is(m.body) || m.body.startsWith(ReportUp.ACK)) continue;
+            if (org.communitycomms.app.msg.MessageCenter.isUnpin(m) || Tasks.is(m.body) || CalStore.is(m.body) || m.body.startsWith(ReportUp.ACK)) continue;
             if (org.communitycomms.app.msg.MessageCenter.isPin(m) && !down.contains(m.id)) pins.add(m);
             else if ((hidden() & (1 << category(m))) == 0) rows.add(m);
         }

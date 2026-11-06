@@ -241,6 +241,20 @@ final class ChannelsPanel {
                 }
             }));
         }
+        if ((listening || willListen) && !talking && slot != Prefs.SLOT_OPENMANET) {
+            // Pin: this listened channel gets its own one-touch PTT on the radio screen.
+            final boolean pin = prefs.pttPinned(slot);
+            top.addView(icon(pin ? R.drawable.ic_pin : R.drawable.ic_pin_off,
+                    pin ? "One-touch PTT on the radio screen" : "Add a one-touch PTT to the radio screen", new Runnable() {
+                        @Override
+                        public void run() {
+                            prefs.setPttPinned(slot, !pin);
+                            Toast.makeText(a, !pin ? MainActivity.label(slot) + ": its own PTT is now beside the big PTT on the radio screen"
+                                    : MainActivity.label(slot) + ": PTT removed from the radio screen", Toast.LENGTH_LONG).show();
+                            changed();
+                        }
+                    }));
+        }
         top.addView(icon(R.drawable.ic_note, "Note on this channel", new Runnable() {
             @Override
             public void run() {

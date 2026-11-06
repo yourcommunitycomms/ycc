@@ -173,10 +173,17 @@ public final class RadioEngine {
         }
         byte[] p = namePayload(4);
         putTx(p, p.length - 4, id);
-        for (int i = 0; i < 3; i++) send(Packet.TYPE_VOICE_END, p, p.length);
-        final List<RadioEngine> sentAlso = mirrors;
+        RadioEngine only = onlyOn;
+        final List<RadioEngine> sentAlso;
+        if (only != null) {
+            sentAlso = java.util.Collections.singletonList(only);
+        } else {
+            for (int i = 0; i < 3; i++) send(Packet.TYPE_VOICE_END, p, p.length);
+            sentAlso = mirrors;
+        }
         for (RadioEngine m : sentAlso) m.mirrorEnd(id);
         transmitting = false;
+        onlyOn = null;
         listener.onTransmitChanged(false);
         Timer t = timer;
         if (t == null) return;
@@ -703,6 +710,11 @@ public final class RadioEngine {
         } else {
             micToAir = false;
             if (gunshot == null) capture.stop();
+            if (onlyOn != null) {
+                // One-touch PTT on a listened channel: not this channel's recording, resend or history.
+                endTransmission(false);
+                return;
+            }
             boolean sent;
             synchronized (recording) {
                 sent = !recording.isEmpty();
@@ -711,6 +723,33 @@ public final class RadioEngine {
             endTransmission(sent);
             if (sent) saveSent(lastRecording);
         }
+    }
+
+    // ---- one-touch PTT on a listened channel (radio screen pins) ----
+
+    /** While set, the transmission goes only to this listen-only engine's channel, not this one. */
+    private volatile RadioEngine onlyOn;
+
+    /** Talk on a listened channel only (its listen-only engine), using this engine's microphone. */
+    public void setTransmitOn(RadioEngine target, boolean on) {
+        if (on) {
+            if (transmitting || target == null || target == this) return;
+            onlyOn = target;
+            setTransmit(true);
+            if (!transmitting) onlyOn = null;
+        } else if (transmitting && onlyOn == target) {
+            setTransmit(false);
+        }
+    }
+
+    /** The listened channel's engine being talked on now, or null (talking here, or not talking). */
+    public RadioEngine transmittingOn() {
+        return transmitting ? onlyOn : null;
+    }
+
+    /** When voice was last heard on this channel (0 = never). */
+    public long lastVoiceMs() {
+        return lastRxVoiceMs;
     }
 
     public List<Station> stations() {
@@ -804,6 +843,11 @@ public final class RadioEngine {
         putTx(p, off - 4, txId);
         encoder.encode(pcm, samples, p, off);
         String to = voiceTarget;
+        RadioEngine only = onlyOn;
+        if (only != null) {
+            only.mirrorVoice(txId, p, off, enc);
+            return;
+        }
         if (to != null) {
             // Intercom: talking to one room. Same frame, with the callsign it is for in front.
             byte[] t = to.getBytes(UTF8);

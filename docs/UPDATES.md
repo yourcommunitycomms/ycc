@@ -98,3 +98,6 @@
 - 2026-11-06: Cast screen to TV can stop itself after 1 hour without using the app (off by default, since nothing is sent unless casting; a notification asks you if the phone does not allow it).
 - 2026-11-06: Home screen and menus: the app can open straight into the full map or TV mode, and Screen orientation can be Auto, Portrait or Landscape.
 - 2026-11-06: Invert screen (upside down, with any orientation choice), and while casting to a TV the screen stays on and does not go black.
+- 2026-11-06: Calendar and notes (a specialised menu): my calendar, a team calendar shared on the channel, both together (team in amber), reminders with an optional buzz, and notes with a name, a date and pictures in the text.
+- 2026-11-06: Full map: a Copy button beside the + position (pastes into Google Maps), and Share asks: clipboard or team chat.
+- 2026-11-06: One-touch PTT for listened channels: tap the pin on a listening channel (Channels page) and the big PTT on the radio screen splits, with a PTT for that channel beside it. Green is the channel on air, grey a listened one, blue the channel the last voice was heard on, red while talking. Text as voice splits the same way, one per pinned channel.

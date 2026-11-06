@@ -59,6 +59,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
             renderShare();
             renderSilent();
             renderChat();
+            renderPins();
             checkPendingConfig();
             if (mapHome && ++mapTicks % 7 == 0) refreshHomeMap();
             if (prefs.vox()) renderVox();
@@ -279,6 +280,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
             int quarter = getResources().getDisplayMetrics().heightPixels / 4;
             ptt.getLayoutParams().height = Math.max((int) (120 * getResources().getDisplayMetrics().density), quarter);
         }
+        if (!mapHome) wrapPtt();
         lock = (Button) findViewById(R.id.lock);
         View black = findViewById(R.id.black_screen);
         if (black != null) black.setOnClickListener(new View.OnClickListener() {
@@ -1554,7 +1556,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
     private static final int MENU_DRYAD = 1, MENU_PIGPEN = 2, MENU_CHANNEL_QR = 3, MENU_SCAN = 4, MENU_FILES = 5,
             MENU_OPENMANET = 6, MENU_BLACKOUT = 7, MENU_RED = 8, MENU_SETTINGS = 9, MENU_CHAT = 10, MENU_AUDIO = 11, MENU_ABOUT = 12, MENU_EXIT = 13,
             MENU_STREAMS = 14, MENU_INTERCOM = 15, MENU_VIDEOS = 16, MENU_TV = 17, MENU_GATEWAY = 18,
-            MENU_HOME_TOGGLE = 19, MENU_TOP_CHAT = 20, MENU_TOP_BLACK = 21, MENU_NOMAD = 22, MENU_TV_MENU = 23, MENU_TASKS = 24, MENU_ARRAY = 25, MENU_REPORT_UP = 26, MENU_CAST = 27;
+            MENU_HOME_TOGGLE = 19, MENU_TOP_CHAT = 20, MENU_TOP_BLACK = 21, MENU_NOMAD = 22, MENU_TV_MENU = 23, MENU_TASKS = 24, MENU_ARRAY = 25, MENU_REPORT_UP = 26, MENU_CAST = 27, MENU_CALENDAR = 28;
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
@@ -1591,6 +1593,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         }
         menu.add(0, MENU_NOMAD, 5, "Project NOMAD (local AI, library)");
         menu.add(0, MENU_CAST, 5, "Cast screen to TV");
+        menu.add(0, MENU_CALENDAR, 2, "Calendar and notes");
         menu.add(0, MENU_GATEWAY, 6, "OpenMANET internet gateway");
         menu.add(0, MENU_EXIT, 10, "Exit (go off air and close)");
         return true;
@@ -1658,8 +1661,8 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         MenuItem st = menu.findItem(MENU_STREAMS);
         if (st != null) st.setVisible(prefs.streamsEnabled()); // Settings: Internet audio
         // Specialised menus: only when ticked (Settings > Home screen and menus, or a setup QR code).
-        int[] special = {MENU_ARRAY, MENU_REPORT_UP, MENU_TASKS, MENU_NOMAD, MENU_CAST};
-        String[] keys = {"array", "report", "tasks", "nomad", "cast"};
+        int[] special = {MENU_ARRAY, MENU_REPORT_UP, MENU_TASKS, MENU_NOMAD, MENU_CAST, MENU_CALENDAR};
+        String[] keys = {"array", "report", "tasks", "nomad", "cast", "calendar"};
         for (int i = 0; i < special.length; i++) {
             MenuItem it = menu.findItem(special[i]);
             if (it != null && !prefs.menuOn(keys[i])) it.setVisible(false);
@@ -1823,6 +1826,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         LinearLayout row = (LinearLayout) ptt.getParent();
         float d = getResources().getDisplayMetrics().density;
         Button say = new Button(this);
+        sayButton = say;
         say.setAllCaps(false);
         say.setText(row.getOrientation() == LinearLayout.HORIZONTAL ? "Text as\nvoice" : "Text as voice");
         say.setTextSize(14);
@@ -1830,7 +1834,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         say.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                askSay();
+                askSay(-1);
             }
         });
         LinearLayout.LayoutParams lp = row.getOrientation() == LinearLayout.HORIZONTAL
@@ -1839,14 +1843,17 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         row.addView(say, row.indexOfChild(ptt) + 1, lp);
     }
 
-    private void askSay() {
+    private Button sayButton;
+
+    /** slot -1: the channel on air; otherwise a pinned listened channel. */
+    private void askSay(final int slot) {
         float d = getResources().getDisplayMetrics().density;
         final EditText text = new EditText(this);
-        text.setHint("Read aloud on every phone on the channel");
+        text.setHint(slot < 0 ? "Read aloud on every phone on the channel" : "Read aloud on every phone on " + label(slot));
         android.widget.FrameLayout box = new android.widget.FrameLayout(this);
         box.setPadding((int) (20 * d), (int) (8 * d), (int) (20 * d), 0);
         box.addView(text);
-        new AlertDialog.Builder(this).setTitle("Text as voice").setView(box)
+        new AlertDialog.Builder(this).setTitle(slot < 0 ? "Text as voice" : "Text as voice on " + label(slot)).setView(box)
                 .setPositiveButton("Send", new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface di, int w) {
@@ -1856,6 +1863,9 @@ public final class MainActivity extends Activity implements RadioService.Ui {
                         RadioService s = RadioService.instance();
                         if (prefs.radioSilent()) {
                             Toast.makeText(MainActivity.this, "Radio silent: not sent", Toast.LENGTH_SHORT).show();
+                        } else if (slot >= 0) {
+                            if (s == null || !s.sendTextTo(slot, RadioService.SAY + t))
+                                Toast.makeText(MainActivity.this, "Not listening to " + label(slot) + " right now", Toast.LENGTH_SHORT).show();
                         } else if (s == null || s.messages() == null || !s.messages().sendText(RadioService.SAY + t)) {
                             Toast.makeText(MainActivity.this, "Join a channel first", Toast.LENGTH_SHORT).show();
                         }
@@ -1929,6 +1939,8 @@ public final class MainActivity extends Activity implements RadioService.Ui {
                     showChannelQr();
                 }
             }, null);
+        } else if (id == MENU_CALENDAR) {
+            startActivity(new Intent(this, CalendarActivity.class));
         } else if (id == MENU_CAST) {
             castScreen(this);
         } else if (id == MENU_TASKS) {
@@ -2722,6 +2734,216 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         return service == null ? null : service.engine();
     }
 
+    // ---- one-touch PTTs for pinned listened channels (radio screen only: the big PTT is split) ----
+
+    private LinearLayout pttRow;
+    private final List<Button> pinButtons = new ArrayList<Button>();
+    private final List<Integer> pinSlots = new ArrayList<Integer>();
+    private String pinKey = "";
+    private static final int PIN_MAX = 3;
+    private static final int PTT_GREEN = 0xff2e7d32, PTT_BLUE = 0xff1565c0, PTT_GREY = 0xff616161;
+
+    /** Puts the big PTT in a row (side by side in portrait, stacked in landscape) that pins can join. */
+    private void wrapPtt() {
+        if (!(ptt.getParent() instanceof LinearLayout)) return;
+        LinearLayout parent = (LinearLayout) ptt.getParent();
+        int at = parent.indexOfChild(ptt);
+        android.view.ViewGroup.LayoutParams lp = ptt.getLayoutParams();
+        parent.removeView(ptt);
+        pttRow = new LinearLayout(this);
+        boolean land = parent.getOrientation() == LinearLayout.HORIZONTAL;
+        pttRow.setOrientation(land ? LinearLayout.VERTICAL : LinearLayout.HORIZONTAL);
+        parent.addView(pttRow, at, lp);
+        pttRow.addView(ptt, new LinearLayout.LayoutParams(land ? LinearLayout.LayoutParams.MATCH_PARENT : 0,
+                land ? 0 : LinearLayout.LayoutParams.MATCH_PARENT, 1));
+        // Text as voice splits the same way, one per pin, lined up with the PTTs.
+        if (sayButton != null && sayButton.getParent() == parent) {
+            int sat = parent.indexOfChild(sayButton);
+            android.view.ViewGroup.LayoutParams slp = sayButton.getLayoutParams();
+            parent.removeView(sayButton);
+            sayRow = new LinearLayout(this);
+            sayRow.setOrientation(pttRow.getOrientation());
+            parent.addView(sayRow, sat, slp);
+            sayRow.addView(sayButton, new LinearLayout.LayoutParams(land ? LinearLayout.LayoutParams.MATCH_PARENT : 0,
+                    land ? 0 : LinearLayout.LayoutParams.MATCH_PARENT, 1));
+        }
+    }
+
+    private LinearLayout sayRow;
+    private final List<Button> saySplit = new ArrayList<Button>();
+
+    /** The pins that can be used now: pinned on the Channels page, being listened to, not the channel on air. */
+    private void renderPins() {
+        if (pttRow == null) return;
+        List<Integer> want = new ArrayList<Integer>();
+        if (service != null && joined && service.compat() == null) {
+            List<Integer> hear = service.watchingSlots();
+            RadioEngine e = engine();
+            for (int s : prefs.pttPins()) {
+                if (want.size() >= PIN_MAX || !hear.contains(s)) continue;
+                RadioEngine m = service.engineFor(s);
+                if (m != null && m != e) want.add(s);
+            }
+        }
+        String key = want.toString();
+        if (!key.equals(pinKey)) {
+            pinKey = key;
+            for (Button b : pinButtons) pttRow.removeView(b);
+            pinButtons.clear();
+            pinSlots.clear();
+            if (sayRow != null) for (Button b : saySplit) sayRow.removeView(b);
+            saySplit.clear();
+            boolean land = pttRow.getOrientation() == LinearLayout.VERTICAL;
+            float d = getResources().getDisplayMetrics().density;
+            for (final int s : want) {
+                Button b = new Button(this);
+                b.setAllCaps(false);
+                b.setText("PTT\n" + label(s));
+                b.setTextColor(0xffffffff);
+                b.setTextSize(18);
+                b.setTypeface(null, android.graphics.Typeface.BOLD);
+                b.setContentDescription("Push to talk on " + label(s));
+                b.setOnTouchListener(new View.OnTouchListener() {
+                    @Override
+                    public boolean onTouch(View v, MotionEvent ev) {
+                        switch (ev.getActionMasked()) {
+                            case MotionEvent.ACTION_DOWN:
+                                pinPressed(s);
+                                return true;
+                            case MotionEvent.ACTION_UP:
+                            case MotionEvent.ACTION_CANCEL:
+                                if (!prefs.latch()) pinTransmit(s, false);
+                                return true;
+                        }
+                        return false;
+                    }
+                });
+                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(land ? LinearLayout.LayoutParams.MATCH_PARENT : 0,
+                        land ? 0 : LinearLayout.LayoutParams.MATCH_PARENT, 1);
+                if (land) lp.topMargin = (int) (6 * d);
+                else lp.leftMargin = (int) (6 * d);
+                pttRow.addView(b, lp);
+                pinButtons.add(b);
+                pinSlots.add(s);
+                if (sayRow != null) {
+                    Button sb = new Button(this);
+                    sb.setAllCaps(false);
+                    sb.setTextSize(land ? 12 : 14);
+                    sb.setText(land ? "Text as\nvoice\n" + label(s) : "Text as voice\n" + label(s));
+                    sb.setContentDescription("Send text as voice on " + label(s));
+                    sb.setOnClickListener(new View.OnClickListener() {
+                        @Override
+                        public void onClick(View v) {
+                            askSay(s);
+                        }
+                    });
+                    LinearLayout.LayoutParams sl = new LinearLayout.LayoutParams(land ? LinearLayout.LayoutParams.MATCH_PARENT : 0,
+                            land ? 0 : LinearLayout.LayoutParams.MATCH_PARENT, 1);
+                    sayRow.addView(sb, sl);
+                    saySplit.add(sb);
+                }
+            }
+            if (sayButton != null) {
+                sayButton.setText(want.isEmpty() ? (land ? "Text as\nvoice" : "Text as voice")
+                        : (land ? "Text as\nvoice\n" + label(slot) : "Text as voice\n" + label(slot)));
+                sayButton.setTextSize(want.isEmpty() ? 14 : land ? 12 : 14);
+            }
+            if (sayRow != null && !land) { // two lines with a channel name: a little taller
+                sayRow.getLayoutParams().height = (int) ((want.isEmpty() ? 52 : 68) * d);
+                sayRow.requestLayout();
+            }
+            ptt.setTextSize(want.isEmpty() ? 28 : 20);
+            if (want.isEmpty()) {
+                ptt.setTag(null);
+                ptt.setBackgroundResource(R.drawable.ptt_background);
+            }
+        }
+        renderPinColours();
+    }
+
+    /** Green: the channel on air. Grey: a listened channel. Blue: the one the last voice was heard on. Red: talking. */
+    private void renderPinColours() {
+        if (pttRow == null || pinButtons.isEmpty()) return;
+        RadioEngine e = engine();
+        if (e == null) return;
+        RadioEngine last = e.lastVoiceMs() > 0 ? e : null;
+        long best = e.lastVoiceMs();
+        for (RadioEngine m : e.monitors()) {
+            if (m.lastVoiceMs() > best) {
+                best = m.lastVoiceMs();
+                last = m;
+            }
+        }
+        RadioEngine txOn = e.transmittingOn();
+        setPttColour(ptt, last == e ? PTT_BLUE : PTT_GREEN);
+        for (int i = 0; i < pinButtons.size(); i++) {
+            Button b = pinButtons.get(i);
+            RadioEngine m = service == null ? null : service.engineFor(pinSlots.get(i));
+            setPttColour(b, m != null && m == last ? PTT_BLUE : PTT_GREY);
+            b.setSelected(m != null && m == txOn);
+        }
+    }
+
+    private void setPttColour(Button b, int colour) {
+        if (Integer.valueOf(colour).equals(b.getTag())) return;
+        b.setTag(colour);
+        float r = 16 * getResources().getDisplayMetrics().density;
+        android.graphics.drawable.StateListDrawable s = new android.graphics.drawable.StateListDrawable();
+        s.addState(new int[]{android.R.attr.state_selected}, rounded(0xffc62828, r));
+        s.addState(new int[]{-android.R.attr.state_enabled}, rounded(0xff455a64, r));
+        s.addState(new int[0], rounded(colour, r));
+        b.setBackgroundDrawable(s);
+    }
+
+    private static android.graphics.drawable.GradientDrawable rounded(int colour, float r) {
+        android.graphics.drawable.GradientDrawable g = new android.graphics.drawable.GradientDrawable();
+        g.setColor(colour);
+        g.setCornerRadius(r);
+        return g;
+    }
+
+    private void pinPressed(int s) {
+        if (prefs.latch()) {
+            RadioEngine e = engine();
+            RadioEngine m = service == null ? null : service.engineFor(s);
+            pinTransmit(s, !(e != null && m != null && e.transmittingOn() == m));
+        } else {
+            pinTransmit(s, true);
+        }
+    }
+
+    private void pinTransmit(int s, boolean on) {
+        RadioEngine e = engine();
+        RadioEngine m = service == null ? null : service.engineFor(s);
+        if (e == null || m == null || m == e) {
+            if (on) Toast.makeText(this, "Not listening to " + label(s) + " right now", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        if (!on) {
+            e.setTransmitOn(m, false);
+            return;
+        }
+        if (prefs.radioSilent()) {
+            Toast.makeText(this, "Radio silent: not transmitting. Tap Silent to end it.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        if (RadioEngine.cwMode) {
+            Toast.makeText(this, "CW mode is on: PTT and voice are off.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        if (prefs.burstVoice() || PowerMode.offline() || e.voxOn() || (service != null && service.compat() != null)) {
+            Toast.makeText(this, "One-touch PTT on a listened channel works with normal push to talk (not burst, offline or VOX)",
+                    Toast.LENGTH_LONG).show();
+            return;
+        }
+        if (m.listenOnly()) {
+            Toast.makeText(this, "Listen-only key on " + label(s) + ": you can hear it, but not send on it.", Toast.LENGTH_LONG).show();
+            return;
+        }
+        if (e.isTransmitting()) return; // already talking (here or on another pin)
+        e.setTransmitOn(m, true);
+    }
+
     @Override
     public boolean dispatchKeyEvent(KeyEvent ev) {
         int code = ev.getKeyCode();
@@ -3050,6 +3272,12 @@ public final class MainActivity extends Activity implements RadioService.Ui {
 
     @Override
     public void onTransmitChanged(boolean on) {
+        RadioEngine pe = engine();
+        if (on && pe != null && pe.transmittingOn() != null) { // a pinned PTT: the big one stays as it is
+            renderPinColours();
+            return;
+        }
+        renderPinColours();
         ptt.setSelected(on);
         if (miniPtt != null) miniPtt.setSelected(on);
         RadioEngine e = engine();

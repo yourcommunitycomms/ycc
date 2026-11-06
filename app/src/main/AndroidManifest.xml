@@ -101,6 +101,9 @@
         <activity android:name=".KeysActivity" android:exported="false" />
         <service android:name=".TilePrefetchService" android:exported="false" android:foregroundServiceType="dataSync" />
         <activity android:name=".CwSettingsActivity" android:exported="false" />
+        <activity android:name=".CalendarActivity" android:exported="false" />
+        <activity android:name=".NoteActivity" android:exported="false" android:windowSoftInputMode="adjustResize" />
+        <receiver android:name=".CalReminder" android:exported="false" />
         <activity android:name=".EnigmaActivity" android:exported="false" android:windowSoftInputMode="adjustResize" />
         <activity android:name=".ChallengeActivity" android:exported="false" />
         <activity android:name=".DryadExplainedActivity" android:exported="false" />

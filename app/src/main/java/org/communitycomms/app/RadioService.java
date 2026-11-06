@@ -1487,6 +1487,10 @@ public final class RadioService extends Service implements RadioEngine.Listener 
 
             @Override
             public void onNewMessage(org.communitycomms.app.msg.MessageLog.Entry m) {
+                if (CalStore.is(m.body)) {
+                    CalStore.onMessage(RadioService.this, m); // a team calendar entry: no chat notification, its reminder is set
+                    return;
+                }
                 notifyMessage(m);
                 onLocationRequest(m);
                 Cw.onText(RadioService.this, m);
@@ -1495,6 +1499,12 @@ public final class RadioService extends Service implements RadioEngine.Listener 
         main.postDelayed(messageTick, 10000);
         main.postDelayed(fenceTick, 20000);
         main.postDelayed(castTick, 60000);
+        main.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                CalStore.rescheduleAll(RadioService.this); // reminders do not survive the phone restarting
+            }
+        }, 15000);
         Prefs startPrefs = new Prefs(this);
         curStatus = startPrefs.status();
         RadioEngine.myStatus = curStatus;

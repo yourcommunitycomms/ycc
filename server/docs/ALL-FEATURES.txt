@@ -55,6 +55,7 @@ TALKING
 - Start tone before each transmission (optional).
 - Burst voice: record while PTT is held and send it as one file, for weak links.
 - Dual watch: talk on one channel and listen to others, quiet mix or stereo, per-channel mute.
+- Pin a listened channel for its own one-touch PTT beside the big PTT on the radio screen (blue = last voice heard there), with its own Text as voice button too.
 - Radio silent: receive only, nothing at all is sent, and texts wait until the silence ends.
 - Status: Available, Away (voice saved to chat), Stealth (nothing plays; automatic at volume zero
   or on silent).
@@ -91,10 +92,12 @@ MAPS AND LOCATION
 - Bearing and distance to the map cross, lat/lon and MGRS of the cross.
 - Full-screen baseplate compass with bearings to points and people, true or magnetic north.
 - Navigate to a point online (Google Maps or another map app) or offline on the app's own map, driving or walking, with turn prompts; missing street routing data is offered for download.
+- Copy the + position (for pasting into Google Maps); Share asks clipboard or team.
 - Personal map points: kept on this phone only, never shared.
 - Offline routes: plan first, close roads at the +, go via points (convoys), share the route to the channel, a person or another app; automatic rerouting off by default.
 - The app can open into the full map or TV mode, and the screen can be locked to portrait or landscape, or turned upside down.
-- Specialised menus (channel array, reports to leaders, tasks, Project NOMAD, VicEmergency, Melbourne trains preset, station names, ARTC rail, ATAK map menu items, Cast screen to TV) are off until ticked in Settings > Home screen and menus, or turned on by a setup QR code.
+- Calendar and notes: my calendar, a team calendar shared on the channel, both together in two colours, reminders with an optional buzz, and notes with pictures in the text.
+- Specialised menus (channel array, reports to leaders, tasks, Project NOMAD, VicEmergency, Melbourne trains preset, station names, ARTC rail, ATAK map menu items, Cast screen to TV, Calendar and notes) are off until ticked in Settings > Home screen and menus, or turned on by a setup QR code.
 - ARTC rail network overlay (Australian interstate and freight track), kept for offline use once seen.
 - Live trains on the map with their next stops (GTFS Realtime: Melbourne tick with a free key, or your own home town's feed - recommended).
 - Download detailed map tiles along a route (about 300 m either side, zoom levels and map types ticked).

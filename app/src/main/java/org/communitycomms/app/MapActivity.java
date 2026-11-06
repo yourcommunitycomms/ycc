@@ -300,6 +300,42 @@ public final class MapActivity extends Activity {
         apply.run();
     }
 
+    // ---- copying a position and the Share choice ----
+
+    /** "lat, lon" to the clipboard: Google Maps and most map apps take it pasted in their search box. */
+    private void copyLatLon(double lat, double lon, String what) {
+        String s = String.format(java.util.Locale.US, "%.6f, %.6f", lat, lon);
+        android.content.ClipboardManager cm = (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+        if (cm != null) cm.setPrimaryClip(android.content.ClipData.newPlainText("position", s));
+        android.widget.Toast.makeText(this, "Copied " + what + ": " + s + " (paste it into Google Maps)", android.widget.Toast.LENGTH_LONG).show();
+    }
+
+    /** The map's Share button: my position to the clipboard, or shared with the team on the channel. */
+    private void shareChoice() {
+        new AlertDialog.Builder(this).setTitle("Share my location")
+                .setItems(new String[]{"Copy it to the clipboard (paste into Google Maps, a message…)", "Share with the team (on the channel, 30 minutes or longer)"},
+                        new android.content.DialogInterface.OnClickListener() {
+                            @Override
+                            public void onClick(android.content.DialogInterface di, int which) {
+                                if (which == 0) {
+                                    if (me == null) {
+                                        android.widget.Toast.makeText(MapActivity.this, "No GPS position yet", android.widget.Toast.LENGTH_LONG).show();
+                                        return;
+                                    }
+                                    copyLatLon(me.getLatitude(), me.getLongitude(), "my position");
+                                } else {
+                                    ShareLocation.start(MapActivity.this, new Runnable() {
+                                        @Override
+                                        public void run() {
+                                            renderShareKeys();
+                                        }
+                                    });
+                                }
+                            }
+                        })
+                .setNegativeButton(android.R.string.cancel, null).show();
+    }
+
     // ---- ARTC rail network overlay ----
 
     private org.communitycomms.app.geo.ArtcRail rail;
@@ -808,7 +844,26 @@ public final class MapActivity extends Activity {
         crossLabel.setTypeface(android.graphics.Typeface.MONOSPACE);
         crossLabel.setTextColor(0xfff0c75e);
         crossLabel.setPadding((int) (8 * d), (int) (2 * d), (int) (8 * d), 0);
-        mapSide.addView(crossLabel);
+        // The + position, with a copy button: "lat, lon" as Google Maps (and most map apps) take a paste.
+        LinearLayout crossRow = new LinearLayout(this);
+        crossRow.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        crossRow.addView(crossLabel, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        android.widget.Button copyCross = new android.widget.Button(this);
+        copyCross.setText("Copy");
+        copyCross.setAllCaps(false);
+        copyCross.setTextSize(12);
+        copyCross.setMinHeight(0);
+        copyCross.setMinimumHeight(0);
+        copyCross.setPadding((int) (8 * d), 0, (int) (8 * d), 0);
+        copyCross.setContentDescription("Copy the + position (for Google Maps)");
+        copyCross.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                copyLatLon(map.centerLat(), map.centerLon(), "+ position");
+            }
+        });
+        crossRow.addView(copyCross, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, (int) (32 * d)));
+        mapSide.addView(crossRow);
         sourceLabel = new TextView(this);
         sourceLabel.setTextSize(12);
         sourceLabel.setPadding((int) (8 * d), (int) (2 * d), (int) (8 * d), 0);
@@ -903,12 +958,7 @@ public final class MapActivity extends Activity {
                 new Runnable() {
                     @Override
                     public void run() {
-                        ShareLocation.start(MapActivity.this, new Runnable() {
-                            @Override
-                            public void run() {
-                                renderShareKeys();
-                            }
-                        });
+                        shareChoice();
                     }
                 }));
         keys.add(askKey = new MapIconButton(this, MapIconButton.ASK, "Ask", "Ask everyone on this private channel to share their location",
