@@ -407,9 +407,9 @@ public final class Prefs {
      * Specialised menus (Settings > Home screen and menus), all off by default and settable by a setup QR
      * code ("menus": the keys to turn on). Most people never need these.
      */
-    public static final String[] MENU_KEYS = {"array", "report", "tasks", "nomad", "vicemergency", "trains", "stopnames", "artc", "atak"};
+    public static final String[] MENU_KEYS = {"array", "report", "tasks", "nomad", "vicemergency", "trains", "stopnames", "artc", "atak", "cast"};
     public static final String[] MENU_LABELS = {"Channel array", "Report to leaders", "Tasks and notes", "Project NOMAD",
-            "VicEmergency alerts on the map", "Melbourne trains preset (in Trains on the map)", "Load station names button (live trains)", "ARTC rail network on the map", "ATAK items in the map menu (map files, export, map source)"};
+            "VicEmergency alerts on the map", "Melbourne trains preset (in Trains on the map)", "Load station names button (live trains)", "ARTC rail network on the map", "ATAK items in the map menu (map files, export, map source)", "Cast screen to TV (Google TV, Chromecast)"};
 
     public boolean menuOn(String key) {
         return sp.getBoolean("menu_" + key, false);
@@ -495,6 +495,35 @@ public final class Prefs {
 
     public void setHomeMap(boolean on) {
         sp.edit().putBoolean("homeMap", on).commit();
+    }
+
+    /** What the app opens into: HOME_SCREEN (the radio or map home), the full map, or TV mode. */
+    public static final int HOME_SCREEN = 0, HOME_FULL_MAP = 2, HOME_TV = 3;
+
+    public int homeStart() {
+        return sp.getInt("homeStart", HOME_SCREEN);
+    }
+
+    public void setHomeStart(int v) {
+        sp.edit().putInt("homeStart", v).commit();
+    }
+
+    /** Screen orientation for every screen: 0 auto, 1 portrait, 2 landscape. */
+    public int orientation() {
+        return sp.getInt("orientation", 0);
+    }
+
+    public void setOrientation(int v) {
+        sp.edit().putInt("orientation", v).commit();
+    }
+
+    /** Invert screen: upside down (the reverse of portrait or landscape), whatever the orientation choice. */
+    public boolean invertScreen() {
+        return sp.getBoolean("invertScreen", false);
+    }
+
+    public void setInvertScreen(boolean on) {
+        sp.edit().putBoolean("invertScreen", on).commit();
     }
 
     /** Speak a short announcement when someone else's POI arrives (on by default). */

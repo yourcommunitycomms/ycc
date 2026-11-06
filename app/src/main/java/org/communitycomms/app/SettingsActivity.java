@@ -140,11 +140,30 @@ public final class SettingsActivity extends Activity {
             }
         });
         RadioGroup home = (RadioGroup) findViewById(R.id.home_style);
-        home.check(prefs.homeMap() ? R.id.home_map : R.id.home_radio);
+        int hs = prefs.homeStart();
+        home.check(hs == Prefs.HOME_FULL_MAP ? R.id.home_fullmap : hs == Prefs.HOME_TV ? R.id.home_tv : prefs.homeMap() ? R.id.home_map : R.id.home_radio);
         home.setOnCheckedChangeListener(new RadioGroup.OnCheckedChangeListener() {
             @Override
             public void onCheckedChanged(RadioGroup g, int id) {
-                prefs.setHomeMap(id == R.id.home_map);
+                if (id == R.id.home_radio || id == R.id.home_map) prefs.setHomeMap(id == R.id.home_map);
+                prefs.setHomeStart(id == R.id.home_fullmap ? Prefs.HOME_FULL_MAP : id == R.id.home_tv ? Prefs.HOME_TV : Prefs.HOME_SCREEN);
+            }
+        });
+        RadioGroup orient = (RadioGroup) findViewById(R.id.orientation);
+        int o = prefs.orientation();
+        orient.check(o == 1 ? R.id.orient_port : o == 2 ? R.id.orient_land : R.id.orient_auto);
+        orient.setOnCheckedChangeListener(new RadioGroup.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(RadioGroup g, int id) {
+                prefs.setOrientation(id == R.id.orient_port ? 1 : id == R.id.orient_land ? 2 : 0);
+                Orientation.apply(SettingsActivity.this);
+            }
+        });
+        bindCheck(R.id.invert_screen, prefs.invertScreen(), new Toggle() {
+            @Override
+            public void set(boolean on) {
+                prefs.setInvertScreen(on);
+                Orientation.apply(SettingsActivity.this);
             }
         });
         final CheckBox dw = (CheckBox) findViewById(R.id.dual_watch), dwPlay = (CheckBox) findViewById(R.id.dual_watch_play),

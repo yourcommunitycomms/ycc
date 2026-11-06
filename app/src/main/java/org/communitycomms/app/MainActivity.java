@@ -256,6 +256,20 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         setUpTitleToggle();
         if (mapHome) setUpHomeMap();
         if (findViewById(R.id.side_holder) != null) setUpCommander();
+        // Settings > Home screen: open straight into the full map or TV mode (only when the app starts).
+        if (savedInstanceState == null && !startRouted && Intent.ACTION_MAIN.equals(getIntent().getAction())) {
+            startRouted = true;
+            final int hs = prefs.homeStart();
+            if (hs == Prefs.HOME_FULL_MAP || hs == Prefs.HOME_TV) {
+                new android.os.Handler().postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        if (isFinishing() || !prefs.setupDone()) return;
+                        startActivity(new Intent(MainActivity.this, hs == Prefs.HOME_TV ? TvActivity.class : MapActivity.class));
+                    }
+                }, 600);
+            }
+        }
         if (savedInstanceState != null) joinedWith = savedInstanceState.getString("joinedWith");
 
         join = (Button) findViewById(R.id.join);
@@ -688,6 +702,48 @@ public final class MainActivity extends Activity implements RadioService.Ui {
                 .setNegativeButton(android.R.string.cancel, null)
                 .show();
     }
+
+    // ---- cast the screen to a TV (Android's own screen casting: no extra library, nothing in the background) ----
+
+    /** Opens the phone's Cast screen list (Google TV, Chromecast, smart TVs); this app's screen then shows on the TV. */
+    static void castScreen(final android.app.Activity a) {
+        final android.content.SharedPreferences sp = a.getSharedPreferences("settings", MODE_PRIVATE);
+        final android.widget.CheckBox auto = new android.widget.CheckBox(a);
+        auto.setText("Stop casting after 1 hour without using the app");
+        auto.setChecked(sp.getBoolean("castAutoOff", false)); // off by default: nothing is sent unless actually casting
+        int pad = (int) (16 * a.getResources().getDisplayMetrics().density);
+        auto.setPadding(auto.getPaddingLeft(), pad / 2, pad, 0);
+        android.widget.LinearLayout box = new android.widget.LinearLayout(a);
+        box.setPadding(pad, 0, pad, 0);
+        box.addView(auto);
+        new android.app.AlertDialog.Builder(a).setTitle("Cast screen to TV").setView(box)
+                .setMessage("Shows this phone's screen on a Google TV, Chromecast or smart TV on the same WiFi, using the phone's own "
+                        + "Cast screen (some phones call it Smart View or Screen mirroring).\n\nWhile casting, the phone sends a "
+                        + "continuous video stream over the WiFi, which uses the network and battery and can slow the radio on a busy "
+                        + "network: stop casting when done (Cast screen > Disconnect). Nothing is sent while not casting.\n\n"
+                        + "A Google TV can also run this app itself in TV mode (map and chat on the big screen).")
+                .setPositiveButton("Choose a TV", new android.content.DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(android.content.DialogInterface d, int w) {
+                        sp.edit().putBoolean("castAutoOff", auto.isChecked()).commit();
+                        CastWatch.touched();
+                        String[] actions = {"android.settings.CAST_SETTINGS", "android.settings.WIFI_DISPLAY_SETTINGS"};
+                        for (String act : actions) {
+                            try {
+                                a.startActivity(new android.content.Intent(act));
+                                return;
+                            } catch (android.content.ActivityNotFoundException ignored) {
+                            }
+                        }
+                        Toast.makeText(a, "This phone has no Cast screen setting: try the Cast, Smart View or Screen mirroring tile in the "
+                                + "quick settings (swipe down from the top)", Toast.LENGTH_LONG).show();
+                    }
+                })
+                .setNegativeButton(android.R.string.cancel, null).show();
+    }
+
+    /** Opened into the full map or TV mode once this time the app started. */
+    private static boolean startRouted;
 
     // ---- hide / show the title bar (more room for the map and buttons) ----
 
@@ -1498,7 +1554,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
     private static final int MENU_DRYAD = 1, MENU_PIGPEN = 2, MENU_CHANNEL_QR = 3, MENU_SCAN = 4, MENU_FILES = 5,
             MENU_OPENMANET = 6, MENU_BLACKOUT = 7, MENU_RED = 8, MENU_SETTINGS = 9, MENU_CHAT = 10, MENU_AUDIO = 11, MENU_ABOUT = 12, MENU_EXIT = 13,
             MENU_STREAMS = 14, MENU_INTERCOM = 15, MENU_VIDEOS = 16, MENU_TV = 17, MENU_GATEWAY = 18,
-            MENU_HOME_TOGGLE = 19, MENU_TOP_CHAT = 20, MENU_TOP_BLACK = 21, MENU_NOMAD = 22, MENU_TV_MENU = 23, MENU_TASKS = 24, MENU_ARRAY = 25, MENU_REPORT_UP = 26;
+            MENU_HOME_TOGGLE = 19, MENU_TOP_CHAT = 20, MENU_TOP_BLACK = 21, MENU_NOMAD = 22, MENU_TV_MENU = 23, MENU_TASKS = 24, MENU_ARRAY = 25, MENU_REPORT_UP = 26, MENU_CAST = 27;
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
@@ -1534,6 +1590,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
                     .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS | MenuItem.SHOW_AS_ACTION_WITH_TEXT);
         }
         menu.add(0, MENU_NOMAD, 5, "Project NOMAD (local AI, library)");
+        menu.add(0, MENU_CAST, 5, "Cast screen to TV");
         menu.add(0, MENU_GATEWAY, 6, "OpenMANET internet gateway");
         menu.add(0, MENU_EXIT, 10, "Exit (go off air and close)");
         return true;
@@ -1601,8 +1658,8 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         MenuItem st = menu.findItem(MENU_STREAMS);
         if (st != null) st.setVisible(prefs.streamsEnabled()); // Settings: Internet audio
         // Specialised menus: only when ticked (Settings > Home screen and menus, or a setup QR code).
-        int[] special = {MENU_ARRAY, MENU_REPORT_UP, MENU_TASKS, MENU_NOMAD};
-        String[] keys = {"array", "report", "tasks", "nomad"};
+        int[] special = {MENU_ARRAY, MENU_REPORT_UP, MENU_TASKS, MENU_NOMAD, MENU_CAST};
+        String[] keys = {"array", "report", "tasks", "nomad", "cast"};
         for (int i = 0; i < special.length; i++) {
             MenuItem it = menu.findItem(special[i]);
             if (it != null && !prefs.menuOn(keys[i])) it.setVisible(false);
@@ -1618,7 +1675,8 @@ public final class MainActivity extends Activity implements RadioService.Ui {
     private final Runnable goBlack = new Runnable() {
         @Override
         public void run() {
-            if (hasWindowFocus()) LightDiscipline.blackout(MainActivity.this); // never under a dialog, it would block the double tap
+            // Never under a dialog (it would block the double tap), nor while casting to a TV.
+            if (hasWindowFocus() && !CastWatch.casting(MainActivity.this)) LightDiscipline.blackout(MainActivity.this);
             else restartBlackTimer();
         }
     };
@@ -1631,6 +1689,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
 
     @Override
     public void onUserInteraction() {
+        CastWatch.touched();
         super.onUserInteraction();
         wokeForVoice = false;
         restartBlackTimer();
@@ -1870,6 +1929,8 @@ public final class MainActivity extends Activity implements RadioService.Ui {
                     showChannelQr();
                 }
             }, null);
+        } else if (id == MENU_CAST) {
+            castScreen(this);
         } else if (id == MENU_TASKS) {
             startActivity(new Intent(this, TasksActivity.class));
         } else if (id == MENU_ARRAY) {

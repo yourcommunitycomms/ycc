@@ -94,3 +94,7 @@
 - 2026-11-06: The map menu's ATAK items (import map file, export for ATAK, ATAK map source) are a specialised menu too ("ATAK items"); the OpenMANET / ATAK settings under Channels stay.
 - 2026-11-06: Fix: the Melbourne trains tick and key box (and the Melbourne feeds) stay hidden unless Melbourne trains preset is ticked in Settings, even if Melbourne was set up before.
 - 2026-11-06: Full map: the ▲ beside the house hides the title bar (in landscape too), and the small ▼ at the top brings it back, as on the home screen.
+- 2026-11-06: Cast screen to TV (a specialised menu): opens the phone's Cast screen list for a Google TV or Chromecast, with a warning that casting streams video over the WiFi while it is on.
+- 2026-11-06: Cast screen to TV can stop itself after 1 hour without using the app (off by default, since nothing is sent unless casting; a notification asks you if the phone does not allow it).
+- 2026-11-06: Home screen and menus: the app can open straight into the full map or TV mode, and Screen orientation can be Auto, Portrait or Landscape.
+- 2026-11-06: Invert screen (upside down, with any orientation choice), and while casting to a TV the screen stays on and does not go black.

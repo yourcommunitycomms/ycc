@@ -19,6 +19,7 @@ public final class CommsApp extends Application {
         registerActivityLifecycleCallbacks(new LightDiscipline());
         PowerMode.load(this);
         registerActivityLifecycleCallbacks(new HomeButton());
+        registerActivityLifecycleCallbacks(new Orientation());
         Prefs p = new Prefs(this);
         RadioEngine.radioSilent = p.radioSilent(); // a silent phone stays silent after a restart
         org.communitycomms.app.audio.AudioLevels.rxGain = p.rxGainPct() / 100f;

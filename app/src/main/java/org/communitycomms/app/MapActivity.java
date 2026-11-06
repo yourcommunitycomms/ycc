@@ -217,6 +217,12 @@ public final class MapActivity extends Activity {
         refresh();
     }
 
+    @Override
+    public void onUserInteraction() {
+        super.onUserInteraction();
+        CastWatch.touched(); // using the app: a cast is not left idle
+    }
+
     // ---- hide / show the title bar, as on the home screen (more room for the map) ----
 
     /** ▲ in the title bar (beside the house) hides it; a small ▼ at the top brings it back. */

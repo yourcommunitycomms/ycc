@@ -1232,6 +1232,19 @@ public final class RadioService extends Service implements RadioEngine.Listener 
         }
     };
 
+    /** Cast screen to TV: stops a cast left on for an hour without the app being used (CastWatch). */
+    private final Runnable castTick = new Runnable() {
+        @Override
+        public void run() {
+            try {
+                CastWatch.check(RadioService.this);
+            } catch (RuntimeException e) {
+                Log.w(TAG, "cast watch", e);
+            }
+            main.postDelayed(this, 60000);
+        }
+    };
+
     private void checkFences() {
         String me = new Prefs(this).callsign();
         long now = System.currentTimeMillis();
@@ -1481,6 +1494,7 @@ public final class RadioService extends Service implements RadioEngine.Listener 
         });
         main.postDelayed(messageTick, 10000);
         main.postDelayed(fenceTick, 20000);
+        main.postDelayed(castTick, 60000);
         Prefs startPrefs = new Prefs(this);
         curStatus = startPrefs.status();
         RadioEngine.myStatus = curStatus;
