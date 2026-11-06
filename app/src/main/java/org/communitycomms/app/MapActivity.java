@@ -217,6 +217,83 @@ public final class MapActivity extends Activity {
         refresh();
     }
 
+    // ---- hide / show the title bar, as on the home screen (more room for the map) ----
+
+    /** ▲ in the title bar (beside the house) hides it; a small ▼ at the top brings it back. */
+    private void setUpTitleToggle() {
+        final android.app.ActionBar ab = getActionBar();
+        if (ab == null) return;
+        float d = getResources().getDisplayMetrics().density;
+        LinearLayout bar = new LinearLayout(this);
+        bar.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        android.widget.Button up = new android.widget.Button(this);
+        up.setText("▲");
+        up.setTextSize(20);
+        up.setBackgroundColor(0);
+        up.setTextColor(0xfff0c75e);
+        up.setContentDescription("Hide the title bar");
+        bar.addView(up, new LinearLayout.LayoutParams((int) (48 * d), LinearLayout.LayoutParams.MATCH_PARENT));
+        android.widget.ImageButton home = new android.widget.ImageButton(this);
+        home.setImageResource(R.drawable.ic_home);
+        home.setBackgroundColor(0);
+        home.setContentDescription("Home");
+        int p = (int) (10 * d);
+        home.setPadding(p, p / 2, p, p / 2);
+        home.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                startActivity(new android.content.Intent(MapActivity.this, MainActivity.class)
+                        .addFlags(android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP | android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP));
+            }
+        });
+        bar.addView(home);
+        ab.setCustomView(bar, new android.app.ActionBar.LayoutParams(android.app.ActionBar.LayoutParams.WRAP_CONTENT,
+                android.app.ActionBar.LayoutParams.MATCH_PARENT, android.view.Gravity.END | android.view.Gravity.CENTER_VERTICAL));
+        ab.setDisplayShowCustomEnabled(true);
+        final android.widget.Button down = new android.widget.Button(this);
+        down.setText("▼");
+        down.setTextColor(0xfff0c75e);
+        down.setContentDescription("Show the title bar");
+        down.setMinHeight(0);
+        down.setMinWidth(0);
+        down.setPadding(0, 0, 0, 0);
+        down.setTextSize(16);
+        down.setBackgroundColor(0xff1f3d2b);
+        final int strip = (int) (22 * d);
+        android.widget.FrameLayout.LayoutParams lp = new android.widget.FrameLayout.LayoutParams((int) (96 * d), strip,
+                android.view.Gravity.TOP | android.view.Gravity.CENTER_HORIZONTAL);
+        final android.widget.FrameLayout content = (android.widget.FrameLayout) findViewById(android.R.id.content);
+        final View screen = content.getChildAt(0);
+        final int origTop = screen.getPaddingTop();
+        content.addView(down, lp);
+        final android.content.SharedPreferences sp = getSharedPreferences("settings", MODE_PRIVATE);
+        final Runnable apply = new Runnable() {
+            @Override
+            public void run() {
+                boolean hidden = sp.getBoolean("mapTitleHidden", false) && !TvActivity.isTv(MapActivity.this);
+                if (hidden) ab.hide();
+                else ab.show();
+                down.setVisibility(hidden ? View.VISIBLE : View.GONE);
+                screen.setPadding(screen.getPaddingLeft(), hidden ? strip : origTop, screen.getPaddingRight(), screen.getPaddingBottom());
+            }
+        };
+        up.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                sp.edit().putBoolean("mapTitleHidden", true).commit();
+                apply.run();
+            }
+        });
+        down.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                sp.edit().putBoolean("mapTitleHidden", false).commit();
+                apply.run();
+            }
+        });
+        apply.run();
+    }
+
     // ---- ARTC rail network overlay ----
 
     private org.communitycomms.app.geo.ArtcRail rail;
@@ -880,6 +957,7 @@ public final class MapActivity extends Activity {
         sv.addView(list);
         root.addView(sv, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1));
         setContentView(top);
+        setUpTitleToggle();
         applyFold.run();
 
         map.setOnMarkerTap(new TileMapView.OnMarkerTap() {
