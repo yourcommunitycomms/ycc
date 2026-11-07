@@ -239,7 +239,10 @@ phone call volume (radio audio) and media volume, an in-app hearing boost and mi
 - **Centre on me:** the round target button left of the compass (blue once there is a fix).
 - **Compass** (tap the map's compass): a full-screen baseplate compass like a
   Silva: travel arrow up, red/white needle to north, a bezel you drag to set a bearing with the
-  orienting arrow ("turn until the red needle sits in it"), heading and "turn left / right N°",
+  orienting arrow ("turn until the red needle sits in it"), heading and "turn left / right N°", the area's
+  magnetic declination at the top (from the last known position until the compass has a fix), a
+  **Declination offset arrow** tick (an amber arrow on the bezel marking magnetic north when showing true
+  bearings, or true north when showing magnetic),
   **Set to my heading**, **Bearing to X** (the + you moved on the map, with distance) and True /
   Magnetic north with the local declination. **Map points** shows the points and people around the
   edge (icon and distance where each lies) and as a list; tap one for a red arrow pointing at it.

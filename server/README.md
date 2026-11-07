@@ -40,7 +40,7 @@ Then `docker build -t ycc-files:1.1 .` and `docker compose up -d`. Without Docke
 | Defaults | The network defaults phones load (from a phone's backup or a file; edit settings and DRYAD sheets) |
 | Phone setup | The setup QR code: store and login, tunnel, Public key, channel A, OpenMANET, home WiFi |
 | Sync | Copy new and changed files to other stores (e.g. a Pi): folders, schedule, hours, KB/s limit; never deletes there |
-| Bridge | The bridge service on the host (bridge/, install with `sudo sh bridge/install-bridge.sh`): links Waydroid/emulator devices to the WiFi and is the tunnel relay for remote people (port, DRYAD-row key, QR code each); on/off and status |
+| Bridge | The bridge service on the host (bridge/, install with `sudo sh bridge/install-bridge.sh`): links Waydroid/emulator devices to the WiFi; **Relay mode** Direct (tunnel relay for remote people: port, DRYAD-row key, QR code each), Via cloud relay (this server is the site's gateway to the internet relay: relay address and site key, no port forwarding) or Both; on/off and status |
 | Updates | Publish an APK (version code read from it) or stop offering it |
 | Login | Change the user and password (kept in the data volume) |
 | Docs | Licence (Apache-2.0), rebuilding with the AI prompt, install notes |

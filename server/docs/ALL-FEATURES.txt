@@ -85,6 +85,7 @@ CHAT, REPORTS AND CONTACTS
 MAPS AND LOCATION
 - Home screen as a radio (big PTT) or as a map (map with a smaller PTT).
 - Full map with everyone's last position, a compass list, your heading arrow and a corner compass.
+- Baseplate compass shows the area's magnetic declination, with an optional declination offset arrow on the bezel.
 - Offline map folders, online maps (OpenStreetMap, Google satellite and terrain, OpenTopoMap, Esri,
   custom), a see-through layer on top, and online for 5 minutes, an hour, a day, or always.
 - LAN storage tiles: maps read from the server first and save every online tile to it, so the whole

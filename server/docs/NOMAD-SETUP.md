@@ -81,6 +81,17 @@ that port, UDP and TCP, on the router to the NOMAD box. Their **QR code** holds 
 and key; they scan it in Settings > Scan QR (after the normal phone setup code on a new phone) and
 turn on Settings > Tunnel comms > **Use the relay now** when away.
 
+### Relay mode: direct or via the cloud relay
+The Bridge tab's **Relay mode** picks how people away from the group reach it:
+- **Direct**: remote people connect to this server through ports forwarded on your router (above).
+- **Via cloud relay**: no port forwarding. The bridge joins your internet relay (`ycc-relay.jar` on a VPS) as
+  this site's gateway. On the admin's phone, **Relay admin** > add a **site**, then put the relay address
+  (`host:port`) and the site key on the Bridge tab (or paste the site's setup code text, which fills both).
+  Channels shared: empty = every channel heard on the WiFi, or a list of channel tags. If a gateway phone on
+  the WiFi has the same site key, only the one that started first sends (beacons on the mesh decide).
+- **Both**: the two at once.
+Radio packets stay end-to-end encrypted either way. A Raspberry Pi install (no Docker) is in PI-SETUP.md.
+
 ### Moving or copying files in
 Files dropped into `/opt/project-nomad/storage/ycc-files/YCC/` appear straight away (for example a
 `Maps cache` folder copied from an older store). A tile set put in `YCC/Maps cache/<any name>/z/x/y.jpg` (e.g. one

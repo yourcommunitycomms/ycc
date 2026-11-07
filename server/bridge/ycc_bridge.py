@@ -7,6 +7,9 @@ startup service. Python 3, no add-ons. It never decrypts radio packets (it has n
 - Clients: Waydroid or emulator devices whose Extra peers point here (UDP 47400).
 - Remotes: phones away from the group, each on its own forwarded port with its own DRYAD-row key
   (tunnel frames, docs/PROTOCOL.md section 11). They get what is heard on the channels they listen to.
+- Cloud relay: as a site's gateway to the internet relay (ycc-relay.jar on a VPS), with no port
+  forwarding: the channels shared go up, what the relay sends comes down onto the WiFi (section 11.1).
+Relay mode (Bridge tab): direct (remotes only), cloud (internet relay only) or both.
 
 Settings come from <store>/.ycc_bridge.json, written by the admin page's Bridge tab (re-read when it
 changes); the state goes to <store>/.ycc_bridge_status.json every few seconds for the page to show.
@@ -26,12 +29,14 @@ from collections import OrderedDict
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import tunnel  # noqa: E402
 
-VERSION = "2.0"
+VERSION = "2.1"
 STORE = os.path.abspath(sys.argv[1] if len(sys.argv) > 1 else "/opt/project-nomad/storage/ycc-files")
 CONFIG = os.path.join(STORE, ".ycc_bridge.json")
 STATUS = os.path.join(STORE, ".ycc_bridge_status.json")
 DEFAULTS = {"on": True, "lan_broadcast": "auto", "client_port": 47400, "app_port": 47474, "public_host": "",
-            "remotes": []}
+            "remotes": [], "relay_mode": "direct", "cloud_server": "", "cloud_key": "", "cloud_name": "",
+            "cloud_tags": ""}
+TAG_KEEP = 600  # a channel heard on the WiFi in the last 10 minutes is shared when no list is set
 CLIENT_KEEP = 60
 
 
@@ -99,7 +104,7 @@ class Bridge:
         self.mine = own_ips()
         self.clients = {}
         self.seen = OrderedDict()
-        self.counts = {"lan_in": 0, "lan_out": 0, "client_in": 0, "remote_in": 0}
+        self.counts = {"lan_in": 0, "lan_out": 0, "client_in": 0, "remote_in": 0, "cloud_in": 0}
         self.problem = ""
         self.lan = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.lan.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -108,15 +113,49 @@ class Bridge:
         self.cli = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.cli.bind(("0.0.0.0", self.client_port))
         self.remotes = []
-        for r in cfg.get("remotes", []):
-            if r.get("on", True) and r.get("row") and r.get("port"):
-                self.remotes.append(tunnel.Remote(r.get("label", ""), r["port"], r["row"]))
+        mode = cfg.get("relay_mode", "direct")
+        if mode in ("direct", "both"):
+            for r in cfg.get("remotes", []):
+                if r.get("on", True) and r.get("row") and r.get("port"):
+                    self.remotes.append(tunnel.Remote(r.get("label", ""), r["port"], r["row"]))
+        self.cloud = None
+        self.heard_tags = {}
+        self.fixed_tags = []
+        for w in (cfg.get("cloud_tags") or "").replace(",", " ").split():
+            try:
+                self.fixed_tags.append(int(w, 16))
+            except ValueError:
+                pass
+        if mode in ("cloud", "both") and cfg.get("cloud_server") and cfg.get("cloud_key"):
+            try:
+                self.cloud = tunnel.CloudClient(cfg["cloud_server"], cfg["cloud_key"], cfg.get("cloud_name") or "LAN store")
+            except (ValueError, OSError) as e:
+                self.problem = "cloud relay settings: %s" % e
+
+    def shared(self, p):
+        """Whether a radio packet's channel goes to the cloud relay (the list, or every channel when none)."""
+        tag = packet_tag(p)
+        if tag:
+            self.heard_tags[tag] = time.time()
+        return not self.fixed_tags or tag in self.fixed_tags
+
+    def cloud_tags(self):
+        if self.fixed_tags:
+            return self.fixed_tags
+        now = time.time()
+        return [t for t, w in self.heard_tags.items() if now - w < TAG_KEEP][:60]
+
+    def to_cloud(self, p):
+        if self.cloud is not None and self.shared(p):
+            self.cloud.from_lan(p)
 
     def close(self):
         for s in (self.lan, self.cli):
             s.close()
         for r in self.remotes:
             r.close()
+        if self.cloud is not None:
+            self.cloud.close()
 
     def first_time(self, p):
         """False for a packet already passed on (loops, UDP+TCP copies)."""
@@ -155,6 +194,13 @@ class Bridge:
         rd = [self.lan, self.cli]
         wr = []
         owner = {}
+        if self.cloud is not None:
+            self.cloud.tick(self.cloud_tags(), self.to_lan)
+            for s in self.cloud.sockets():
+                rd.append(s)
+                owner[s] = self.cloud
+            if self.cloud.tcp is not None and self.cloud.tcp.wants_write():
+                wr.append(self.cloud.tcp.sock)
         for r in self.remotes:
             for s in (r.udp, r.server):
                 if s:
@@ -167,7 +213,14 @@ class Bridge:
                     wr.append(c.sock)
         ready, writable, _ = select.select(rd, wr, [], timeout)
         for s in writable:
-            r, c = owner[s]
+            o = owner[s]
+            if o is self.cloud:
+                try:
+                    self.cloud.tcp.flush()
+                except (OSError, AttributeError):
+                    self.cloud.close_tcp()
+                continue
+            r, c = o
             try:
                 c.flush()
             except OSError:
@@ -175,11 +228,18 @@ class Bridge:
         for s in ready:
             if s is self.lan:
                 p, src = s.recvfrom(4096)
-                if src[0] in self.mine or any(src[0] == a[0] for a in self.clients) or not self.first_time(p):
+                if src[0] in self.mine:
+                    continue
+                if p[:2] == b"UT":  # a gateway phone's beacon (cloud relay election)
+                    if self.cloud is not None:
+                        self.cloud.on_beacon(p)
+                    continue
+                if any(src[0] == a[0] for a in self.clients) or not self.first_time(p):
                     continue
                 self.counts["lan_in"] += 1
                 self.to_clients(p)
                 self.to_remotes(p)
+                self.to_cloud(p)
             elif s is self.cli:
                 p, src = s.recvfrom(4096)
                 self.clients[src] = now  # a relay's short keep-alive poke counts too
@@ -191,6 +251,15 @@ class Bridge:
                 self.to_clients(p, skip=src)
                 self.to_lan(p)
                 self.to_remotes(p)
+                self.to_cloud(p)
+            elif self.cloud is not None and owner.get(s) is self.cloud:
+                for p in self.cloud.readable(s):
+                    if not self.first_time(p):
+                        continue
+                    self.counts["cloud_in"] += 1
+                    self.to_lan(p)
+                    self.to_clients(p)
+                    self.to_remotes(p)
             else:
                 o = owner.get(s)
                 if isinstance(o, tuple):
@@ -220,12 +289,15 @@ class Bridge:
         self.to_lan(p)
         self.to_clients(p)
         self.to_remotes(p, skip=r)
+        self.to_cloud(p)
 
     def status(self):
         return {"time": time.time(), "running": True, "version": VERSION, "broadcast": self.bcast,
                 "app_port": self.app_port, "client_port": self.client_port, "problem": self.problem,
                 "clients": ["%s:%d" % a for a in self.clients], "counts": self.counts, "lan": lan_addresses(),
-                "remotes": [r.status() for r in self.remotes]}
+                "remotes": [r.status() for r in self.remotes], "relay_mode": self.cfg.get("relay_mode", "direct"),
+                "cloud": self.cloud.status() if self.cloud is not None else None,
+                "cloud_tags": ["%08x" % t for t in self.cloud_tags()] if self.cloud is not None else []}
 
 
 def write_status(st):
@@ -255,7 +327,8 @@ def main():
             if cfg.get("on"):
                 try:
                     bridge = Bridge(cfg)
-                    print("on: broadcast %s, %d remote(s)" % (bridge.bcast, len(bridge.remotes)), flush=True)
+                    print("on: broadcast %s, %d remote(s), relay mode %s" % (bridge.bcast, len(bridge.remotes),
+                                                                             cfg.get("relay_mode", "direct")), flush=True)
                 except OSError as e:
                     write_status({"time": time.time(), "running": False, "problem": "cannot start: %s" % e})
                     print("cannot start:", e, flush=True)

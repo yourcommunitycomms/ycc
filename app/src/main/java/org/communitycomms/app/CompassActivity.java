@@ -30,7 +30,10 @@ public final class CompassActivity extends Activity {
 
     private MyPosition pos;
     private CompassView compass;
-    private TextView heading, setLine, info;
+    private TextView heading, setLine, info, declLine;
+    private android.widget.CheckBox offsetBox;
+    /** Declination from the last known position, until the compass has a fix of its own. */
+    private float knownDecl = Float.NaN;
     private Button northMode, toX, pointsButton;
     /** 0 = no map points, 1 = around the edge, 2 = around the edge and as a list. */
     private int pointsMode;
@@ -153,6 +156,37 @@ public final class CompassActivity extends Activity {
         setLine.setTextColor(0xfff0c75e);
         setLine.setGravity(android.view.Gravity.CENTER);
         root.addView(setLine);
+        // The area's magnetic declination, shown as soon as the compass opens (from the last known position).
+        declLine = new TextView(this);
+        declLine.setTextSize(15);
+        declLine.setTextColor(0xff80deea);
+        declLine.setGravity(android.view.Gravity.CENTER);
+        root.addView(declLine);
+        offsetBox = new android.widget.CheckBox(this);
+        offsetBox.setText("Declination offset arrow on the bezel");
+        offsetBox.setTextColor(0xffcfe3d4);
+        offsetBox.setChecked(getSharedPreferences("map", MODE_PRIVATE).getBoolean("compassOffsetArrow", true));
+        offsetBox.setOnCheckedChangeListener(new android.widget.CompoundButton.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(android.widget.CompoundButton bt, boolean on) {
+                getSharedPreferences("map", MODE_PRIVATE).edit().putBoolean("compassOffsetArrow", on).commit();
+                render();
+            }
+        });
+        LinearLayout boxRow = new LinearLayout(this);
+        boxRow.setGravity(android.view.Gravity.CENTER);
+        boxRow.addView(offsetBox);
+        root.addView(boxRow);
+        try {
+            android.location.LocationManager lm = (android.location.LocationManager) getSystemService(LOCATION_SERVICE);
+            RadioService rs = RadioService.instance();
+            Location k = rs == null ? null : rs.lastFix();
+            if (k == null && lm != null) k = org.communitycomms.app.geo.LocationHelper.bestKnown(lm);
+            if (k != null) knownDecl = new android.hardware.GeomagneticField((float) k.getLatitude(), (float) k.getLongitude(),
+                    (float) k.getAltitude(), System.currentTimeMillis()).getDeclination();
+        } catch (RuntimeException ignored) {
+            // no location permission: shown once the compass has a fix
+        }
         compass = new CompassView(this);
         root.addView(compass, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1));
         info = new TextView(this);
@@ -241,11 +275,21 @@ public final class CompassActivity extends Activity {
 
     /** A true bearing as shown (magnetic subtracts the declination). */
     private float show(float trueDeg) {
-        return norm(magnetic ? trueDeg - pos.declination() : trueDeg);
+        return norm(magnetic ? trueDeg - decl() : trueDeg);
     }
 
     private float toTrue(float shown) {
-        return norm(magnetic ? shown + pos.declination() : shown);
+        return norm(magnetic ? shown + decl() : shown);
+    }
+
+    /** The declination here: from the compass's own fix, else the last known position, else 0. */
+    private float decl() {
+        if (me != null) return pos.declination();
+        return Float.isNaN(knownDecl) ? 0 : knownDecl;
+    }
+
+    private boolean haveDecl() {
+        return me != null || !Float.isNaN(knownDecl);
     }
 
     private static float norm(float a) {
@@ -272,8 +316,18 @@ public final class CompassActivity extends Activity {
                     : "turn " + (off > 0 ? "right " : "left ") + Math.round(Math.abs(off)) + "°";
             setLine.setText("Set " + Math.round(compass.bearing) % 360 + "° " + Geo.compass(compass.bearing) + " · " + turn);
         }
+        if (haveDecl()) {
+            float dc = decl();
+            declLine.setText(String.format(java.util.Locale.US, "Magnetic declination here: %.1f° %s%s", Math.abs(dc), dc >= 0 ? "E" : "W",
+                    me == null ? " (last known position)" : ""));
+        } else {
+            declLine.setText("Magnetic declination: waiting for a position");
+        }
+        compass.offsetArrow = offsetBox.isChecked() && haveDecl();
+        compass.offsetDeg = magnetic ? -decl() : decl();
+        compass.offsetLabel = magnetic ? "TN" : "MN";
         StringBuilder sb = new StringBuilder("Bearings are " + ref + " north");
-        if (me != null) sb.append(String.format(java.util.Locale.US, " · declination %+.1f°", pos.declination()));
+        if (compass.offsetArrow) sb.append(magnetic ? " · amber arrow = true north" : " · amber arrow = magnetic north");
         double bx = bearingToX();
         if (!Double.isNaN(bx)) {
             sb.append("\nX: ").append(Math.round(show((float) bx)) % 360).append("° ").append(Geo.compass(show((float) bx)))
@@ -301,6 +355,10 @@ public final class CompassActivity extends Activity {
     final class CompassView extends View {
         float bearing;
         float needle = Float.NaN;
+        /** Declination offset arrow: where the other north lies on the bezel (magnetic when showing true, and back). */
+        boolean offsetArrow;
+        float offsetDeg;
+        String offsetLabel = "MN";
         java.util.List<Target> points = new java.util.ArrayList<Target>();
         private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Path path = new Path();
@@ -392,6 +450,26 @@ public final class CompassActivity extends Activity {
             path.lineTo(-r * 0.16f, -r * 0.34f);
             path.close();
             c.drawPath(path, p);
+            if (offsetArrow && Math.abs(offsetDeg) >= 0.05f) {
+                // The declination offset arrow, turned by the declination from the bezel's N.
+                c.save();
+                c.rotate(offsetDeg);
+                p.setStyle(Paint.Style.STROKE);
+                p.setStrokeWidth(2.5f * d);
+                p.setColor(0xffffb300);
+                path.reset();
+                path.moveTo(0, -r * 0.86f);
+                path.lineTo(r * 0.09f, -r * 0.7f);
+                path.moveTo(0, -r * 0.86f);
+                path.lineTo(-r * 0.09f, -r * 0.7f);
+                path.moveTo(0, -r * 0.86f);
+                path.lineTo(0, -r * 0.5f);
+                c.drawPath(path, p);
+                p.setStyle(Paint.Style.FILL);
+                p.setTextSize(12 * d);
+                c.drawText(offsetLabel, r * 0.06f, -r * 0.5f, p);
+                c.restore();
+            }
             c.restore();
 
             // Index line where the bearing is read, on the baseplate.

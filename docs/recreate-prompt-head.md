@@ -167,7 +167,7 @@ under the +, Save here), remove, asking "announce the change?"; Navigate (online
 map app; icon buttons (Me, All, POI, Sync with Resync, Points filter, Pad, Fake, Tiles; landscape: a column on the right); long-press to drop; camera photos drop a photo point. Dragging shows the +'s
 distance and bearing. A centre-on-me target button next to the corner compass; tapping the compass
 opens a full-screen Silva-style baseplate compass: travel arrow, red/white needle, a bezel dragged to
-set a bearing with an orienting arrow, "turn left/right N°", Set to my heading, Bearing to X, true /
+set a bearing with an orienting arrow, "turn left/right N°", the declination line at the top (GeomagneticField at the radio's last fix or last known position) and a declination offset arrow tick (amber MN/TN arrow on the bezel, prefs map compassOffsetArrow), Set to my heading, Bearing to X, true /
 magnetic with declination, and map points around the edge or as a list (tap one for a red arrow).
 
 **Chat and reports:** text, reports, map points, files and pictures for the channels on air; private

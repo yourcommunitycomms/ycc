@@ -14,8 +14,12 @@ import qr
 import setup
 
 DEFAULTS = {"on": True, "lan_broadcast": "auto", "client_port": 47400, "app_port": 47474, "public_host": "",
-            "remotes": []}
+            "remotes": [], "relay_mode": "direct", "cloud_server": "", "cloud_key": "", "cloud_name": "",
+            "cloud_tags": ""}
 _root = None
+MODES = (("direct", "Direct: remote people connect to this server through ports forwarded on your router"),
+         ("cloud", "Via cloud relay: this server joins your internet relay (VPS) as this site's gateway, no port forwarding"),
+         ("both", "Both: direct remote people and the cloud relay"))
 
 
 def init(root):
@@ -137,6 +141,7 @@ def tab(out, q, e, hidden, confirm, when, store_url):
                % (confirm("Save the bridge settings? It restarts with them."), hidden(a="bridge_save", tab="bridge"),
                   " checked" if cfg.get("on") else "", e(cfg.get("lan_broadcast", "auto")), int(cfg["client_port"]),
                   int(cfg["client_port"]), int(cfg["client_port"]), int(cfg["client_port"]), int(cfg["app_port"])))
+    _relay_mode_card(out, e, hidden, confirm, cfg, st)
     _gateway_card(out, q, e, hidden, confirm, cfg, st)
 
     live = {r["port"]: r for r in (st or {}).get("remotes", [])} if _alive(st) else {}
@@ -183,6 +188,61 @@ def tab(out, q, e, hidden, confirm, when, store_url):
                "<p class=muted>Use a row nobody else uses. Sheets come from this store's DRYAD file, defaults and phone backups.</p>"
                "<p><button>Add</button></p></form></div>"
                % (hidden(a="bridge_add", tab="bridge"), nxt, "".join(opts)))
+
+
+def _relay_mode_card(out, e, hidden, confirm, cfg, st):
+    """Relay mode: direct (port forwarding), via the cloud relay (as this site's gateway), or both."""
+    mode = cfg.get("relay_mode", "direct")
+    out.append("<div class=card id=relaymode><h2>Relay mode</h2><form method=post class=b%s>%s" %
+               (confirm("Save the relay mode? The bridge restarts with it."), hidden(a="bridge_mode", tab="bridge")))
+    for v, label in MODES:
+        out.append("<p><label><input type=radio name=relay_mode value=%s%s> %s</label></p>"
+                   % (v, " checked" if v == mode else "", e(label)))
+    out.append("<h3>Cloud relay</h3><table>"
+               "<tr><td>Relay address</td><td><input name=cloud_server value='%s' size=30 placeholder='relay.example.org:47100'></td></tr>"
+               "<tr><td>Site key</td><td><input name=cloud_key value='%s' size=34 autocomplete=off "
+               "style='font-family:ui-monospace,monospace'> <span class=muted>from the app's Relay admin screen: "
+               "Add a <b>site</b> (MANET), then its key</span></td></tr>"
+               "<tr><td>Or paste its setup code</td><td><input name=cloud_code size=34 placeholder='YCCSETUP1|{...}'> "
+               "<span class=muted>(the text of the site's QR code: fills both above)</span></td></tr>"
+               "<tr><td>Gateway name</td><td><input name=cloud_name value='%s' size=20 placeholder='LAN store'> "
+               "<span class=muted>shown to gateway phones on the WiFi</span></td></tr>"
+               "<tr><td>Channels shared</td><td><input name=cloud_tags value='%s' size=34 placeholder='(every channel heard here)'> "
+               "<span class=muted>channel tags, e.g. 230fba64 (each phone shows its tag on the channel line); empty = "
+               "every channel heard on the WiFi</span></td></tr></table>"
+               "<p class=muted>Radio packets stay end-to-end encrypted: neither this server nor the cloud relay can read "
+               "them. If a gateway phone on the WiFi has the same site key, only one of them sends (the one that started first).</p>"
+               "<p><button>Save</button></p></form>"
+               % (e(cfg.get("cloud_server", "")), e(cfg.get("cloud_key", "")), e(cfg.get("cloud_name", "")),
+                  e(cfg.get("cloud_tags", ""))))
+    c = (st or {}).get("cloud") if _alive(st) else None
+    if mode in ("cloud", "both"):
+        if c is None:
+            out.append("<p class=muted>Cloud relay: not connected%s.</p>" % (
+                "" if cfg.get("cloud_server") and cfg.get("cloud_key") else " (set the relay address and site key)"))
+        else:
+            state = ("<b>up</b>" if c.get("link_up") else "<span class=warn>down</span>")
+            out.append("<p>Cloud relay %s: %s, %s. Packets %d up, %d down. Channels going up: %s.</p>"
+                       % (e(c.get("server")), state, e(c.get("state")), c.get("frames_out", 0), c.get("frames_in", 0),
+                          e(", ".join(st.get("cloud_tags") or []) or "none heard yet")))
+            if c.get("sites"):
+                out.append("<table><tr><th>Site or person</th><th>Kind</th><th>State</th><th>Last heard</th></tr>%s</table>"
+                           % "".join("<tr><td>%s</td><td>%s</td><td>%s</td><td class=n>%s</td></tr>"
+                                     % (e(s["name"]), e(s["kind"]), e(s["state"]),
+                                        "-" if s["state"] == "never seen" else "%d s ago" % s["ago"]) for s in c["sites"]))
+    out.append("</div>")
+
+
+def _parse_setup_code(text):
+    """(relay address, key) from a phone setup code (YCCSETUP1|json with vps and vkey), or (None, None)."""
+    text = (text or "").strip()
+    if not text.startswith(setup.PREFIX):
+        return None, None
+    try:
+        d = json.loads(text[len(setup.PREFIX):])
+    except ValueError:
+        return None, None
+    return d.get("vps"), d.get("vkey")
 
 
 def _gateway_card(out, q, e, hidden, confirm, cfg, st):
@@ -270,6 +330,31 @@ def act(form, sheet_rows=None):
                    app_port=ap)
         save(cfg)
         return "Bridge settings saved; it restarts with them within a few seconds."
+    if a == "bridge_mode":
+        mode = form.get("relay_mode", "direct")
+        if mode not in ("direct", "cloud", "both"):
+            return "Unknown relay mode."
+        server, key = form.get("cloud_server", "").strip(), form.get("cloud_key", "").strip()
+        if form.get("cloud_code", "").strip():
+            s2, k2 = _parse_setup_code(form["cloud_code"])
+            if not s2 or not k2:
+                return "Not saved: that is not a setup code with a relay address and key."
+            server, key = s2, k2.strip()
+        if mode != "direct":
+            if ":" not in server:
+                return "Not saved: the relay address needs a port, e.g. relay.example.org:47100."
+            if len(key) < 16:
+                return "Not saved: the site key is the long key from the Relay admin screen."
+        tags = form.get("cloud_tags", "").replace(",", " ").split()
+        for w in tags:
+            try:
+                int(w, 16)
+            except ValueError:
+                return "Not saved: channel tags are 8 hex digits, e.g. 230fba64."
+        cfg.update(relay_mode=mode, cloud_server=server, cloud_key=key, cloud_name=form.get("cloud_name", "").strip()[:40],
+                   cloud_tags=" ".join(w.lower() for w in tags))
+        save(cfg)
+        return "Relay mode saved (%s); the bridge restarts with it within a few seconds." % mode
     if a == "bridge_add":
         label = form.get("label", "").strip()
         try:
