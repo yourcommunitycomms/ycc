@@ -930,6 +930,23 @@ public final class SettingsActivity extends Activity {
                 });
             }
         });
+        findViewById(R.id.tunnel_vps).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                TunnelSetup.vps(SettingsActivity.this, new Runnable() {
+                    @Override
+                    public void run() {
+                        renderTunnel();
+                    }
+                });
+            }
+        });
+        findViewById(R.id.tunnel_sites).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                TunnelSetup.sites(SettingsActivity.this);
+            }
+        });
         renderTunnel();
 
         // Secret: three quick taps on the callsign erase all app data (same as the lost-device wipe).
@@ -1216,7 +1233,95 @@ public final class SettingsActivity extends Activity {
     private static final int[] POWER_RADIOS = {R.id.power_normal, R.id.power_saver, R.id.power_ultra, R.id.power_offline};
 
     /** Settings > Power and sleep (the black screen settings there are set up with the others). */
+    private android.widget.Button missionBtn, maxSleepBtn;
+
     private void setUpPower() {
+        RadioGroup modes = (RadioGroup) findViewById(R.id.power_mode);
+        if (missionBtn == null && modes.getParent() instanceof android.view.ViewGroup) {
+            // Top of Power and sleep: Mission mode (life or death), then the max sleep time.
+            android.view.ViewGroup parent = (android.view.ViewGroup) modes.getParent();
+            int at = parent.indexOfChild(modes);
+            missionBtn = new android.widget.Button(this);
+            missionBtn.setAllCaps(false);
+            missionBtn.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    missionMenu();
+                }
+            });
+            parent.addView(missionBtn, at);
+            TextView note = new TextView(this);
+            note.setText("Mission mode runs this phone flat out (live voice, fast check-ins, GPS always on) and keeps "
+                    + "every phone on the channel awake until it ends. It turns itself off at the end.");
+            note.setTextSize(13);
+            parent.addView(note, at + 1);
+            maxSleepBtn = new android.widget.Button(this);
+            maxSleepBtn.setAllCaps(false);
+            maxSleepBtn.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    maxSleepMenu();
+                }
+            });
+            parent.addView(maxSleepBtn, at + 2);
+            CheckBox rest = new CheckBox(this);
+            rest.setText("Rest GPS when still (GPS off while the phone lies still with the screen off; the last position "
+                    + "keeps going out as \"still here\"; moving or the screen brings it back)");
+            rest.setChecked(prefs.gpsRest());
+            rest.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+                @Override
+                public void onCheckedChanged(CompoundButton bt, boolean on) {
+                    prefs.setGpsRest(on);
+                }
+            });
+            parent.addView(rest, at + 3);
+            CheckBox deep = new CheckBox(this);
+            deep.setText("Deep sleep (experimental): with the screen off and nothing said for 2 minutes, let the phone "
+                    + "sleep between packets and check in every minute. Saves the most battery, but some phones miss the "
+                    + "start of a call while asleep: test it on yours first.");
+            deep.setChecked(prefs.deepSleep());
+            deep.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+                @Override
+                public void onCheckedChanged(CompoundButton bt, boolean on) {
+                    prefs.setDeepSleep(on);
+                }
+            });
+            parent.addView(deep, at + 4);
+            CheckBox anchor = new CheckBox(this);
+            anchor.setText("I'm on mains power (anchor): this phone stays fully awake and keeps a copy of what is said, "
+                    + "so sleeping phones can catch up from it and sleep longer. Others are told if it is unplugged for "
+                    + "10 minutes. Set it by hand (a power bank is not mains).");
+            anchor.setChecked(prefs.anchor());
+            anchor.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+                @Override
+                public void onCheckedChanged(CompoundButton bt, boolean on) {
+                    PowerMode.setAnchor(SettingsActivity.this, on);
+                }
+            });
+            parent.addView(anchor, at + 5);
+            CheckBox burstNap = new CheckBox(this);
+            burstNap.setText("Burst sleep windows: when everyone heard on the channel is in burst mode and the screen is off, "
+                    + "wake together for 5 seconds in every 30 and sleep in between (bursts wait for the next window). "
+                    + "Live voice or the screen brings full listening back.");
+            burstNap.setChecked(prefs.burstSleep());
+            burstNap.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+                @Override
+                public void onCheckedChanged(CompoundButton bt, boolean on) {
+                    prefs.setBurstSleep(on);
+                }
+            });
+            parent.addView(burstNap, at + 6);
+            silenceBtn = new android.widget.Button(this);
+            silenceBtn.setAllCaps(false);
+            silenceBtn.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    silenceMenu();
+                }
+            });
+            parent.addView(silenceBtn, at + 7);
+        }
+        showMission();
         ((RadioGroup) findViewById(R.id.power_mode)).check(POWER_RADIOS[PowerMode.mode()]);
         ((RadioGroup) findViewById(R.id.power_mode)).setOnCheckedChangeListener(new RadioGroup.OnCheckedChangeListener() {
             @Override
@@ -1261,6 +1366,116 @@ public final class SettingsActivity extends Activity {
         });
         redTime(R.id.red_from, "Red light on at ", true);
         redTime(R.id.red_to, "Red light off at ", false);
+    }
+
+    private void showMission() {
+        if (missionBtn == null) return;
+        long mu = PowerMode.missionUntil();
+        if (mu > 0) {
+            missionBtn.setText("Mission mode ON until " + new java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
+                    .format(new java.util.Date(mu)) + " (tap to extend or end)");
+            missionBtn.getBackground().mutate().setColorFilter(0xffc62828, android.graphics.PorterDuff.Mode.SRC_ATOP);
+        } else {
+            missionBtn.setText("Mission mode (life or death)…");
+            missionBtn.getBackground().mutate().clearColorFilter();
+        }
+        maxSleepBtn.setText("Max sleep time: " + prefs.maxSleepMin() + " min (longest sleep between check-ins)");
+        if (silenceBtn != null) {
+            int per = prefs.silencePeriodMin();
+            silenceBtn.setText(per == 0 ? "Radio silence check-in windows: off"
+                    : "Radio silence: check-in windows about every " + (per >= 60 ? per / 60 + " h" : per + " min") + ", open "
+                    + prefs.silenceLenMin() + " min");
+        }
+    }
+
+    private android.widget.Button silenceBtn;
+    private static final int[] SILENCE_PERIODS = {0, 15, 30, 60, 120, 240};
+    private static final int[] SILENCE_LENGTHS = {3, 5, 10};
+
+    /** Radio silence windows: every phone on the channel must use the same settings. */
+    private void silenceMenu() {
+        String[] items = new String[SILENCE_PERIODS.length];
+        int cur = 0;
+        for (int i = 0; i < SILENCE_PERIODS.length; i++) {
+            int p = SILENCE_PERIODS[i];
+            items[i] = p == 0 ? "Off" : "About every " + (p >= 60 ? p / 60 + (p == 60 ? " hour" : " hours") : p + " minutes");
+            if (p == prefs.silencePeriodMin()) cur = i;
+        }
+        new android.app.AlertDialog.Builder(this)
+                .setTitle("Radio silence check-in windows")
+                .setSingleChoiceItems(items, cur, new android.content.DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(android.content.DialogInterface d, int w) {
+                        d.dismiss();
+                        prefs.setSilencePeriodMin(SILENCE_PERIODS[w]);
+                        if (SILENCE_PERIODS[w] == 0) {
+                            showMission();
+                            return;
+                        }
+                        String[] lens = new String[SILENCE_LENGTHS.length];
+                        for (int i = 0; i < lens.length; i++) lens[i] = "Open for " + SILENCE_LENGTHS[i] + " minutes";
+                        new android.app.AlertDialog.Builder(SettingsActivity.this)
+                                .setTitle("How long each window stays open")
+                                .setItems(lens, new android.content.DialogInterface.OnClickListener() {
+                                    @Override
+                                    public void onClick(android.content.DialogInterface d2, int w2) {
+                                        prefs.setSilenceLenMin(SILENCE_LENGTHS[w2]);
+                                        showMission();
+                                    }
+                                }).show();
+                    }
+                })
+                .setNegativeButton(android.R.string.cancel, null).show();
+        Toast.makeText(this, "Outside the windows nothing is sent at all (texts and recordings wait for the next window). "
+                + "The windows come from the channel key and the clock, so every phone on the channel must use the same "
+                + "setting. Mission mode breaks the silence.", Toast.LENGTH_LONG).show();
+    }
+
+    private static final int[] MISSION_HOURS = {1, 2, 4, 8, 12, 24};
+
+    private void missionMenu() {
+        final boolean on = PowerMode.missionUntil() > 0;
+        String[] items = new String[MISSION_HOURS.length + (on ? 1 : 0)];
+        for (int i = 0; i < MISSION_HOURS.length; i++)
+            items[i] = (on ? "Extend: " : "") + MISSION_HOURS[i] + (MISSION_HOURS[i] == 1 ? " hour" : " hours") + (on ? " from now" : "");
+        if (on) items[MISSION_HOURS.length] = "End Mission mode now";
+        new android.app.AlertDialog.Builder(this)
+                .setTitle(on ? "Mission mode" : "Mission mode for how long?")
+                .setItems(items, new android.content.DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(android.content.DialogInterface d, int w) {
+                        if (w >= MISSION_HOURS.length) PowerMode.setMission(SettingsActivity.this, 0);
+                        else PowerMode.setMission(SettingsActivity.this, System.currentTimeMillis() + MISSION_HOURS[w] * 3600000L);
+                        showMission();
+                        Toast.makeText(SettingsActivity.this, PowerMode.missionUntil() > 0
+                                ? "Mission mode on: the others on the channel stay awake too" : "Mission mode ended", Toast.LENGTH_LONG).show();
+                    }
+                })
+                .setNegativeButton(android.R.string.cancel, null).show();
+    }
+
+    private static final int[] SLEEP_MINUTES = {1, 2, 3, 5, 10, 15, 20, 30, 45, 60};
+
+    private void maxSleepMenu() {
+        String[] items = new String[SLEEP_MINUTES.length];
+        int cur = 0;
+        for (int i = 0; i < SLEEP_MINUTES.length; i++) {
+            items[i] = SLEEP_MINUTES[i] + " min";
+            if (SLEEP_MINUTES[i] == prefs.maxSleepMin()) cur = i;
+        }
+        new android.app.AlertDialog.Builder(this)
+                .setTitle("Max sleep time")
+                .setSingleChoiceItems(items, cur, new android.content.DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(android.content.DialogInterface d, int w) {
+                        PowerMode.setMaxSleep(SettingsActivity.this, SLEEP_MINUTES[w]);
+                        showMission();
+                        d.dismiss();
+                    }
+                })
+                .setNegativeButton(android.R.string.cancel, null).show();
+        Toast.makeText(this, "The longest Ultra low sleep. Others are told, so they don't count this phone as lost. "
+                + "On Android 6 to 11 a still phone may stretch sleeps under 9 minutes.", Toast.LENGTH_LONG).show();
     }
 
     private void redTime(int id, final String word, final boolean from) {
@@ -1372,7 +1587,14 @@ public final class SettingsActivity extends Activity {
     }
 
     private void renderTunnel() {
-        ((TextView) findViewById(R.id.tunnel_state)).setText(TunnelSetup.describe(this));
+        String d = TunnelSetup.describe(this);
+        org.communitycomms.app.net.Tunnel.Client vps = org.communitycomms.app.net.Tunnel.vps;
+        if (vps == null) d += "\n" + TunnelSetup.describeVps(this);
+        else if (vps.everUp() && !vps.linkUp() && !vps.standby) d = RadioService.RELAY_DOWN + " · " + d; // the red badge
+        android.text.SpannableString ss = new android.text.SpannableString(d);
+        int i = d.indexOf(RadioService.RELAY_DOWN);
+        if (i >= 0) ss.setSpan(new android.text.style.ForegroundColorSpan(0xffe53935), i, i + RadioService.RELAY_DOWN.length(), 0);
+        ((TextView) findViewById(R.id.tunnel_state)).setText(ss);
     }
 
     /**

@@ -35,6 +35,7 @@ public final class BurstVoice {
 
     /** Starts recording at the chosen quality (0 smallest … 3 clearest). Returns false if the mic is busy. */
     public static synchronized boolean start(Context c, int quality) {
+        org.communitycomms.app.PowerMode.lastVoiceMs = System.currentTimeMillis();
         stopQuietly();
         try {
             File dir = new File(c.getCacheDir(), "burst");
@@ -198,6 +199,7 @@ public final class BurstVoice {
      * phone not on air, no other burst playing. After waitClearSec it plays anyway. In order received.
      */
     public static void play(final File f) {
+        org.communitycomms.app.PowerMode.lastVoiceMs = System.currentTimeMillis();
         if (org.communitycomms.app.RadioEngine.cwMode) return; // CW mode: nothing plays but CW (it stays in Chat)
         if (!BurstCleanup.enabled) {
             queueToPlay(f);

@@ -1,0 +1,27 @@
+# YCC internet relay config: /etc/ycc-relay/relay.conf (readable by the ycc-relay user only).
+#
+# Every site (a MANET's gateway phone) and every single remote phone has its own key, and all of them
+# share one port. Open that port, UDP and TCP, in the server's firewall and the cloud provider's rules.
+port=47100
+
+# Users are added, renamed and removed from the app's Relay admin screen (a Specialised menu) and kept
+# here by the relay (holds every user's key: private).
+state=/var/lib/ycc-relay/users.conf
+
+# The admin key: made on the first start. Show it as text for a QR code (then make the QR on a PC, or
+# paste the key into the Relay admin screen):
+#   sudo -u ycc-relay java -jar /opt/ycc-relay/ycc-relay.jar --admin-text /etc/ycc-relay/relay.conf host:port
+# Replace it (the old one stops working; the running relay picks it up within 5 s):
+#   sudo -u ycc-relay java -jar /opt/ycc-relay/ycc-relay.jar --new-admin-key /etc/ycc-relay/relay.conf
+adminkey=/var/lib/ycc-relay/admin.key
+
+# Status page, loopback only (ssh -L 47199:127.0.0.1:47199 to the server, then open http://127.0.0.1:47199/)
+status=127.0.0.1:47199
+# Down/up and admin history, kept across restarts
+history=/var/lib/ycc-relay/history.log
+
+# Old style lines (one port and DRYAD row each) still work: each is taken into the users once, and its
+# own port is kept open too for phones set up before (legacyports=off closes those extra ports).
+#   kind|name|port|DRYAD row
+# site|HQ|47100|PUT-A-DRYAD-ROW-HERE
+# remote|ALPHA1|47101|PUT-ANOTHER-ROW-HERE

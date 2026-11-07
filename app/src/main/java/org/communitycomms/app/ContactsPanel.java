@@ -205,15 +205,25 @@ final class ContactsPanel {
         return a.getSharedPreferences("settings", Activity.MODE_PRIVATE).getBoolean("contactsCompact", false);
     }
 
+    /** A small grey "B" after the name when that person records voice as bursts (nothing for live). */
+    private static void burstBadge(SpannableStringBuilder sb, Contacts.Contact c, int at) {
+        if (c.voiceMode != 1) return;
+        sb.insert(at, " B");
+        sb.setSpan(new ForegroundColorSpan(0xff8a8a8a), at, at + 2, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        sb.setSpan(new RelativeSizeSpan(0.7f), at, at + 2, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+    }
+
     /** One line: "● NAME  Away · 87% · ↗ 1.2 km NE · 2m ago". */
     private CharSequence describeShort(Contacts.Contact c) {
         long now = System.currentTimeMillis();
         boolean on = c.online(now);
         SpannableStringBuilder sb = new SpannableStringBuilder();
         sb.append("● ").append(c.name);
-        String st = on ? Contacts.statusName(c.status) : "offline";
+        String plan = on ? "" : PlannedOffline.describe(a, c.name, c.lastSeenMs);
+        String st = on ? c.statusWords(now) : plan.length() > 0 ? plan : "offline";
         if (st.length() > 0) sb.append("  ").append(st);
         sb.setSpan(new ForegroundColorSpan(Contacts.statusColour(c.status, on)), 0, sb.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        burstBadge(sb, c, 2 + c.name.length());
         if (c.battery >= 0) sb.append(" · ").append(String.valueOf(c.battery)).append('%');
         if (c.hasFix() && me != null) {
             double brg = Geo.bearing(me.getLatitude(), me.getLongitude(), c.lat, c.lon);
@@ -232,14 +242,19 @@ final class ContactsPanel {
         SpannableStringBuilder sb = new SpannableStringBuilder();
         int start = sb.length();
         sb.append("● ").append(c.name);
-        String st = Contacts.statusName(c.status);
+        String st = c.statusWords(now);
         if (on && st.length() > 0) sb.append("  ").append(st);
-        if (!on) sb.append("  offline");
+        if (!on) {
+            String plan = PlannedOffline.describe(a, c.name, c.lastSeenMs);
+            sb.append("  ").append(plan.length() > 0 ? plan : "offline");
+        }
         sb.setSpan(new ForegroundColorSpan(Contacts.statusColour(c.status, on)), start, sb.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
         sb.setSpan(new RelativeSizeSpan(1.15f), start, sb.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        burstBadge(sb, c, start + 2 + c.name.length());
         sb.append("\nlast seen ").append(c.lastSeenMs == 0 ? "never" : Geo.age(now - c.lastSeenMs));
         if (c.heardOn.length() > 0) sb.append(" on ").append(c.heardOn);
         if (c.battery >= 0) sb.append(" · battery ").append(String.valueOf(c.battery)).append('%');
+        if (c.voiceMode == 1) sb.append(" · voice: burst");
         if (c.hasFix()) {
             sb.append('\n');
             if (me != null) {

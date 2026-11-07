@@ -110,7 +110,7 @@ below are what follows it.
 |---|---|---|
 | 1 | VOICE | txId(4) + one IMA-ADPCM frame (section 4) |
 | 2 | VOICE_END | txId(4). Sent 3 times when the talker releases PTT |
-| 3 | PRESENCE | status(1: 0 available, 1 away, 2 stealth, 3 gone: a goodbye, sent twice when the phone exits or leaves the channel, so receivers drop the person at once; older phones ignore it and time them out) battery(1: 0-100 %, 255 unknown) checkin(1: tens of seconds between presences when slower than normal, 0 = normal; older phones send none); every 5 s while on a channel and at once when the status changes. Old phones sent nothing here: treat a missing status as unknown |
+| 3 | PRESENCE | status(1: 0 available, 1 away, 2 stealth, 3 gone: a goodbye, sent twice when the phone exits or leaves the channel, so receivers drop the person at once; older phones ignore it and time them out) battery(1: 0-100 %, 255 unknown) checkin(1: time between presences when slower than normal: 0 = normal, 1-180 = tens of seconds, 181-210 = 31-60 minutes; older phones send none) flags(1, optional: bit0 burst voice, bit1 Mission mode, bit2 mains power anchor) missionLeft(2, only with bit1: whole minutes the Mission mode has left; receivers stay out of deep sleep while a mission phone heard in the last 10 minutes has time left); every 5 s while on a channel and at once when the status changes. Old phones sent nothing here: treat a missing status as unknown |
 | 4 | ACK | txId(4) targetSenderId(8) framesHeard(2) |
 | 20 | UP | report for leaders on a signed Public channel, not signed: R(33, compressed P-256) iv(16) AES-256-CTR(JSON) HMAC-SHA256[16]. Secret = x of k·Q; enc key SHA-256("enc"||secret), mac key SHA-256("mac"||secret). JSON k kind, id, c code, n name, t text, at, b, la, lo. Code = ID "-" base32(SHA-256("member|ID|"||d)[5]). Team keys starting YCCT1- use SHA-512(name||"|communitycomms/v1") instead of PBKDF2. |
 | 10 | CHAT | (text starting "[say] " is read aloud by receivers; "[task] " is a task; "[cal] " + JSON {id, t title, s start ms, d minutes, ad all day, n note, r remind, rm minutes before, v buzz, rev, del} is a team calendar entry (newest rev of an id from its first author wins; not shown in chat); "[up-ack:" confirms a report) | messages, reports, catch-up sync, private messages (section 6) |
@@ -332,8 +332,11 @@ locally on the remote's channels. Radio packets are carried unchanged, so they s
 encrypted with the channel keys; the relay never needs channel names.
 
 - **Key:** `ChannelCrypto("tunnel:" + DRYAD row)` (the same PBKDF2 derivation as a channel name).
-- **Frame:** `'U' 'T'` type(1) 0(1) session(8) seq(4) | AES-256-CTR body (IV = session(8) seq(4)
-  `'T'` 0 0 0) | HMAC-SHA256 over everything before it, truncated to 10 bytes.
+- **Frame:** `'U' 'T'` type(1) flags(1) session(8) seq(4) [key ID(4)] | AES-256-CTR body (IV =
+  session(8) seq(4) `'T'` 0 0 0) | HMAC-SHA256 over everything before it, truncated to 10 bytes.
+  flags 0 = no key ID (the direct tunnel). flags 1 = a 4-byte key ID follows the header, in the
+  clear but covered by the HMAC: the key's tag (`ChannelCrypto("tunnel:" + key).channelTag`, as a
+  channel tag). Internet relay clients send it so the relay finds the user's key at once.
   - type 1 **DATA**: body = one radio packet exactly as sent on the network.
   - type 2 **HELLO** (remote to relay, every 5 s): time ms(8) nonce(8) count(1) then count channel
     tags (4 each): every channel the remote talks or listens on.
@@ -353,3 +356,64 @@ encrypted with the channel keys; the relay never needs channel names.
   locally, and the relay phone's own, go to every remote whose last HELLO listed their channel tag
   (and that was heard in the last 30 s). The relay remembers (senderId, seq) of what it forwarded so
   a packet that comes back (broadcast loop-back, UDP and TCP copies) is not forwarded or played twice.
+### 11.1 Internet relay (VPS) and MANET gateways
+
+An optional always-on **internet relay** (`ycc-relay.jar`, built from the app's own Tunnel.java by
+relay/server/build-relay.ps1) is a relay with no local network: one key per **site** (a MANET,
+reached through its gateway phone) or per single **remote** phone, all on one port (UDP and TCP),
+forwarding by channel tag between everyone connected. Frames and rules are the ones above, plus:
+
+- **Many users on one port:** each frame's key ID picks the user (frames without one, from older
+  phones, are tried against each user's key). Each user has its own session and replay window.
+  Frames whose key ID is unknown, or that fail the HMAC, are dropped silently. Keys the relay makes
+  are 28 random letters A-Z; older DRYAD-row keys still work.
+
+- type 4 **SITES** (internet relay to every phone heard in the last 30 s, every 10 s and on any
+  change): count(1), then per entry kind(1: 1 site, 2 remote) state(1: 0 never seen, 1 up, 2 down)
+  seconds since last heard(4) nameLen(1) name (UTF-8).
+- type 5 **BEACON** (gateway to its own mesh, as a local broadcast on the radio port, every 5 s):
+  time ms(8) candidate-since ms(8) nonce(8) linkUp(1) nameLen(1) callsign. Sealed with the site's
+  tunnel key, so only phones holding the same row read it. A gateway that hears a beacon from an
+  earlier candidate (ties: lower nonce) stands by and sends nothing to the relay; it takes over after
+  20 s without beacons. A new gateway listens 7 s before connecting. Beacons more than 15 minutes
+  from the receiver's clock, or repeated within a session, are ignored.
+- **Heartbeat:** the existing HELLO / HELLO_ACK (every 5 s). 30 s with nothing heard = link down;
+  the first frame back = up again, with the outage length. Shorter gaps are logged by the relay only.
+- **Gateway bridging:** packets heard on the mesh on a channel marked "share to internet" (and the
+  gateway's own) go up as DATA; DATA from the relay goes onto the mesh and to the gateway itself.
+  (senderId, seq) is remembered both ways so nothing loops or is put on the mesh twice.
+- **Relay mode Both:** a remote phone runs the direct tunnel and the internet relay client at once;
+  a packet handed to the phone by one tunnel is dropped if the other already delivered it
+  (senderId, seq).
+- type 6 **BYE** (internet relay to a user its admin just removed): body = reason (UTF-8). The phone
+  stops sending, shows that it was removed, and needs a new setup code; the relay then drops the
+  user's session and TCP link.
+- Unknown frame types are ignored by older ends, so the direct relay and the LAN bridge are
+  unaffected.
+
+### 11.2 Internet relay admin
+
+The relay's users are managed from the admin's phone with the relay's **admin key** (40 random
+letters A-Z, made by the relay on first start and kept in a file only the relay's user can read).
+Admin QR code text: `YCCADMIN1|host:port|KEY`. Admin packets use the relay's own port, UDP first
+(the same packet up to 3 times, 2 s apart), then one try over TCP (2-byte length before each).
+
+- **Packet:** `'U' 'A'` 1 dir(1: 0 request, 1 answer) time ms(8) nonce(16) | AES-256-CTR body
+  (IV = the nonce) | HMAC-SHA256 over everything before it, truncated to 16 bytes.
+  Keys: SHA-512(`"ycc-admin/v1|"` + admin key) → AES key (bytes 0-31) and HMAC key (32-63).
+- **Request body:** UTF-8 lines, the command then its arguments. **Answer body:** the request's
+  nonce(16), then UTF-8 lines: `ok` or `err` (with a reason) or `clock` (with the relay's time),
+  then the result.
+- **Commands:** `ping`; `list` (one line per user: key ID in hex, kind, name, online 0/1, seconds
+  since last seen or -1, old port); `add` kind name (answer: key ID, the new key); `key` keyID
+  (answer: that user's key, for its setup code); `remove` keyID (cut off at once with a BYE);
+  `rename` keyID name; `rotate` (answer: a new admin key; the old one keeps working until the new
+  one is first used, which then replaces it).
+- **Replay protection:** a request is run only if its time is within 5 minutes of the relay's clock
+  and not before the relay started (otherwise the answer is `clock`, and the phone retries once with
+  the relay's time), and each nonce only once: a repeat gets the first answer again and is not run
+  again. An answer counts only if it carries the request's nonce and passes the HMAC.
+- Packets that fail the HMAC get no answer, so a wrong admin key looks like no relay at all.
+- **Setup code for a user** (a phone setup QR code, `YCCSETUP1|` JSON): `"vps"` relay address,
+  `"vkey"` the user's key, `"rmode":"vps"`, `"mrole"` `on` (a site's gateway, on the MANET) or `off`
+  (a remote).

@@ -104,6 +104,11 @@
         <activity android:name=".CalendarActivity" android:exported="false" />
         <activity android:name=".NoteActivity" android:exported="false" android:windowSoftInputMode="adjustResize" />
         <receiver android:name=".CalReminder" android:exported="false" />
+        <receiver android:name=".MediaButtons$Receiver" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MEDIA_BUTTON" />
+            </intent-filter>
+        </receiver>
         <activity android:name=".EnigmaActivity" android:exported="false" android:windowSoftInputMode="adjustResize" />
         <activity android:name=".ChallengeActivity" android:exported="false" />
         <activity android:name=".DryadExplainedActivity" android:exported="false" />
@@ -122,6 +127,7 @@
         <activity android:name=".ChannelArrayActivity" android:exported="false" />
         <activity android:name=".TasksActivity" android:exported="false" />
         <activity android:name=".ReportUpActivity" android:exported="false" />
+        <activity android:name=".RelayAdminActivity" android:exported="false" />
         <activity android:name=".ChannelsActivity" android:exported="false" />
         <activity
             android:name=".CallAlertActivity"

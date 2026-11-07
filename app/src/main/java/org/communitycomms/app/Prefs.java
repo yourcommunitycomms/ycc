@@ -432,9 +432,10 @@ public final class Prefs {
      * Specialised menus (Settings > Home screen and menus), all off by default and settable by a setup QR
      * code ("menus": the keys to turn on). Most people never need these.
      */
-    public static final String[] MENU_KEYS = {"array", "report", "tasks", "nomad", "vicemergency", "trains", "stopnames", "artc", "atak", "cast", "calendar"};
+    public static final String[] MENU_KEYS = {"array", "report", "tasks", "nomad", "vicemergency", "trains", "stopnames", "artc", "atak", "cast", "calendar", "relayadmin"};
     public static final String[] MENU_LABELS = {"Channel array", "Report to leaders", "Tasks and notes", "Project NOMAD",
-            "VicEmergency alerts on the map", "Melbourne trains preset (in Trains on the map)", "Load station names button (live trains)", "ARTC rail network on the map", "ATAK items in the map menu (map files, export, map source)", "Cast screen to TV (Google TV, Chromecast)", "Calendar and notes (mine, team, both; notes with pictures)"};
+            "VicEmergency alerts on the map", "Melbourne trains preset (in Trains on the map)", "Load station names button (live trains)", "ARTC rail network on the map", "ATAK items in the map menu (map files, export, map source)", "Cast screen to TV (Google TV, Chromecast)", "Calendar and notes (mine, team, both; notes with pictures)",
+            "Relay admin (add and remove the internet relay's sites and remotes; needs its admin key)"};
 
     public boolean menuOn(String key) {
         return sp.getBoolean("menu_" + key, false);
@@ -737,6 +738,78 @@ public final class Prefs {
         sp.edit().putInt("powerAskSaver", pct).commit();
     }
 
+    /** Longest sleep between check-ins (Ultra low and later Away / burst windows), 1 to 60 minutes. */
+    public int maxSleepMin() {
+        return Math.max(1, Math.min(60, sp.getInt("maxSleepMin", 5)));
+    }
+
+    public void setMaxSleepMin(int min) {
+        sp.edit().putInt("maxSleepMin", Math.max(1, Math.min(60, min))).commit();
+    }
+
+    /** Power and sleep: GPS rests while the phone lies still with the screen off (on by default). */
+    public boolean gpsRest() {
+        return sp.getBoolean("gpsRest", true);
+    }
+
+    public void setGpsRest(boolean on) {
+        sp.edit().putBoolean("gpsRest", on).commit();
+    }
+
+    /** Power and sleep > Deep sleep (experimental, off by default): CPU sleeps between packets when quiet. */
+    public boolean deepSleep() {
+        return sp.getBoolean("deepSleep", false);
+    }
+
+    public void setDeepSleep(boolean on) {
+        sp.edit().putBoolean("deepSleep", on).commit();
+    }
+
+    /** Power and sleep > I'm on mains power (anchor): stays awake and holds what sleepers miss. */
+    public boolean anchor() {
+        return sp.getBoolean("anchor", false);
+    }
+
+    public void setAnchor(boolean on) {
+        sp.edit().putBoolean("anchor", on).commit();
+    }
+
+    /** Radio silence check-in windows: about every N minutes (0 = off). */
+    public int silencePeriodMin() {
+        return sp.getInt("silencePeriodMin", 0);
+    }
+
+    public void setSilencePeriodMin(int m) {
+        sp.edit().putInt("silencePeriodMin", m).commit();
+    }
+
+    /** How long each check-in window stays open, minutes. */
+    public int silenceLenMin() {
+        return Math.max(2, Math.min(30, sp.getInt("silenceLenMin", 5)));
+    }
+
+    public void setSilenceLenMin(int m) {
+        sp.edit().putInt("silenceLenMin", m).commit();
+    }
+
+    /** Burst sleep windows when everyone on the channel is in burst mode (on by default). */
+    public boolean burstSleep() {
+        return sp.getBoolean("burstSleep", true);
+    }
+
+    public void setBurstSleep(boolean on) {
+        sp.edit().putBoolean("burstSleep", on).commit();
+    }
+
+    /** Mission mode: on until this time (ms), 0 = off. */
+    public long missionUntil() {
+        return sp.getLong("missionUntil", 0);
+    }
+
+    public void setMissionUntil(long ms) {
+        sp.edit().putLong("missionUntil", ms).commit();
+    }
+
     /** Battery percent at which to ask about Ultra low; 0 = never. */
     public int powerAskUltra() {
         return sp.getInt("powerAskUltra", 10);
@@ -957,8 +1030,18 @@ public final class Prefs {
 
     // ---- burst voice (record, then send as a file) ----
 
+    /** The Settings tick (new installs start with it on: the setup wizard writes it). */
     public boolean burstVoice() {
         return sp.getBoolean("burstVoice", false);
+    }
+
+    /** Whether PTT records bursts now: the tick, except while this phone is in Mission mode (live voice). */
+    public boolean burstNow() {
+        return burstVoice() && !PowerMode.missionMine();
+    }
+
+    public boolean hasBurstChoice() {
+        return sp.contains("burstVoice");
     }
 
     public void setBurstVoice(boolean on) {
@@ -1032,6 +1115,73 @@ public final class Prefs {
 
     public void setTunnelRelayOn(boolean on) {
         sp.edit().putBoolean("tunnelRelayOn", on).commit();
+    }
+
+    // ---- internet relay (VPS): Settings > Internet relay ----
+
+    /** "direct" (the tunnel above only), "vps" (internet relay only) or "both" (send both ways, repeats dropped). */
+    public String relayMode() {
+        return sp.getString("relayMode", "direct");
+    }
+
+    /** "host:port" of the internet relay given to this phone or site. */
+    public String vpsServer() {
+        return sp.getString("vpsServer", "");
+    }
+
+    /** The DRYAD row text that keys this phone's (or this site's) port on the internet relay. */
+    public String vpsKey() {
+        return sp.getString("vpsKey", "");
+    }
+
+    public void setVps(String mode, String server, String key) {
+        sp.edit().putString("relayMode", mode).putString("vpsServer", server == null ? "" : server.trim())
+                .putString("vpsKey", key == null ? "" : key).commit();
+    }
+
+    /** Internet relay address and key set, and the relay mode uses it. */
+    public boolean vpsSetUp() {
+        return !"direct".equals(relayMode()) && vpsServer().length() > 0 && vpsKey().length() > 0;
+    }
+
+    /** "auto" (by the WiFi address and manetRange), "on" (gateway) or "off" (remote). */
+    public String manetRole() {
+        return sp.getString("manetRole", "auto");
+    }
+
+    /** The MANET's address range for auto-detect; OpenMANET nodes use 10.41.x.x. */
+    public String manetRange() {
+        return sp.getString("manetRange", DEFAULT_MANET_RANGE);
+    }
+
+    public static final String DEFAULT_MANET_RANGE = "10.41.0.0/16";
+
+    public void setManet(String role, String range) {
+        sp.edit().putString("manetRole", role).putString("manetRange", range == null || range.trim().length() == 0
+                ? DEFAULT_MANET_RANGE : range.trim()).commit();
+    }
+
+    /** Gateway: this channel is shared to the internet relay (off unless chosen). */
+    public boolean shareSlot(int slot) {
+        return sp.getBoolean("shareSlot" + slot, false);
+    }
+
+    public void setShareSlot(int slot, boolean on) {
+        sp.edit().putBoolean("shareSlot" + slot, on).commit();
+    }
+
+    /** Gateway: a tone with the "link down" notification (silent by default). */
+    public boolean linkTone() {
+        return sp.getBoolean("linkTone", false);
+    }
+
+    /** Gateway: say "Link down" / "Link restored" with text as voice. */
+    public boolean linkSpeak() {
+        return sp.getBoolean("linkSpeak", false);
+    }
+
+    public void setLinkAlerts(boolean tone, boolean speak) {
+        sp.edit().putBoolean("linkTone", tone).putBoolean("linkSpeak", speak).commit();
     }
 
     /** Was on air when the app last stopped (false after tapping Leave). */

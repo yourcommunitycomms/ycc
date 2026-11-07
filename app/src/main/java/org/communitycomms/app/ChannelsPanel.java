@@ -106,7 +106,7 @@ final class ChannelsPanel {
                 .append(prefs.tunnelSetUp()).append(prefs.tunnelClientOn());
         for (int s : Prefs.order()) {
             k.append('|').append(prefs.shown(s)).append(prefs.channel(s).length()).append(prefs.channelNote(s).hashCode())
-                    .append(prefs.channelMuted(s)).append(prefs.tunnelSlot(s));
+                    .append(prefs.channelMuted(s)).append(prefs.tunnelSlot(s)).append(prefs.shareSlot(s)).append(prefs.vpsSetUp());
         }
         if (k.toString().equals(shown)) return;
         shown = k.toString();
@@ -186,6 +186,7 @@ final class ChannelsPanel {
         note.setText("Eye: show that channel's button on the home screen (room for " + Prefs.HOME_MAX
                 + "). Key: DRYAD sheets. Note: kept on this phone; it moves with the channel when swapped. "
                 + (prefs.tunnelSetUp() && !prefs.tunnelClientOn() ? "Tunnel (arch): this channel also goes through the internet relay. " : "")
+                + (prefs.vpsSetUp() ? "Globe: share this channel to the internet relay (used when this phone is the MANET's gateway). " : "")
                 + "Three dots: name, swap with A or B, mute.");
         box.addView(note);
     }
@@ -272,6 +273,21 @@ final class ChannelsPanel {
                             if (rs != null) rs.applyTunnelNow();
                             Toast.makeText(a, !tun ? MainActivity.label(slot) + " now also goes through the tunnel"
                                     : MainActivity.label(slot) + " stays off the tunnel", Toast.LENGTH_SHORT).show();
+                            changed();
+                        }
+                    }));
+        }
+        if (prefs.vpsSetUp() && slot != Prefs.SLOT_OPENMANET) {
+            final boolean sh = prefs.shareSlot(slot);
+            top.addView(icon(sh ? R.drawable.ic_share_net : R.drawable.ic_share_net_off,
+                    sh ? "Shared to the internet relay" : "Not shared to the internet relay", new Runnable() {
+                        @Override
+                        public void run() {
+                            prefs.setShareSlot(slot, !sh);
+                            RadioService rs = RadioService.instance();
+                            if (rs != null) rs.applyTunnelNow();
+                            Toast.makeText(a, !sh ? MainActivity.label(slot) + " is now shared to the internet relay (when this phone is the MANET's gateway)"
+                                    : MainActivity.label(slot) + " is no longer shared to the internet relay", Toast.LENGTH_SHORT).show();
                             changed();
                         }
                     }));

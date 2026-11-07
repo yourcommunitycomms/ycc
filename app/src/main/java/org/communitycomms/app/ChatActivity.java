@@ -678,6 +678,10 @@ public final class ChatActivity extends Activity {
                 body.setTextSize(13);
             } else if (m.body != null && m.body.contains("\n" + MapActivity.ROUTE_TAG)) {
                 body.setText(m.body.substring(0, m.body.indexOf("\n" + MapActivity.ROUTE_TAG))); // the line the app reads is hidden
+            } else if (PlannedOffline.is(m.body)) {
+                body.setText(PlannedOffline.text(m.body));
+            } else if (m.body != null && m.body.contains(RadioService.OVERDUE_TAG)) {
+                body.setText(m.body.substring(0, m.body.indexOf(RadioService.OVERDUE_TAG)));
             } else {
                 body.setText(m.body);
                 if (m.privateTo.length() > 0) body.setTextColor(0xffffcc80);

@@ -143,7 +143,7 @@
             <RadioGroup android:id="@+id/power_mode" android:layout_width="match_parent" android:layout_height="wrap_content">
                 <RadioButton android:id="@+id/power_normal" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Normal" />
                 <RadioButton android:id="@+id/power_saver" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Power saver: check-ins and GPS every 30 seconds, no background data, screen sleeps normally. Live voice still works." />
-                <RadioButton android:id="@+id/power_ultra" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Ultra low: with the screen off the radio sleeps and wakes every 4 minutes to check in. Live voice is missed; a sound plays for missed messages." />
+                <RadioButton android:id="@+id/power_ultra" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Ultra low: with the screen off the radio sleeps and wakes to check in (every 5 minutes, or the max sleep time). Live voice is missed; a sound plays for missed messages." />
                 <RadioButton android:id="@+id/power_offline" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Offline: for no network. No remote prompts, sync or tunnel. With nobody around and the screen off, GPS and check-ins rest." />
             </RadioGroup>
             <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="After PTT, Power saver and Ultra low work as normal for 3 minutes so a reply is heard." android:textSize="12sp" />
@@ -196,6 +196,8 @@
             <TextView android:id="@+id/tunnel_state" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="12sp" />
             <Button android:id="@+id/tunnel_client" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/tunnel_client" />
             <Button android:id="@+id/tunnel_relay" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/tunnel_relay" />
+            <Button android:id="@+id/tunnel_vps" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/tunnel_vps" />
+            <Button android:id="@+id/tunnel_sites" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/tunnel_sites" />
             <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/tunnel_note" android:textSize="12sp" />
             <TextView style="@style/Label" android:text="LAN storage and config backups" />
             <Button android:id="@+id/lan_storage" android:layout_width="match_parent" android:layout_height="wrap_content" android:textAllCaps="false" />

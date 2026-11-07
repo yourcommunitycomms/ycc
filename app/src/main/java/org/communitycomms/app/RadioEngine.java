@@ -330,6 +330,12 @@ public final class RadioEngine {
         public int battery = -1;
         /** From their presence: how often they check in when slower than normal (a power mode), or 0. */
         public long checkInMs;
+        /** From their presence: 1 burst voice, 0 live, -1 their app is too old to say. */
+        public int voiceMode = -1;
+        /** From their presence: on mains power, holding what sleeping phones miss. */
+        public boolean anchor;
+        /** From their presence: Mission mode on until this time (this phone's clock), or 0. */
+        public long missionUntilMs;
 
         Station(long id) {
             this.id = id;
@@ -704,7 +710,7 @@ public final class RadioEngine {
             toneLeft = startTone ? TONE_FRAMES : 0;
             tonePhase = 0;
             micToAir = true;
-            PowerMode.pttUsed();
+            PowerMode.pttUsed(); PowerMode.lastVoiceMs = System.currentTimeMillis();
             capture.start();
             listener.onTransmitChanged(true);
         } else {
@@ -1078,11 +1084,26 @@ public final class RadioEngine {
      */
     private long lastPresenceMs;
 
+    /** This phone records voice as bursts (shown to others as a small "B"). Kept up to date by RadioService. */
+    public static volatile boolean myBurst;
+
+    /**
+     * After status, battery and check-in: flags(1: bit0 burst voice, bit1 Mission mode), then with Mission
+     * mode the minutes it has left (2). Older apps read only the first three bytes.
+     */
     private void sendPresence() {
-        byte[] p = namePayload(3);
-        p[p.length - 3] = (byte) myStatus;
-        p[p.length - 2] = (byte) (myBattery < 0 || myBattery > 100 ? 255 : myBattery);
-        p[p.length - 1] = (byte) PowerMode.checkInByte();
+        long mu = PowerMode.missionUntil();
+        int left = mu > 0 ? (int) Math.min(0xffff, Math.max(1, (mu - System.currentTimeMillis() + 59999) / 60000)) : 0;
+        byte[] p = namePayload(mu > 0 ? 6 : 4);
+        int o = p.length - (mu > 0 ? 6 : 4);
+        p[o] = (byte) myStatus;
+        p[o + 1] = (byte) (myBattery < 0 || myBattery > 100 ? 255 : myBattery);
+        p[o + 2] = (byte) PowerMode.checkInByte();
+        p[o + 3] = (byte) ((myBurst ? 1 : 0) | (mu > 0 ? 2 : 0) | (PowerMode.anchor ? 4 : 0));
+        if (mu > 0) {
+            p[o + 4] = (byte) (left >>> 8);
+            p[o + 5] = (byte) left;
+        }
         send(Packet.TYPE_PRESENCE, p, p.length);
     }
 
@@ -1315,11 +1336,24 @@ public final class RadioEngine {
                 if (st != s.status) changed = true;
                 s.status = st;
                 s.battery = bat > 100 ? -1 : bat;
-                s.checkInMs = p.payload.length - off >= 3 ? (p.payload[off + 2] & 0xff) * 10000L : 0;
+                s.checkInMs = p.payload.length - off >= 3 ? PowerMode.decodeCheckIn(p.payload[off + 2] & 0xff) : 0;
+                if (p.payload.length - off >= 4) {
+                    int fl = p.payload[off + 3] & 0xff;
+                    int vm = fl & 1;
+                    s.anchor = (fl & 4) != 0;
+                    if (vm != s.voiceMode) changed = true;
+                    s.voiceMode = vm;
+                    long mu = 0;
+                    if ((fl & 2) != 0 && p.payload.length - off >= 6) {
+                        mu = now + (((p.payload[off + 4] & 0xff) << 8) | (p.payload[off + 5] & 0xff)) * 60000L;
+                    }
+                    if ((mu > 0) != (s.missionUntilMs > now)) changed = true;
+                    s.missionUntilMs = mu;
+                }
             } else if (p.type == Packet.TYPE_VOICE && p.payload.length - off >= 7) {
                 changed |= !s.isTalking(now);
                 s.lastVoiceMs = now;
-                lastRxVoiceMs = now;
+                lastRxVoiceMs = now; PowerMode.lastVoiceMs = now;
                 int tx = getTx(p.payload, off);
                 if (!s.rxHasTx || tx != s.rxTx) {
                     s.rxHasTx = true;

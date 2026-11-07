@@ -1556,7 +1556,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
     private static final int MENU_DRYAD = 1, MENU_PIGPEN = 2, MENU_CHANNEL_QR = 3, MENU_SCAN = 4, MENU_FILES = 5,
             MENU_OPENMANET = 6, MENU_BLACKOUT = 7, MENU_RED = 8, MENU_SETTINGS = 9, MENU_CHAT = 10, MENU_AUDIO = 11, MENU_ABOUT = 12, MENU_EXIT = 13,
             MENU_STREAMS = 14, MENU_INTERCOM = 15, MENU_VIDEOS = 16, MENU_TV = 17, MENU_GATEWAY = 18,
-            MENU_HOME_TOGGLE = 19, MENU_TOP_CHAT = 20, MENU_TOP_BLACK = 21, MENU_NOMAD = 22, MENU_TV_MENU = 23, MENU_TASKS = 24, MENU_ARRAY = 25, MENU_REPORT_UP = 26, MENU_CAST = 27, MENU_CALENDAR = 28;
+            MENU_HOME_TOGGLE = 19, MENU_TOP_CHAT = 20, MENU_TOP_BLACK = 21, MENU_NOMAD = 22, MENU_TV_MENU = 23, MENU_TASKS = 24, MENU_ARRAY = 25, MENU_REPORT_UP = 26, MENU_CAST = 27, MENU_CALENDAR = 28, MENU_RELAY_ADMIN = 29;
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
@@ -1594,6 +1594,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         menu.add(0, MENU_NOMAD, 5, "Project NOMAD (local AI, library)");
         menu.add(0, MENU_CAST, 5, "Cast screen to TV");
         menu.add(0, MENU_CALENDAR, 2, "Calendar and notes");
+        menu.add(0, MENU_RELAY_ADMIN, 6, "Relay admin");
         menu.add(0, MENU_GATEWAY, 6, "OpenMANET internet gateway");
         menu.add(0, MENU_EXIT, 10, "Exit (go off air and close)");
         return true;
@@ -1661,8 +1662,8 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         MenuItem st = menu.findItem(MENU_STREAMS);
         if (st != null) st.setVisible(prefs.streamsEnabled()); // Settings: Internet audio
         // Specialised menus: only when ticked (Settings > Home screen and menus, or a setup QR code).
-        int[] special = {MENU_ARRAY, MENU_REPORT_UP, MENU_TASKS, MENU_NOMAD, MENU_CAST, MENU_CALENDAR};
-        String[] keys = {"array", "report", "tasks", "nomad", "cast", "calendar"};
+        int[] special = {MENU_ARRAY, MENU_REPORT_UP, MENU_TASKS, MENU_NOMAD, MENU_CAST, MENU_CALENDAR, MENU_RELAY_ADMIN};
+        String[] keys = {"array", "report", "tasks", "nomad", "cast", "calendar", "relayadmin"};
         for (int i = 0; i < special.length; i++) {
             MenuItem it = menu.findItem(special[i]);
             if (it != null && !prefs.menuOn(keys[i])) it.setVisible(false);
@@ -1700,18 +1701,100 @@ public final class MainActivity extends Activity implements RadioService.Ui {
 
     /** Exit: off air, background service stopped, every screen closed. Rejoin on start still applies next time. */
     private void confirmExit() {
+        RadioService rs = RadioService.instance();
+        if (rs != null && rs.engine() != null && Contacts.get(this).onlineCount() > 0 && !prefs.radioSilent()) {
+            exitWithNotice(rs);
+            return;
+        }
+        exitPlain();
+    }
+
+    private void doExit() {
+        RadioService s = RadioService.instance();
+        boolean onAir = s != null && (s.engine() != null || s.compat() != null);
+        prefs.setExitSlots(onAir ? s.slotsOnAir() : "");
+        startupRejoinDone = false; // the next open asks, even if Android keeps this process
+        if (s != null) s.stopEverything();
+        finishAffinity();
+    }
+
+    /** Others are on the channel: tell them this is planned (and when back), so nobody worries. */
+    private void exitWithNotice(final RadioService rs) {
+        float d = getResources().getDisplayMetrics().density;
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        int p = (int) (16 * d);
+        box.setPadding(p, (int) (8 * d), p, 0);
+        TextView t = new TextView(this);
+        t.setText("Others are on the channel. Let them know you are going offline, so nobody gets a lost contact "
+                + "warning for you?");
+        box.addView(t);
+        final AlertDialog[] dlg = new AlertDialog[1];
+        Button planned = new Button(this);
+        planned.setAllCaps(false);
+        planned.setText("Going offline as planned");
+        planned.setTextSize(18);
+        planned.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                dlg[0].dismiss();
+                sayOfflineAndExit(rs, 0);
+            }
+        });
+        LinearLayout.LayoutParams big = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, (int) (64 * d));
+        big.topMargin = (int) (10 * d);
+        box.addView(planned, big);
+        TextView back = new TextView(this);
+        back.setText("Or say when you will be back:");
+        back.setPadding(0, (int) (10 * d), 0, 0);
+        box.addView(back);
+        LinearLayout row = new LinearLayout(this);
+        for (final int h : new int[]{1, 4, 8, 12, 24}) {
+            Button b = new Button(this);
+            b.setAllCaps(false);
+            b.setText(h + " h");
+            b.setTextSize(14);
+            b.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    dlg[0].dismiss();
+                    sayOfflineAndExit(rs, System.currentTimeMillis() + h * 3600000L);
+                }
+            });
+            row.addView(b, new LinearLayout.LayoutParams(0, (int) (48 * d), 1));
+        }
+        box.addView(row);
+        dlg[0] = new AlertDialog.Builder(this).setTitle("Exit").setView(box)
+                .setNeutralButton("Exit without notice", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface di, int w) {
+                        doExit();
+                    }
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    private void sayOfflineAndExit(RadioService rs, long backAt) {
+        boolean sent = rs.sayGoingOffline(backAt);
+        Toast.makeText(this, sent ? "Told the channel you are offline as planned" : "Could not tell the channel", Toast.LENGTH_SHORT).show();
+        // A moment for the message to go out (it is repeated for loss) before going off air.
+        handler.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                doExit();
+            }
+        }, sent ? 1500 : 0);
+    }
+
+    private void exitPlain() {
         new AlertDialog.Builder(this)
                 .setTitle("Exit")
                 .setMessage("Go off air and close the app? Nothing will be heard or received until it is opened again.")
                 .setPositiveButton("Exit", new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface d, int w) {
-                        RadioService s = RadioService.instance();
-                        boolean onAir = s != null && (s.engine() != null || s.compat() != null);
-                        prefs.setExitSlots(onAir ? s.slotsOnAir() : "");
-                        startupRejoinDone = false; // the next open asks, even if Android keeps this process
-                        if (s != null) s.stopEverything();
-                        finishAffinity();
+                        doExit();
                     }
                 })
                 .setNegativeButton("Cancel", null)
@@ -1941,6 +2024,8 @@ public final class MainActivity extends Activity implements RadioService.Ui {
             }, null);
         } else if (id == MENU_CALENDAR) {
             startActivity(new Intent(this, CalendarActivity.class));
+        } else if (id == MENU_RELAY_ADMIN) {
+            startActivity(new Intent(this, RelayAdminActivity.class));
         } else if (id == MENU_CAST) {
             castScreen(this);
         } else if (id == MENU_TASKS) {
@@ -2116,13 +2201,41 @@ public final class MainActivity extends Activity implements RadioService.Ui {
                         String n = name.getText().toString().trim();
                         if (n.length() > 0) prefs.setCallsign(n);
                         org.communitycomms.app.geo.Geo.setImperial(MainActivity.this, units.getCheckedRadioButtonId() == 2);
-                        wizardQuickSet();
+                        wizardBurst();
                     }
                 })
                 .show();
     }
 
     /** A phone setup QR code (LAN storage admin page, or another phone) sets everything at once. */
+    /** New installs start in burst voice; this page says so and offers live voice instead. */
+    private void wizardBurst() {
+        if (!prefs.hasBurstChoice()) prefs.setBurstVoice(true);
+        new android.app.AlertDialog.Builder(this)
+                .setTitle("Voice: burst mode")
+                .setMessage("Each press of PTT is recorded, squeezed small and sent as one clip when you let go. It "
+                        + "arrives a moment later than live voice, but gets through more reliably, saves battery and "
+                        + "works with the power saving and silence features.\n\nLive voice is heard as you speak. "
+                        + "You can change this any time in Settings > Audio. The OpenMANET / ATAK talk group always "
+                        + "uses live voice.")
+                .setCancelable(false)
+                .setPositiveButton("Keep burst (recommended)", new android.content.DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(android.content.DialogInterface d, int w) {
+                        prefs.setBurstVoice(true);
+                        wizardQuickSet();
+                    }
+                })
+                .setNegativeButton("Use live voice", new android.content.DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(android.content.DialogInterface d, int w) {
+                        prefs.setBurstVoice(false);
+                        wizardQuickSet();
+                    }
+                })
+                .show();
+    }
+
     private void wizardQuickSet() {
         new android.app.AlertDialog.Builder(this)
                 .setTitle("Quick set from a QR code")
@@ -2703,8 +2816,11 @@ public final class MainActivity extends Activity implements RadioService.Ui {
                     Toast.LENGTH_LONG).show();
             return;
         }
-        boolean offline = PowerMode.offline();
-        if (prefs.burstVoice() || offline) {
+        // Between radio silence windows or during a burst nap, what is said is kept and sent at the next window.
+        boolean offline = PowerMode.offline() || PowerMode.outsideWindow || PowerMode.burstNapping;
+        CompatVoice cv = service == null ? null : service.compat();
+        // Burst never applies to the OpenMANET / ATAK talk group (it keeps its own live audio).
+        if (cv == null && (prefs.burstNow() || offline)) {
             // Burst mode: record while held, send the recording as one file on release. Offline: keep it to send later.
             if (on && !org.communitycomms.app.audio.BurstVoice.recording()) {
                 if (org.communitycomms.app.audio.BurstVoice.start(this, prefs.burstQuality())) {
@@ -2931,8 +3047,9 @@ public final class MainActivity extends Activity implements RadioService.Ui {
             Toast.makeText(this, "CW mode is on: PTT and voice are off.", Toast.LENGTH_SHORT).show();
             return;
         }
-        if (prefs.burstVoice() || PowerMode.offline() || e.voxOn() || (service != null && service.compat() != null)) {
-            Toast.makeText(this, "One-touch PTT on a listened channel works with normal push to talk (not burst, offline or VOX)",
+        // Burst mode: a pinned PTT still talks live (bursts go only to the channel on air).
+        if (PowerMode.offline() || e.voxOn() || (service != null && service.compat() != null)) {
+            Toast.makeText(this, "One-touch PTT on a listened channel works with push to talk (not offline or VOX)",
                     Toast.LENGTH_LONG).show();
             return;
         }
@@ -3079,6 +3196,42 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         joined = isJoined;
         lastStatus = s;
         status.setText(label(slot) + " · " + s);
+        final boolean missionBanner = s.startsWith("MISSION MODE") || s.startsWith("Mission mode on by");
+        status.setClickable(missionBanner);
+        status.setOnClickListener(!missionBanner ? null : new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                String txt = lastStatus.contains(" · ") ? lastStatus.substring(0, lastStatus.indexOf(" · ")) : lastStatus;
+                new AlertDialog.Builder(MainActivity.this).setTitle("Mission mode").setMessage(txt + "\n\nHide this banner? "
+                        + "Mission mode carries on; a new or extended mission shows it again.")
+                        .setPositiveButton("Acknowledge and hide", new DialogInterface.OnClickListener() {
+                            @Override
+                            public void onClick(DialogInterface d, int w) {
+                                if (service != null) service.ackMission();
+                            }
+                        })
+                        .setNegativeButton("Keep showing", null).show();
+            }
+        });
+        if (missionBanner) status.setText(label(slot) + " · " + s + "  (tap to hide)");
+        int down = s.indexOf(RadioService.RELAY_DOWN);
+        if (down >= 0) {
+            // Internet relay link down (gateway or remote): a red badge; tap for the site list.
+            String txt = status.getText().toString();
+            int i = txt.indexOf(RadioService.RELAY_DOWN);
+            android.text.SpannableString ss = new android.text.SpannableString(txt);
+            ss.setSpan(new android.text.style.ForegroundColorSpan(0xffe53935), i, i + RadioService.RELAY_DOWN.length(), 0);
+            status.setText(ss);
+            if (!missionBanner) {
+                status.setClickable(true);
+                status.setOnClickListener(new View.OnClickListener() {
+                    @Override
+                    public void onClick(View v) {
+                        TunnelSetup.sites(MainActivity.this);
+                    }
+                });
+            }
+        }
         renderJoinButton();
         renderBroadcast();
         ptt.setEnabled(isJoined);
@@ -3371,7 +3524,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
 
     /** Available / Away (voice heard is also saved to Chat) / Stealth (silent, saved and buzzes). */
     private void chooseStatus() {
-        final String[] names = {"Available", "Away: voice heard is also saved in Chat for playback",
+        final String[] names = {"Available", "Away: with the screen off the phone sleeps and checks in by itself; voice heard is also saved in Chat",
                 "Stealth: no sound, no ringing; saved in Chat" + (prefs.stealthVibrate() ? ", buzzes" : "")};
         int cur = prefs.status();
         new android.app.AlertDialog.Builder(this)

@@ -36,6 +36,20 @@ public final class Contacts {
         public String address = "";
         /** How often they check in when in a power mode, or 0 (not saved). */
         public long checkInMs;
+        /** Voice mode from their presence: 1 burst, 0 live, -1 unknown (not saved). */
+        public int voiceMode = -1;
+        /** On mains power, holding what sleepers miss (not saved). */
+        public boolean anchor;
+
+        /** "Away, auto check-in in about 6 min": the phone checks in by itself, which is not the person coming back. */
+        public String statusWords(long now) {
+            String st = statusName(status);
+            if (status == RadioEngine.STATUS_AWAY && checkInMs >= 60000) {
+                long left = Math.max(60000, lastSeenMs + checkInMs - now);
+                st = "Away, auto check-in in about " + Math.round(left / 60000.0) + " min";
+            }
+            return st + (anchor ? " (anchor)" : "");
+        }
 
         /** lastSeenMs when they said goodbye (Exit): offline until heard again. Not saved. */
         public long goneMs = -1;
@@ -138,6 +152,7 @@ public final class Contacts {
                 byName.put(s.name, c);
                 dirty = true;
             }
+            if (s.lastSeenMs >= c.lastSeenMs) c.checkInMs = s.checkInMs; // a slower check-in is not "offline"
             if (s.lastSeenMs > c.lastSeenMs) {
                 c.lastSeenMs = s.lastSeenMs;
                 c.heardOn = on;
@@ -153,6 +168,8 @@ public final class Contacts {
                 c.battery = s.battery;
                 dirty = true;
             }
+            if (s.voiceMode >= 0) c.voiceMode = s.voiceMode;
+            if (s.lastSeenMs >= c.lastSeenMs) c.anchor = s.anchor;
             if (!Double.isNaN(s.lat) && s.fixTimeMs > c.fixTimeMs) {
                 c.lat = s.lat;
                 c.lon = s.lon;

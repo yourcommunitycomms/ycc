@@ -310,6 +310,209 @@ public final class TunnelSetup {
         p.setTunnelRemotes(sb.toString());
     }
 
+    // ---- internet relay (VPS) ----
+
+    static String describeVps(Context c) {
+        Prefs p = new Prefs(c);
+        Tunnel.Client v = Tunnel.vps;
+        if (v != null) {
+            String s = v.describe();
+            if (v.everUp() && !v.linkUp() && !v.standby) s = RadioService.RELAY_DOWN + " · " + s;
+            return s;
+        }
+        if (p.vpsServer().length() == 0) return "Internet relay: not set up";
+        String role = "on".equals(p.manetRole()) ? "gateway (on the MANET)" : "off".equals(p.manetRole()) ? "remote (off the MANET)"
+                : "auto (" + (RadioService.onManet(p) ? "on the MANET now: gateway" : "off the MANET now: remote") + ")";
+        if ("direct".equals(p.relayMode())) return "Internet relay: set up but Relay mode is Direct";
+        return "Internet relay (" + p.relayMode() + "): " + role + ", connects when you join a channel";
+    }
+
+    static void vps(final Activity a, final Runnable changed) {
+        final Prefs p = new Prefs(a);
+        float d = a.getResources().getDisplayMetrics().density;
+        android.widget.ScrollView sv = new android.widget.ScrollView(a);
+        LinearLayout box = new LinearLayout(a);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding((int) (16 * d), (int) (8 * d), (int) (16 * d), 0);
+        sv.addView(box);
+        TextView help = new TextView(a);
+        help.setText("An always-on relay server on the internet links MANETs and people away from them. A gateway phone on each "
+                + "MANET forwards only the channels marked \"share to internet\" (globe icon on the Channels page). Everything "
+                + "stays encrypted end to end: the relay never has channel names.\n\nRelay mode:");
+        box.addView(help);
+        final android.widget.RadioGroup mode = new android.widget.RadioGroup(a);
+        final String[] modes = {"direct", "vps", "both"};
+        String[] modeNames = {"Direct (the tunnel above only)", "Internet relay (VPS) only", "Both (sent both ways, repeats dropped)"};
+        for (int i = 0; i < 3; i++) {
+            android.widget.RadioButton rb = new android.widget.RadioButton(a);
+            rb.setId(1000 + i);
+            rb.setText(modeNames[i]);
+            mode.addView(rb);
+        }
+        int mi = java.util.Arrays.asList(modes).indexOf(p.relayMode());
+        mode.check(1000 + Math.max(0, mi));
+        box.addView(mode);
+        TextView l1 = new TextView(a);
+        l1.setText("\nInternet relay address and the port given to you (or your site):");
+        box.addView(l1);
+        final EditText server = new EditText(a);
+        server.setHint("address:port");
+        server.setSingleLine(true);
+        server.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
+        server.setText(p.vpsServer());
+        box.addView(server);
+        final String[] key = {p.vpsKey()};
+        final Button row = new Button(a);
+        row.setAllCaps(false);
+        row.setText(key[0].length() == 0 ? "Choose the DRYAD row (key)…" : "Key set (tap to change)");
+        row.setOnClickListener(new android.view.View.OnClickListener() {
+            @Override
+            public void onClick(android.view.View v) {
+                pickRow(a, new Picked() {
+                    @Override
+                    public void onPicked(String rowText, String label) {
+                        key[0] = rowText;
+                        row.setText("Key: " + label);
+                    }
+                });
+            }
+        });
+        box.addView(row);
+        TextView l2 = new TextView(a);
+        l2.setText("\nThis phone:");
+        box.addView(l2);
+        final android.widget.RadioGroup role = new android.widget.RadioGroup(a);
+        final String[] roles = {"auto", "on", "off"};
+        String[] roleNames = {"Auto-detect (by this phone's WiFi address)", "I am on the MANET (gateway: bridges shared channels)",
+                "I am off the MANET (remote: connects straight to the relay)"};
+        for (int i = 0; i < 3; i++) {
+            android.widget.RadioButton rb = new android.widget.RadioButton(a);
+            rb.setId(2000 + i);
+            rb.setText(roleNames[i]);
+            role.addView(rb);
+        }
+        role.check(2000 + Math.max(0, java.util.Arrays.asList(roles).indexOf(p.manetRole())));
+        box.addView(role);
+        TextView l3 = new TextView(a);
+        l3.setText("MANET address range for auto-detect (OpenMANET: " + Prefs.DEFAULT_MANET_RANGE + "):");
+        box.addView(l3);
+        final EditText range = new EditText(a);
+        range.setSingleLine(true);
+        range.setText(p.manetRange());
+        box.addView(range);
+        TextView now = new TextView(a);
+        now.setTextSize(12);
+        StringBuilder ips = new StringBuilder();
+        for (java.net.Inet4Address ad : RadioService.localIpv4()) ips.append(ips.length() > 0 ? ", " : "").append(ad.getHostAddress());
+        now.setText("This phone now: " + (ips.length() == 0 ? "no network" : ips) + ". Only one gateway per MANET is active; "
+                + "others stand by and take over if it goes quiet.");
+        box.addView(now);
+        final CheckBox tone = new CheckBox(a);
+        tone.setText("Gateway: tone with the \"link down\" notification (silent otherwise)");
+        tone.setChecked(p.linkTone());
+        box.addView(tone);
+        final CheckBox speak = new CheckBox(a);
+        speak.setText("Gateway: say \"Link down\" / \"Link restored\" (text as voice)");
+        speak.setChecked(p.linkSpeak());
+        box.addView(speak);
+        new AlertDialog.Builder(a)
+                .setTitle("Internet relay")
+                .setView(sv)
+                .setPositiveButton("Save", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface di, int w) {
+                        String m = modes[Math.max(0, mode.getCheckedRadioButtonId() - 1000)];
+                        String s = server.getText().toString().trim();
+                        if (!"direct".equals(m)) {
+                            int c = s.lastIndexOf(':');
+                            boolean portOk = false;
+                            try {
+                                int port = Integer.parseInt(s.substring(c + 1));
+                                portOk = c > 0 && port > 0 && port < 65536;
+                            } catch (RuntimeException ignored) {
+                            }
+                            if (!portOk || key[0].length() == 0) {
+                                Toast.makeText(a, "Needs address:port and a DRYAD row", Toast.LENGTH_LONG).show();
+                                return;
+                            }
+                        }
+                        String r = range.getText().toString().trim();
+                        if (r.length() > 0 && !r.matches("\\d{1,3}(\\.\\d{1,3}){3}(/\\d{1,2})?")) {
+                            Toast.makeText(a, "Range like " + Prefs.DEFAULT_MANET_RANGE, Toast.LENGTH_LONG).show();
+                            return;
+                        }
+                        p.setVps(m, s, key[0]);
+                        p.setManet(roles[Math.max(0, role.getCheckedRadioButtonId() - 2000)], r);
+                        p.setLinkAlerts(tone.isChecked(), speak.isChecked());
+                        RadioService rs = RadioService.instance();
+                        if (rs != null) rs.applyVpsNow();
+                        changed.run();
+                    }
+                })
+                .setNeutralButton("Sites…", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface di, int w) {
+                        sites(a);
+                    }
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    /** Site status: every site and remote the internet relay knows, green / amber / red / grey. */
+    static void sites(final Activity a) {
+        final Tunnel.Client v = Tunnel.vps;
+        android.text.SpannableStringBuilder sb = new android.text.SpannableStringBuilder();
+        if (v == null) {
+            sb.append("Not connected to an internet relay. Set it up here, then join a channel.");
+        } else {
+            sb.append(v.describe()).append("\n\n");
+            long now = System.currentTimeMillis();
+            if (v.sites.isEmpty()) sb.append("No site list from the relay yet.");
+            boolean stale = v.sitesMs > 0 && now - v.sitesMs > Tunnel.DOWN_MS;
+            for (Tunnel.Site s : v.sites) {
+                long ago = s.lastHeardMs == 0 ? -1 : (now - s.lastHeardMs) / 1000;
+                int colour;
+                String st;
+                if (stale) {
+                    colour = 0xff9e9e9e;
+                    st = "unknown (relay not heard)";
+                } else if (s.state == 2) {
+                    colour = 0xffe53935;
+                    st = "offline";
+                } else if (s.state == 1 && ago >= 12) {
+                    colour = 0xffffb300;
+                    st = "late";
+                } else if (s.state == 1) {
+                    colour = 0xff43a047;
+                    st = "online";
+                } else {
+                    colour = 0xff9e9e9e;
+                    st = "never seen";
+                }
+                int start = sb.length();
+                sb.append("● ");
+                sb.setSpan(new android.text.style.ForegroundColorSpan(colour), start, start + 1, 0);
+                sb.append(s.name).append(s.kind == 1 ? " (site)" : " (remote)").append(": ").append(st);
+                if (ago >= 0) sb.append(", last heard ").append(RadioService.outageWords(ago * 1000)).append(" ago");
+                sb.append('\n');
+            }
+        }
+        TextView tv = new TextView(a);
+        float d = a.getResources().getDisplayMetrics().density;
+        tv.setPadding((int) (16 * d), (int) (8 * d), (int) (16 * d), 0);
+        tv.setTextSize(15);
+        tv.setText(sb);
+        new AlertDialog.Builder(a).setTitle("Internet relay sites").setView(tv)
+                .setPositiveButton("Refresh", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface di, int w) {
+                        sites(a);
+                    }
+                })
+                .setNegativeButton("Close", null).show();
+    }
+
     /** This phone's addresses on the local network, for the router's port forward. */
     static String localAddresses() {
         StringBuilder sb = new StringBuilder();

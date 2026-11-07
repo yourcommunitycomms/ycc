@@ -16,7 +16,7 @@ import java.util.List;
  * packet to every configured destination (subnet broadcast or multicast group, plus any extra
  * peers such as a host across a routed mesh or another emulator).
  */
-public final class UdpLink {
+public final class UdpLink implements Tunnel.Local {
     public interface Receiver {
         void onDatagram(byte[] buf, int len, InetAddress from);
     }
@@ -68,8 +68,15 @@ public final class UdpLink {
                     try {
                         dp.setLength(buf.length);
                         socket.receive(dp);
+                        int n = dp.getLength();
+                        if (n >= 2 && buf[0] == 'U' && buf[1] == 'T') { // a tunnel frame on the mesh (gateway beacon)
+                            Tunnel.onLanTunnelFrame(buf, n);
+                            continue;
+                        }
                         Tunnel.Relay r = Tunnel.relay;
-                        if (r != null && !r.onLanReceive(buf, dp.getLength())) continue; // already had it
+                        if (r != null && !r.onLanReceive(buf, n)) continue; // already had it
+                        Tunnel.Client g = Tunnel.vps;
+                        if (g != null && g.gateway && !dp.getAddress().isLoopbackAddress()) g.fromLan(buf, n); // shared channels up to the internet relay
                         receiver.onDatagram(buf, dp.getLength(), dp.getAddress());
                     } catch (SocketException e) {
                         if (running) Log.w(TAG, "socket error", e);
@@ -88,14 +95,25 @@ public final class UdpLink {
         txThread.start();
         this.port = port;
         current = this;
+        Tunnel.logger = LOG;
+        Tunnel.local = this;
     }
+
+    private static final Tunnel.Logger LOG = new Tunnel.Logger() {
+        @Override
+        public void log(String msg, Throwable t) {
+            if (t == null) Log.d("Tunnel", msg);
+            else Log.w("Tunnel", msg, t);
+        }
+    };
 
     /** The link on air (tunnel comms sends and delivers through it). */
     public static volatile UdpLink current;
     private final int port;
 
     /** Hands a packet to this phone's own receiver, the same way as one heard on the network. */
-    void deliverLocal(byte[] data, int len) {
+    @Override
+    public void deliverLocal(byte[] data, int len) {
         try {
             socket.send(new DatagramPacket(data, len, InetAddress.getByName("127.0.0.1"), port));
         } catch (IOException e) {
@@ -104,7 +122,8 @@ public final class UdpLink {
     }
 
     /** Relay: a remote's packet onto the local network (not back into the tunnel). */
-    void sendLanOnly(byte[] data) {
+    @Override
+    public void sendLanOnly(byte[] data) {
         for (InetSocketAddress d : destinations) {
             try {
                 socket.send(new DatagramPacket(data, data.length, d));
@@ -144,6 +163,8 @@ public final class UdpLink {
         // the relay cannot be reached from inside); copies that arrive both ways are dropped as repeats.
         Tunnel.Client c = Tunnel.client;
         if (c != null) c.send(data);
+        Tunnel.Client v = Tunnel.vps; // internet relay: everything (off the MANET) or the shared channels (gateway)
+        if (v != null) v.send(data);
         Tunnel.Relay r = Tunnel.relay;
         if (r != null) r.onOwnSend(data, data.length);
         for (InetSocketAddress d : destinations) {
@@ -162,6 +183,7 @@ public final class UdpLink {
 
     public void close() {
         if (current == this) current = null;
+        if (Tunnel.local == this) Tunnel.local = null;
         running = false;
         txThread.interrupt();
         socket.close();

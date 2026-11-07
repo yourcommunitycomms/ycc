@@ -1,0 +1,22 @@
+[Unit]
+Description=YCC internet relay (tunnel frames between MANET gateways and remote phones)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=ycc-relay
+Group=ycc-relay
+ExecStart=/usr/bin/java -Xmx48m -Xss256k -XX:+UseSerialGC -jar /opt/ycc-relay/ycc-relay.jar /etc/ycc-relay/relay.conf
+Restart=on-failure
+RestartSec=5
+# Users and the admin key live here, readable by the relay's user only.
+StateDirectory=ycc-relay
+StateDirectoryMode=0700
+UMask=0077
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

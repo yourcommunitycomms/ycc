@@ -281,6 +281,15 @@ public final class QrScanActivity extends Activity implements SurfaceHolder.Call
             status.setText("That is not a phone setup QR code");
             return;
         }
+        if (text.startsWith(org.communitycomms.app.net.RelayAdmin.QR_PREFIX)) {
+            if (getCallingActivity() != null) { // the Relay admin screen's Scan button
+                setResult(RESULT_OK, new android.content.Intent().putExtra(EXTRA_RESULT, text));
+            } else {
+                startActivity(new android.content.Intent(this, RelayAdminActivity.class).putExtra(EXTRA_RESULT, text));
+            }
+            finish();
+            return;
+        }
         if (text.startsWith(EnigmaActivity.QR_PREFIX)) {
             if (getCallingActivity() != null) {
                 setResult(RESULT_OK, new android.content.Intent().putExtra(EXTRA_RESULT, text));

@@ -303,6 +303,11 @@ public final class RadioService extends Service implements RadioEngine.Listener 
             checkCallReminder();
             if (statusTicks % 5 == 0 && !PowerMode.alone && !RadioEngine.radioSilent) org.communitycomms.app.audio.BurstVoice.sendWaiting(RadioService.this);
             AtakBridge.apply(RadioService.this); // Settings: ATAK compatible on / off
+            checkMission();
+            windowTick();
+            if (statusTicks % 30 == 15) checkOverdue();
+            checkStill();
+            tuneLocks();
         }
     };
     private int statusTicks;
@@ -312,6 +317,11 @@ public final class RadioService extends Service implements RadioEngine.Listener 
         new Prefs(this).setStatus(s);
         pendingStatus = -1;
         checkStatusNow();
+        if (s == RadioEngine.STATUS_AWAY && !PowerMode.offline()) {
+            Toast.makeText(this, "Away: with the screen off this phone sleeps and checks in by itself about every "
+                    + PowerMode.ultraCheckInMs() / 60000 + " min. Others see \"auto check-in in about N min\".", Toast.LENGTH_LONG).show();
+        }
+        powerChanged();
     }
 
     /** Enigma page > CW mode changed: stealth (voice muted, nothing spoken) and VOX off while it is on. */
@@ -647,7 +657,7 @@ public final class RadioService extends Service implements RadioEngine.Listener 
 
     /** Someone not heard for 2 minutes: a buzz, a notification and a line in Chat, once each time. */
     private void checkDrops(RadioEngine e, Prefs pr) {
-        if (!pr.dropAlert()) {
+        if (!pr.dropAlert() || PowerMode.windowPeriodMs > 0) { // check-in windows have their own overdue notice
             dropWatch.clear();
             return;
         }
@@ -664,6 +674,7 @@ public final class RadioService extends Service implements RadioEngine.Listener 
             for (RadioEngine.Station s : e.stations()) if (en.getKey().equals(s.name)) grace = s.checkInMs * 2;
             if (now - en.getValue() < Math.max(Math.max(DROP_MS, PowerMode.quietMs()), grace)) continue;
             it.remove();
+            if (PlannedOffline.planned(this, en.getKey(), en.getValue())) continue; // said they were going offline
             org.communitycomms.app.msg.MessageLog.Entry m = new org.communitycomms.app.msg.MessageLog.Entry();
             m.id = new java.security.SecureRandom().nextLong();
             m.type = org.communitycomms.app.msg.MessageLog.TYPE_TEXT;
@@ -1491,6 +1502,8 @@ public final class RadioService extends Service implements RadioEngine.Listener 
                     CalStore.onMessage(RadioService.this, m); // a team calendar entry: no chat notification, its reminder is set
                     return;
                 }
+                if (PlannedOffline.is(m.body)) PlannedOffline.onMessage(RadioService.this, m);
+                if (m.body != null && m.body.contains(OVERDUE_TAG)) onOverdueMessage(m);
                 notifyMessage(m);
                 onLocationRequest(m);
                 Cw.onText(RadioService.this, m);
@@ -1569,7 +1582,8 @@ public final class RadioService extends Service implements RadioEngine.Listener 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         if (intent != null && ACTION_CHECK_IN.equals(intent.getAction())) {
-            checkIn();
+            if (PowerMode.deepSleeping && !asleep) deepCheckIn();
+            else checkIn();
             return START_STICKY;
         }
         if (intent != null && ACTION_RESEND.equals(intent.getAction())) {
@@ -1585,6 +1599,12 @@ public final class RadioService extends Service implements RadioEngine.Listener 
     @Override
     public void onDestroy() {
         unregisterReceiver(screenWatch);
+        try {
+            unregisterReceiver(powerWatch);
+        } catch (IllegalArgumentException ignored) {
+        }
+        if (motion != null) motion.stop();
+        motion = null;
         cancelCheckIn();
         main.removeCallbacks(endCheckIn);
         if (instance == this) instance = null;
@@ -1700,7 +1720,9 @@ public final class RadioService extends Service implements RadioEngine.Listener 
                     String s = "On air, channel tag " + Integer.toHexString(e.channelTag()) + watching
                             + (org.communitycomms.app.net.Tunnel.client != null ? (org.communitycomms.app.net.Tunnel.onlyTags
                             ? " · internet tunnel on for some channels" : " · internet tunnel on (and the WiFi here)")
-                            : org.communitycomms.app.net.Tunnel.relay != null ? " · tunnel relay on" : "");
+                            : org.communitycomms.app.net.Tunnel.relay != null ? " · tunnel relay on" : "")
+                            + (org.communitycomms.app.net.Tunnel.vps == null ? "" : org.communitycomms.app.net.Tunnel.vps.gateway
+                            ? " · internet relay gateway" : " · internet relay");
                     publishState(s, true);
                     goForeground(s);
                 } catch (Exception ex) {
@@ -2040,7 +2062,10 @@ public final class RadioService extends Service implements RadioEngine.Listener 
         main.removeCallbacks(rotate);
         dropWatch.clear();
         org.communitycomms.app.net.Tunnel.Client.stopClient();
+        org.communitycomms.app.net.Tunnel.Client.stopVps();
         org.communitycomms.app.net.Tunnel.Relay.stopRelay();
+        main.removeCallbacks(vpsWatch);
+        cancelLinkNotice();
         releaseLocks();
         publishState("Not on a channel", false);
     }
@@ -2087,7 +2112,9 @@ public final class RadioService extends Service implements RadioEngine.Listener 
         for (int i = 0; i < t.length; i++) t[i] = tl.get(i);
         org.communitycomms.app.net.Tunnel.tags = t;
         org.communitycomms.app.net.Tunnel.onlyTags = !all;
-        if (pr.tunnelSetUp() && (all || t.length > 0) && !PowerMode.offline()) {
+        // Relay mode "vps" leaves the direct tunnel client out (a direct relay on this phone still runs).
+        boolean direct = !"vps".equals(pr.relayMode());
+        if (direct && pr.tunnelSetUp() && (all || t.length > 0) && !PowerMode.offline()) {
             org.communitycomms.app.net.Tunnel.Relay.stopRelay();
             if (restart || org.communitycomms.app.net.Tunnel.client == null) {
                 org.communitycomms.app.net.Tunnel.Client.start(pr.tunnelServer(), pr.tunnelKey());
@@ -2100,7 +2127,259 @@ public final class RadioService extends Service implements RadioEngine.Listener 
                 org.communitycomms.app.net.Tunnel.Relay.stopRelay();
             }
         }
+        applyVps(e, restart);
     }
+
+    // ---- internet relay (VPS): gateway on the MANET, or a remote off it ----
+
+    private volatile boolean vpsOnManet;
+    private String vpsConfig = "";
+
+    /** Settings > Internet relay changed: reconnect with the new settings (no re-join). */
+    public void applyVpsNow() {
+        RadioEngine e = engine;
+        if (e != null) applyVps(e, true);
+    }
+
+    /**
+     * On the MANET (gateway): bridges the channels marked "share to internet". Off it (remote):
+     * every channel this phone is on goes through the relay. restart = connect afresh.
+     */
+    private void applyVps(RadioEngine e, boolean restart) {
+        Prefs pr = new Prefs(this);
+        main.removeCallbacks(vpsWatch);
+        if (!pr.vpsSetUp() || PowerMode.offline()) {
+            org.communitycomms.app.net.Tunnel.Client.stopVps();
+            vpsConfig = "";
+            return;
+        }
+        org.communitycomms.app.net.Tunnel.listener = vpsListener;
+        boolean onManet = onManet(pr);
+        vpsOnManet = onManet;
+        List<Integer> tl = new ArrayList<Integer>();
+        if (!onManet || pr.shareSlot(pr.activeSlot())) tl.add(e.channelTag());
+        for (RadioEngine m : e.monitors()) {
+            int s = slotNamed(pr, m.channelName());
+            if (!onManet || (s >= 0 && pr.shareSlot(s))) tl.add(m.channelTag());
+        }
+        int[] t = new int[tl.size()];
+        for (int i = 0; i < t.length; i++) t[i] = tl.get(i);
+        String cfg = pr.vpsServer() + "|" + pr.vpsKey().hashCode() + "|" + onManet;
+        org.communitycomms.app.net.Tunnel.Client v = org.communitycomms.app.net.Tunnel.vps;
+        if (onManet && t.length == 0) {
+            // A gateway with nothing shared has nothing to bridge.
+            org.communitycomms.app.net.Tunnel.Client.stopVps();
+            vpsConfig = "";
+        } else if (restart || v == null || !cfg.equals(vpsConfig)) {
+            vpsConfig = cfg;
+            vpsDownNotified = false;
+            org.communitycomms.app.net.Tunnel.Client.startVps(pr.vpsServer(), pr.vpsKey(), onManet, t, pr.airName());
+        } else {
+            v.setTags(t);
+        }
+        if ("auto".equals(pr.manetRole())) main.postDelayed(vpsWatch, 15000);
+    }
+
+    /** Auto-detect: re-check the WiFi address every 15 s; a change of network switches gateway / remote. */
+    private final Runnable vpsWatch = new Runnable() {
+        @Override
+        public void run() {
+            RadioEngine e = engine;
+            if (e == null) return;
+            Prefs pr = new Prefs(RadioService.this);
+            if (pr.vpsSetUp() && onManet(pr) != vpsOnManet) {
+                Log.i(TAG, "internet relay: network changed, now " + (vpsOnManet ? "off" : "on") + " the MANET");
+                applyVps(e, true);
+                publishState(status, true);
+            } else {
+                main.postDelayed(this, 15000);
+            }
+        }
+    };
+
+    /** "I am on the MANET", "off", or auto: a WiFi (not mobile data) IPv4 address inside the MANET range. */
+    static boolean onManet(Prefs pr) {
+        String role = pr.manetRole();
+        if ("on".equals(role)) return true;
+        if ("off".equals(role)) return false;
+        return inRange(localIpv4(), pr.manetRange());
+    }
+
+    /** IPv4 addresses of the interfaces that are up, leaving out mobile data and loopback. */
+    static List<java.net.Inet4Address> localIpv4() {
+        List<java.net.Inet4Address> out = new ArrayList<java.net.Inet4Address>();
+        try {
+            for (java.net.NetworkInterface ni : java.util.Collections.list(java.net.NetworkInterface.getNetworkInterfaces())) {
+                String n = ni.getName().toLowerCase(java.util.Locale.US);
+                if (!ni.isUp() || ni.isLoopback() || n.startsWith("rmnet") || n.startsWith("ccmni") || n.startsWith("pdp")
+                        || n.startsWith("v4-rmnet") || n.startsWith("clat")) continue;
+                for (java.net.InetAddress a : java.util.Collections.list(ni.getInetAddresses())) {
+                    if (a instanceof java.net.Inet4Address) out.add((java.net.Inet4Address) a);
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        return out;
+    }
+
+    /** True if any address is inside "a.b.c.d/bits" (or a bare address = /32). */
+    static boolean inRange(List<java.net.Inet4Address> addrs, String cidr) {
+        try {
+            String[] p = cidr.trim().split("/");
+            int bits = p.length > 1 ? Integer.parseInt(p[1].trim()) : 32;
+            byte[] net = java.net.InetAddress.getByName(p[0].trim()).getAddress();
+            if (net.length != 4 || bits < 0 || bits > 32) return false;
+            int n = ((net[0] & 0xff) << 24) | ((net[1] & 0xff) << 16) | ((net[2] & 0xff) << 8) | (net[3] & 0xff);
+            int mask = bits == 0 ? 0 : -1 << (32 - bits);
+            for (java.net.Inet4Address a : addrs) {
+                byte[] b = a.getAddress();
+                int x = ((b[0] & 0xff) << 24) | ((b[1] & 0xff) << 16) | ((b[2] & 0xff) << 8) | (b[3] & 0xff);
+                if ((x & mask) == (n & mask)) return true;
+            }
+        } catch (Exception ignored) {
+        }
+        return false;
+    }
+
+    private static final int NOTIF_LINK = 4721;
+    private volatile boolean vpsDownNotified;
+
+    private final org.communitycomms.app.net.Tunnel.Listener vpsListener = new org.communitycomms.app.net.Tunnel.Listener() {
+        @Override
+        public void onLink(final org.communitycomms.app.net.Tunnel.Client c, final boolean up, final long outageMs) {
+            main.post(new Runnable() {
+                @Override
+                public void run() {
+                    linkChanged(c, up, outageMs);
+                }
+            });
+        }
+
+        @Override
+        public void onSites(org.communitycomms.app.net.Tunnel.Client c, final List<String> wentDown, final List<String> cameUp) {
+            main.post(new Runnable() {
+                @Override
+                public void run() {
+                    for (String s : wentDown) if (siteKind(s) == 1) systemLine("Site " + s + " offline (internet relay)");
+                    for (String s : cameUp) if (siteKind(s) == 1) systemLine("Site " + s + " back online (internet relay)");
+                }
+            });
+        }
+
+        @Override
+        public void onStandby(org.communitycomms.app.net.Tunnel.Client c, boolean standby) {
+            main.post(new Runnable() {
+                @Override
+                public void run() {
+                    publishState(status, engine != null);
+                }
+            });
+        }
+    };
+
+    private static int siteKind(String name) {
+        org.communitycomms.app.net.Tunnel.Client v = org.communitycomms.app.net.Tunnel.vps;
+        if (v == null) return 0;
+        for (org.communitycomms.app.net.Tunnel.Site s : v.sites) if (s.name.equals(name)) return s.kind;
+        return 0;
+    }
+
+    private void linkChanged(org.communitycomms.app.net.Tunnel.Client c, boolean up, long outageMs) {
+        if (c != org.communitycomms.app.net.Tunnel.vps || engine == null) return;
+        Prefs pr = new Prefs(this);
+        String secs = org.communitycomms.app.net.Tunnel.DOWN_MS / 1000 + " s";
+        if (!up && c.revoked) { // the relay's admin removed this key (BYE): it will not come back by itself
+            vpsDownNotified = false;
+            notifyLink("Removed from the internet relay", "The relay's admin removed this " + (c.gateway ? "site" : "phone")
+                    + ". Ask them for a new setup QR code.", false);
+            systemLine("Internet relay: removed by the relay's admin. Ask for a new setup QR code.");
+        } else if (!up) {
+            vpsDownNotified = true;
+            if (c.gateway) {
+                notifyLink("Internet link to relay down", "No answer from the internet relay for " + secs
+                        + ". Remote users cannot hear this MANET until it is back.", pr.linkTone());
+                // Everyone on this MANET: a line in the channel chat (on the channel on air if it is shared).
+                if (pr.shareSlot(pr.activeSlot())) sendAlertText("[relay] Internet link down: remote users cannot hear us for now (gateway " + pr.airName() + ")");
+                else systemLine("Internet link to relay down");
+                if (pr.linkSpeak()) say("Link down");
+            } else {
+                systemLine("Internet relay link down: no answer for " + secs);
+            }
+        } else if (outageMs > 0 && vpsDownNotified) {
+            vpsDownNotified = false;
+            String len = outageWords(outageMs);
+            if (c.gateway) {
+                cancelLinkNotice();
+                notifyLink("Internet link to relay restored", "Back after " + len + ".", false);
+                if (pr.shareSlot(pr.activeSlot())) sendAlertText("[relay] Internet link restored after " + len);
+                else systemLine("Internet link to relay restored after " + len);
+                if (pr.linkSpeak()) say("Link restored");
+            } else {
+                systemLine("Internet relay link restored after " + len);
+            }
+        }
+        publishState(status, true);
+    }
+
+    static String outageWords(long ms) {
+        long s = ms / 1000;
+        return s < 120 ? s + " s" : s < 7200 ? (s / 60) + " min" : (s / 3600) + " h " + (s % 3600 / 60) + " min";
+    }
+
+    /** A chat line on this phone only (not sent), on the channel on air. */
+    private void systemLine(String text) {
+        RadioEngine e = engine;
+        if (e == null) return;
+        org.communitycomms.app.msg.MessageLog.Entry m = new org.communitycomms.app.msg.MessageLog.Entry();
+        m.id = new java.util.Random().nextLong();
+        m.type = org.communitycomms.app.msg.MessageLog.TYPE_TEXT;
+        m.time = System.currentTimeMillis();
+        m.creator = "Relay";
+        m.channelTag = e.channelTag();
+        m.body = text;
+        m.local = true;
+        org.communitycomms.app.msg.MessageLog.get(this).put(m);
+    }
+
+    private void cancelLinkNotice() {
+        NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+        if (nm != null) nm.cancel(NOTIF_LINK);
+    }
+
+    @SuppressWarnings("deprecation")
+    private void notifyLink(String title, String text, boolean tone) {
+        NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+        if (nm == null) return;
+        Notification.Builder b;
+        if (Build.VERSION.SDK_INT >= 26) {
+            // Two channels, so the silent default and the optional tone can each be changed by the user.
+            String id = tone ? "relaylinktone" : "relaylink";
+            NotificationChannel ch = new NotificationChannel(id, tone ? "Internet relay link (tone)" : "Internet relay link",
+                    tone ? NotificationManager.IMPORTANCE_DEFAULT : NotificationManager.IMPORTANCE_LOW);
+            if (!tone) ch.setSound(null, null);
+            nm.createNotificationChannel(ch);
+            b = new Notification.Builder(this, id);
+        } else {
+            b = new Notification.Builder(this);
+            if (tone) b.setDefaults(Notification.DEFAULT_SOUND);
+        }
+        int fl = Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE : 0;
+        PendingIntent open = PendingIntent.getActivity(this, 17, new Intent(this, MainActivity.class)
+                .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP), fl);
+        nm.notify(NOTIF_LINK, b.setContentTitle(title).setContentText(text).setSmallIcon(R.drawable.ic_stat_radio)
+                .setContentIntent(open).setAutoCancel(true).build());
+    }
+
+    /** Status line prefix: the internet relay link down, or gateway standby. */
+    static String vpsWords() {
+        org.communitycomms.app.net.Tunnel.Client v = org.communitycomms.app.net.Tunnel.vps;
+        if (v == null) return "";
+        if (v.standby) return v.otherGateway.length() > 0 ? "Relay gateway standby (" + v.otherGateway + " is gateway) · " : "";
+        if (v.everUp() && !v.linkUp()) return RELAY_DOWN + " · ";
+        return "";
+    }
+
+    public static final String RELAY_DOWN = "● RELAY LINK DOWN";
 
     /** Stops whatever radio is on air (keeps the audio mode and locks). True if one was. */
     private synchronized boolean stopRadio() {
@@ -2123,6 +2402,7 @@ public final class RadioService extends Service implements RadioEngine.Listener 
         engine = null;
         if (e != null) e.stop(true);
         org.communitycomms.app.net.Tunnel.Client.stopClient();
+        org.communitycomms.app.net.Tunnel.Client.stopVps();
         org.communitycomms.app.net.Tunnel.Relay.stopRelay();
         setCommunicationAudio(false);
         releaseLocks();
@@ -2142,7 +2422,384 @@ public final class RadioService extends Service implements RadioEngine.Listener 
 
     /** Offline: never says on air. */
     private static String airWords(String s) {
-        return PowerMode.offline() ? s.replace("On air", "Offline") : s;
+        String w = PowerMode.offline() ? s.replace("On air", "Offline") : s;
+        if (s.startsWith("On air")) w = vpsWords() + w;
+        long mu = PowerMode.missionUntil();
+        java.text.SimpleDateFormat hm = new java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault());
+        if (mu > 0 && !missionKey().equals(missionAck)) w = "MISSION MODE until " + hm.format(new java.util.Date(mu)) + " · " + w;
+        else if (PowerMode.outsideWindow) w = "RADIO SILENCE, next check-in window about " + hm.format(new java.util.Date(nextWindowAt)) + " · " + w;
+        else if (PowerMode.missionOthers() && !missionKey().equals(missionAck)) w = "Mission mode on by " + PowerMode.othersMissionBy + " until "
+                + hm.format(new java.util.Date(PowerMode.othersMissionUntil)) + " · " + w;
+        return w;
+    }
+
+    // ---- radio silence check-in windows and burst sleep windows ----
+
+    static final long OVERDUE_AFTER_MS = 240000, OVERDUE_EXTEND_MS = 300000;
+    public static final String OVERDUE_TAG = "\n[overdue:";
+    private long windowStart = -1, windowExtendUntil;
+    private static volatile long nextWindowAt;
+    private boolean windowOverdueDone;
+    private java.util.Set<String> heardLastWindow = new java.util.HashSet<String>(), heardThisWindow = new java.util.HashSet<String>();
+    private final java.util.Set<String> overdueSaid = new java.util.HashSet<String>();
+    private final java.util.Map<String, Integer> windowsMissed = new java.util.HashMap<String, Integer>();
+
+    /** Every 2 s and at each wake-up: inside or outside a silence window, and burst naps. */
+    private void windowTick() {
+        Prefs p = new Prefs(this);
+        RadioEngine e = engine;
+        long now = System.currentTimeMillis();
+        boolean mission = PowerMode.missionMine() || PowerMode.missionOthers();
+        boolean outside = false;
+        int per = p.silencePeriodMin();
+        if (per > 0 && e != null && compat == null && !mission) {
+            long period = per * 60000L, len = p.silenceLenMin() * 60000L;
+            long s = CheckInWindows.openNow(e.channelName(), period, len, now);
+            if (s >= 0 && s != windowStart) { // a new window opens
+                heardLastWindow = heardThisWindow;
+                heardThisWindow = new java.util.HashSet<String>();
+                overdueSaid.clear();
+                windowStart = s;
+                windowOverdueDone = false;
+                Log.i(TAG, "power: check-in window open");
+            }
+            boolean open = s >= 0 || now < windowExtendUntil;
+            if (open && windowStart >= 0) {
+                for (RadioEngine.Station st : e.stations()) {
+                    if (st.name != null && st.lastSeenMs >= windowStart) {
+                        heardThisWindow.add(st.name);
+                        windowsMissed.remove(st.name);
+                    }
+                }
+                if (!windowOverdueDone && now >= windowStart + Math.min(OVERDUE_AFTER_MS, len * 4 / 5)) {
+                    windowOverdueDone = true;
+                    windowOverdue();
+                }
+            }
+            outside = !open;
+            PowerMode.windowPeriodMs = period + len;
+        } else {
+            PowerMode.windowPeriodMs = 0;
+        }
+        boolean flip = outside != PowerMode.outsideWindow;
+        if (flip) Log.i(TAG, "power: radio silence " + (outside ? "until the next window" : "lifted (window)"));
+        PowerMode.outsideWindow = outside;
+        if (outside && e != null) nextWindowAt = CheckInWindows.next(e.channelName(), per * 60000L, now);
+        if (flip) publishState(status, engine != null);
+        RadioEngine.radioSilent = p.radioSilent() || outside;
+        // Burst sleep: everyone heard is in burst mode, so wake together 5 s in every 30 s.
+        boolean napping = false;
+        if (!outside && p.burstSleep() && e != null && compat == null && p.burstNow() && !mission && !PowerMode.anchor
+                && !PowerMode.busy() && allBurst(e, now)) {
+            napping = !CheckInWindows.burstAwake(now);
+            if (!napping && org.communitycomms.app.audio.BurstVoice.waiting(this) > 0 && !RadioEngine.radioSilent) {
+                org.communitycomms.app.audio.BurstVoice.sendWaiting(this); // bursts kept during the nap go out now
+            }
+        }
+        if (napping != PowerMode.burstNapping) Log.i(TAG, "power: burst " + (napping ? "nap" : "window"));
+        PowerMode.burstNapping = napping;
+    }
+
+    /** Everyone heard recently on the channel records voice as bursts (and someone is there). */
+    private static boolean allBurst(RadioEngine e, long now) {
+        int n = 0;
+        for (RadioEngine.Station s : e.stations()) {
+            if (now - s.lastSeenMs > Math.max(90000, s.checkInMs + 30000)) continue;
+            if (s.voiceMode != 1) return false;
+            n++;
+        }
+        return n > 0;
+    }
+
+    /** At the overdue mark: anyone heard in the last window but not this one is named overdue, by one phone. */
+    private void windowOverdue() {
+        final java.util.List<String> late = new java.util.ArrayList<String>();
+        for (String n : heardLastWindow) if (!heardThisWindow.contains(n)) late.add(n);
+        if (late.isEmpty()) return;
+        // A random short wait, so usually only one phone says it (the others hear it and stay quiet).
+        main.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                for (String n : late) {
+                    if (heardThisWindow.contains(n) || overdueSaid.contains(n)) continue;
+                    org.communitycomms.app.msg.MessageCenter mc = messages;
+                    if (mc != null && engine != null && !RadioEngine.radioSilent) {
+                        mc.sendText(n + " is overdue for the check-in window." + OVERDUE_TAG + n + "]");
+                    }
+                    overdueHeard(n);
+                }
+            }
+        }, 2000 + new java.util.Random().nextInt(18000));
+    }
+
+    /** "X is overdue" heard (or said): everyone stays awake longer to catch X; two missed windows alert. */
+    private void overdueHeard(String name) {
+        if (!overdueSaid.add(name)) return;
+        windowExtendUntil = Math.max(windowExtendUntil, System.currentTimeMillis() + OVERDUE_EXTEND_MS);
+        int missed = (windowsMissed.containsKey(name) ? windowsMissed.get(name) : 0) + 1;
+        windowsMissed.put(name, missed);
+        if (missed >= 2) {
+            Contacts.Contact c = Contacts.get(this).find(name);
+            String where = c != null && c.hasFix() ? " Last known position " + org.communitycomms.app.geo.Geo.latLon(c.lat, c.lon) + "." : "";
+            notifyMission(name + " missed two check-in windows", "Not heard in the last two windows." + where);
+            buzz(true);
+        }
+    }
+
+    /** A chat line "X is overdue..." arrived. */
+    private void onOverdueMessage(org.communitycomms.app.msg.MessageLog.Entry m) {
+        int i = m.body.indexOf(OVERDUE_TAG);
+        if (i < 0) return;
+        String n = m.body.substring(i + OVERDUE_TAG.length());
+        if (n.endsWith("]")) n = n.substring(0, n.length() - 1);
+        overdueHeard(n);
+    }
+
+    /** When the next wake-up is due while sleeping: the next silence window, the next burst window, or the check-in. */
+    private long nextWakeMs() {
+        long now = System.currentTimeMillis();
+        RadioEngine e = engine;
+        Prefs p = new Prefs(this);
+        if (PowerMode.outsideWindow && e != null && p.silencePeriodMin() > 0) {
+            return Math.max(1000, CheckInWindows.next(e.channelName(), p.silencePeriodMin() * 60000L, now) - now);
+        }
+        if (PowerMode.burstNapping) return Math.max(1000, CheckInWindows.burstNext(now) - now);
+        return PowerMode.ultraCheckInMs();
+    }
+
+    // ---- mains power anchor ----
+
+    private long anchorUnpluggedAt;
+    private boolean anchorLossSent;
+
+    /** An anchor unplugged for 10 minutes: tells the channel (generator or base power may have failed) and asks its owner. */
+    private void checkAnchor() {
+        if (!PowerMode.anchor) {
+            anchorUnpluggedAt = 0;
+            anchorLossSent = false;
+            return;
+        }
+        long now = System.currentTimeMillis();
+        if (PowerMode.charging) {
+            if (anchorLossSent && messages != null && engine != null && !RadioEngine.radioSilent) {
+                messages.sendText("Anchor " + new Prefs(this).callsign() + " is back on mains power.");
+            }
+            anchorUnpluggedAt = 0;
+            anchorLossSent = false;
+            return;
+        }
+        if (anchorUnpluggedAt == 0) anchorUnpluggedAt = now;
+        if (anchorLossSent || now - anchorUnpluggedAt < 600000) return;
+        anchorLossSent = true;
+        if (messages != null && engine != null && !RadioEngine.radioSilent) {
+            messages.sendText("Anchor " + new Prefs(this).callsign() + " lost mains power (unplugged for 10 minutes).");
+        }
+        notifyMission("This phone lost mains power", "It has been unplugged for 10 minutes. Still an anchor? Turn it off in "
+                + "Settings > Power and sleep if it is now on battery.");
+    }
+
+    // ---- going offline as planned ----
+
+    /** Someone who said when they would be back, and was not heard by then plus the grace: say so once. */
+    private void checkOverdue() {
+        RadioEngine e = engine;
+        for (String name : PlannedOffline.check(this)) {
+            org.communitycomms.app.msg.MessageLog.Entry m = new org.communitycomms.app.msg.MessageLog.Entry();
+            m.id = new java.security.SecureRandom().nextLong();
+            m.type = org.communitycomms.app.msg.MessageLog.TYPE_TEXT;
+            m.time = System.currentTimeMillis();
+            m.creator = name;
+            m.channelTag = e == null ? 0 : e.channelTag();
+            m.body = name + " is overdue: they went offline as planned and are not back yet";
+            m.local = true;
+            org.communitycomms.app.msg.MessageLog.get(this).put(m);
+            buzz(true);
+            notifyMessage(m);
+        }
+    }
+
+    /** Exit prompt: tells the channel this phone is going offline as planned (backAt 0 = no time given). */
+    public boolean sayGoingOffline(long backAt) {
+        org.communitycomms.app.msg.MessageCenter mc = messages;
+        RadioEngine e = engine;
+        if (mc == null || e == null || RadioEngine.radioSilent) return false;
+        return mc.sendText(PlannedOffline.body(new Prefs(this).callsign(), backAt));
+    }
+
+    // ---- GPS rest: off while the phone is still, back on movement or the screen ----
+
+    private MotionWatch motion;
+    private boolean gpsResting;
+
+    /** Every 2 s: whether the GPS rests (still, sharing, the setting on, screen off, no mission). */
+    private void checkStill() {
+        Prefs p = new Prefs(this);
+        boolean want = p.gpsRest() && engine != null;
+        if (want && motion == null) {
+            motion = new MotionWatch(this, new MotionWatch.Listener() {
+                @Override
+                public void onMoved() {
+                    main.post(new Runnable() {
+                        @Override
+                        public void run() {
+                            moved();
+                        }
+                    });
+                }
+
+                @Override
+                public void onWake(final String why) {
+                    main.post(new Runnable() {
+                        @Override
+                        public void run() {
+                            wakeCheckIn(why);
+                        }
+                    });
+                }
+            });
+            motion.start();
+        } else if (!want && motion != null) {
+            motion.stop();
+            motion = null;
+        }
+        boolean rest = motion != null && motion.still() && !PowerMode.screenOn && !PowerMode.missionMine()
+                && lastFix != null;
+        if (rest != gpsResting) {
+            gpsResting = rest;
+            Log.i(TAG, "power: GPS " + (rest ? "resting (still)" : "back on"));
+            locationWas = ""; // applyPower re-runs the location loop
+        }
+    }
+
+    /** Moved (or picked up): GPS back on, and from a sleep, a check-in straight away (at most once a minute). */
+    private long lastMoveCheckIn;
+
+    private void moved() {
+        if (gpsResting) {
+            gpsResting = false;
+            locationWas = "";
+            applyPower();
+        }
+        long now = System.currentTimeMillis();
+        if (asleep && now - lastMoveCheckIn > 60000) {
+            lastMoveCheckIn = now;
+            Log.i(TAG, "power: moved, checking in");
+            main.removeCallbacks(endCheckIn);
+            checkIn();
+        }
+    }
+
+    /** Plugged in or unplugged, or a wake-up sensor: a sleeping phone checks in straight away. */
+    void wakeCheckIn(String why) {
+        long now = System.currentTimeMillis();
+        if (!asleep || now - lastMoveCheckIn < 60000) return;
+        lastMoveCheckIn = now;
+        Log.i(TAG, "power: " + why + ", checking in");
+        main.removeCallbacks(endCheckIn);
+        checkIn();
+    }
+
+    // ---- Mission mode ----
+
+    /** The mission banner the user acknowledged and hid (a later or extended mission shows again). */
+    private static volatile String missionAck = "";
+
+    /** Which mission the banner is about now ("" for none). */
+    public static String missionKey() {
+        long mu = PowerMode.missionUntil();
+        if (mu > 0) return "me:" + mu / 60000;
+        if (PowerMode.missionOthers()) return PowerMode.othersMissionBy + ":" + PowerMode.othersMissionUntil / 60000;
+        return "";
+    }
+
+    /** Home screen: the user acknowledged the Mission mode banner, so hide it (the mission itself carries on). */
+    public void ackMission() {
+        missionAck = missionKey();
+        publishState(status, engine != null);
+    }
+
+    private boolean missionWasMine;
+
+    /** Mission mode was turned on, extended or off on this phone: tell the channel and update the notification. */
+    public void missionChanged() {
+        main.post(new Runnable() {
+            @Override
+            public void run() {
+                missionWasMine = PowerMode.missionMine();
+                RadioEngine.myBurst = new Prefs(RadioService.this).burstNow();
+                RadioEngine e = engine;
+                if (e != null) e.sendPresenceNow();
+                if (engine != null || compat != null) {
+                    goForeground(status);
+                    publishState(status, engine != null);
+                }
+            }
+        });
+    }
+
+    /** Every 2 s: my mission ending, and another phone's mission heard (or ended, or lost). */
+    private void checkMission() {
+        RadioEngine.myBurst = new Prefs(this).burstNow();
+        boolean mine = PowerMode.missionMine();
+        if (missionWasMine && !mine) {
+            missionWasMine = false;
+            new Prefs(this).setMissionUntil(0);
+            notifyMission("Mission mode ended", "This phone is back to its own power setting.");
+            missionChanged();
+        } else if (mine && !missionWasMine) {
+            missionWasMine = true; // still on after a restart
+        }
+        checkAnchor();
+        RadioEngine e = engine;
+        if (e == null) return;
+        long now = System.currentTimeMillis(), until = 0, heard = 0;
+        String by = "";
+        boolean byEnded = false, anchorNear = false;
+        for (RadioEngine.Station s : e.stations()) if (s.anchor && now - s.lastSeenMs < 600000) anchorNear = true;
+        PowerMode.anchorHeard = anchorNear;
+        for (RadioEngine.Station s : e.stations()) {
+            if (s.missionUntilMs > now && s.missionUntilMs > until) {
+                until = s.missionUntilMs;
+                heard = s.lastSeenMs;
+                by = s.name;
+            } else if (s.name != null && s.name.equals(PowerMode.othersMissionBy) && s.lastSeenMs > PowerMode.othersMissionHeard) {
+                byEnded = true; // heard again without the flag: their mission ended
+            }
+        }
+        boolean was = PowerMode.missionOthers();
+        if (until > 0) {
+            PowerMode.othersMissionUntil = until;
+            PowerMode.othersMissionHeard = heard;
+            PowerMode.othersMissionBy = by;
+        } else if (byEnded) {
+            PowerMode.othersMissionUntil = 0;
+        }
+        boolean is = PowerMode.missionOthers();
+        if (is != was) {
+            if (is) notifyMission("Mission mode on by " + PowerMode.othersMissionBy,
+                    "Until " + new java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(new java.util.Date(PowerMode.othersMissionUntil))
+                            + ". This phone stays awake (no deep sleep) until then.");
+            else notifyMission("Mission mode over", "Back to this phone's own power setting.");
+            applyPower();
+            publishState(status, engine != null);
+        }
+    }
+
+    private void notifyMission(String title, String text) {
+        android.app.NotificationManager nm = (android.app.NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+        if (nm == null) return;
+        Notification.Builder b;
+        if (Build.VERSION.SDK_INT >= 26) {
+            nm.createNotificationChannel(new android.app.NotificationChannel("mission", "Mission mode", android.app.NotificationManager.IMPORTANCE_HIGH));
+            b = new Notification.Builder(this, "mission");
+        } else {
+            b = new Notification.Builder(this);
+        }
+        int fl = Build.VERSION.SDK_INT >= 23 ? android.app.PendingIntent.FLAG_IMMUTABLE : 0;
+        android.app.PendingIntent open = android.app.PendingIntent.getActivity(this, 16, new Intent(this, MainActivity.class)
+                .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP), fl);
+        nm.notify(4711, b.setContentTitle(title).setContentText(text).setSmallIcon(R.drawable.ic_stat_radio)
+                .setContentIntent(open).setAutoCancel(true).build());
     }
 
     private void publishState(final String s, final boolean joined) {
@@ -2251,7 +2908,11 @@ public final class RadioService extends Service implements RadioEngine.Listener 
         // Bluetooth headset audio and the Bluetooth PTT button follow being on air.
         if (on) bt.start();
         else bt.stop();
+        if (on) mediaButtons.start(this);
+        else mediaButtons.stop(this);
     }
+
+    private final MediaButtons mediaButtons = new MediaButtons();
 
     private boolean plugWatched;
 
@@ -2301,6 +2962,7 @@ public final class RadioService extends Service implements RadioEngine.Listener 
         if (engine == null && compat == null) return;
         bt.stop();
         bt.start();
+        mediaButtons.start(this);
     }
 
     /**
@@ -2313,12 +2975,22 @@ public final class RadioService extends Service implements RadioEngine.Listener 
             Toast.makeText(this, "Radio silent: not transmitting", Toast.LENGTH_SHORT).show();
             return;
         }
-        if (PowerMode.offline()) { // no live voice: the button records a message
+        if (PowerMode.offline() || PowerMode.outsideWindow || PowerMode.burstNapping) { // no live voice: the button records a message
             boolean recording = org.communitycomms.app.audio.BurstVoice.recording();
             if (down && !recording) {
                 org.communitycomms.app.audio.BurstVoice.start(this, pr.burstQuality());
             } else if (recording && (down || !pr.latch())) {
                 String r = org.communitycomms.app.audio.BurstVoice.stopAndKeep(this);
+                if (r != null) Toast.makeText(this, r, Toast.LENGTH_SHORT).show();
+            }
+            return;
+        }
+        if (compat == null && pr.burstNow()) { // burst voice: record while held, send on release
+            boolean recording = org.communitycomms.app.audio.BurstVoice.recording();
+            if (down && !recording) {
+                org.communitycomms.app.audio.BurstVoice.start(this, pr.burstQuality());
+            } else if (recording && (down || !pr.latch())) {
+                String r = org.communitycomms.app.audio.BurstVoice.stopAndSend(this);
                 if (r != null) Toast.makeText(this, r, Toast.LENGTH_SHORT).show();
             }
             return;
@@ -2346,18 +3018,70 @@ public final class RadioService extends Service implements RadioEngine.Listener 
             multicastLock = wm.createMulticastLock("communitycomms");
             multicastLock.setReferenceCounted(false);
             multicastLock.acquire();
-            int mode = Build.VERSION.SDK_INT >= 29 ? 4 /* WIFI_MODE_FULL_LOW_LATENCY */
-                    : WifiManager.WIFI_MODE_FULL_HIGH_PERF;
-            wifiLock = wm.createWifiLock(mode, "communitycomms");
+            wifiFast = PowerMode.busy();
+            wifiLock = wm.createWifiLock(wifiMode(wifiFast), "communitycomms");
             wifiLock.setReferenceCounted(false);
             wifiLock.acquire();
         }
         PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
-        if (pm != null && wakeLock == null) {
+        if (pm != null && wakeLock == null && !PowerMode.deepSleeping) {
             wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "communitycomms:radio");
             wakeLock.setReferenceCounted(false);
             wakeLock.acquire();
         }
+    }
+
+    private boolean wifiFast;
+
+    /** Low latency (no Wi-Fi power saving) while busy; the plain lock when quiet, so Wi-Fi can doze. */
+    private static int wifiMode(boolean fast) {
+        if (!fast) return WifiManager.WIFI_MODE_FULL;
+        return Build.VERSION.SDK_INT >= 29 ? 4 /* WIFI_MODE_FULL_LOW_LATENCY */ : WifiManager.WIFI_MODE_FULL_HIGH_PERF;
+    }
+
+    /**
+     * Every 2 s: the Wi-Fi lock follows how busy the channel is, and the opt-in Deep sleep lets the CPU
+     * sleep between packets when the screen is off and nothing has been said for 2 minutes.
+     */
+    private synchronized void tuneLocks() {
+        if (wifiLock != null) {
+            boolean fast = PowerMode.busy() || (engine != null && engine.isTransmitting());
+            if (fast != wifiFast) {
+                WifiManager wm = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+                if (wm != null) {
+                    WifiManager.WifiLock nl = wm.createWifiLock(wifiMode(fast), "communitycomms");
+                    nl.setReferenceCounted(false);
+                    nl.acquire(); // the new one first, so Wi-Fi is never unlocked in between
+                    wifiLock.release();
+                    wifiLock = nl;
+                    wifiFast = fast;
+                    Log.i(TAG, "power: Wi-Fi " + (fast ? "low latency" : "power saving allowed"));
+                }
+            }
+        }
+        boolean deep = new Prefs(this).deepSleep() && engine != null && !asleep && !PowerMode.busy() && !PowerMode.missionOthers()
+                && !org.communitycomms.app.audio.BurstVoice.recording() && !engine.isTransmitting();
+        if (deep == PowerMode.deepSleeping) return;
+        PowerMode.deepSleeping = deep;
+        Log.i(TAG, "power: deep sleep " + (deep ? "on" : "off"));
+        if (deep) {
+            if (wakeLock != null) wakeLock.release();
+            wakeLock = null;
+            scheduleCheckIn(PowerMode.QUIET_PRESENCE_MS);
+        } else if (!asleep) { // (Ultra low's own sleep keeps its check-in alarm)
+            cancelCheckIn();
+            if (multicastLock != null) acquireLocks(); // on air: take the CPU lock back
+        }
+    }
+
+    /** Deep sleep: the alarm wakes the phone for a moment to send presence, then it sleeps again. */
+    private void deepCheckIn() {
+        PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+        if (pm != null) pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "communitycomms:deep").acquire(4000);
+        RadioEngine e = engine;
+        if (e != null) e.sendPresenceNow();
+        if (locationWanted()) sendFix();
+        scheduleCheckIn(PowerMode.QUIET_PRESENCE_MS);
     }
 
     private synchronized void releaseLocks() {
@@ -2398,7 +3122,7 @@ public final class RadioService extends Service implements RadioEngine.Listener 
     private long rapidShareUntil;
     private boolean txLocationOn;
     private android.location.Location lastFix;
-    private android.location.LocationListener fixListener;
+    private android.location.LocationListener fixListener, netListener;
 
     private boolean hasLocationPermission() {
         return Build.VERSION.SDK_INT < 23 || org.communitycomms.app.geo.FakeGps.enabled(this)
@@ -2686,6 +3410,7 @@ public final class RadioService extends Service implements RadioEngine.Listener 
         public void onReceive(Context c, Intent i) {
             PowerMode.screenOn = Intent.ACTION_SCREEN_ON.equals(i.getAction());
             applyPower();
+            tuneLocks(); // screen on: CPU and low-latency Wi-Fi straight back
         }
     };
 
@@ -2693,7 +3418,21 @@ public final class RadioService extends Service implements RadioEngine.Listener 
         IntentFilter f = new IntentFilter(Intent.ACTION_SCREEN_ON);
         f.addAction(Intent.ACTION_SCREEN_OFF);
         registerReceiver(screenWatch, f);
+        // Plugged in or unplugged: Android tells the app at once, even asleep, so a sleeping phone checks in.
+        IntentFilter pf = new IntentFilter(Intent.ACTION_POWER_CONNECTED);
+        pf.addAction(Intent.ACTION_POWER_DISCONNECTED);
+        registerReceiver(powerWatch, pf);
     }
+
+    private final android.content.BroadcastReceiver powerWatch = new android.content.BroadcastReceiver() {
+        @Override
+        public void onReceive(Context c, Intent i) {
+            boolean in = Intent.ACTION_POWER_CONNECTED.equals(i.getAction());
+            PowerMode.charging = in;
+            batteryReadAt = 0;
+            wakeCheckIn(in ? "plugged in" : "unplugged");
+        }
+    };
 
     /** The mode, PTT or the screen changed. Any thread. */
     public void powerChanged() {
@@ -2729,7 +3468,8 @@ public final class RadioService extends Service implements RadioEngine.Listener 
                     acquireLocks();
                     RadioEngine e = engine;
                     if (e != null) e.sendPresenceNow();
-                    catchUpAfterAway(System.currentTimeMillis() - asleepSince);
+                    // Short burst naps need no catch-up (the window itself is the catch-up time).
+                    if (System.currentTimeMillis() - asleepSince > 60000) catchUpAfterAway(System.currentTimeMillis() - asleepSince);
                 }
             }
         }
@@ -2755,9 +3495,13 @@ public final class RadioService extends Service implements RadioEngine.Listener 
     }
 
     private void scheduleCheckIn() {
+        scheduleCheckIn(nextWakeMs());
+    }
+
+    private void scheduleCheckIn(long ms) {
         android.app.AlarmManager am = (android.app.AlarmManager) getSystemService(ALARM_SERVICE);
         if (am == null) return;
-        long at = android.os.SystemClock.elapsedRealtime() + PowerMode.ULTRA_CHECK_IN_MS;
+        long at = android.os.SystemClock.elapsedRealtime() + ms;
         if (Build.VERSION.SDK_INT >= 31 ? am.canScheduleExactAlarms() : Build.VERSION.SDK_INT >= 23) am.setExactAndAllowWhileIdle(android.app.AlarmManager.ELAPSED_REALTIME_WAKEUP, at, checkInIntent());
         else if (Build.VERSION.SDK_INT >= 23) am.setAndAllowWhileIdle(android.app.AlarmManager.ELAPSED_REALTIME_WAKEUP, at, checkInIntent());
         else am.set(android.app.AlarmManager.ELAPSED_REALTIME_WAKEUP, at, checkInIntent());
@@ -2770,6 +3514,8 @@ public final class RadioService extends Service implements RadioEngine.Listener 
 
     /** Ultra low: awake for a moment to say hello and ask for what was missed. */
     private void checkIn() {
+        windowTick(); // a silence or burst window may be opening: that wakes the phone fully
+        applyPower();
         RadioEngine e = engine;
         if (!asleep || e == null) return;
         Log.i(TAG, "power: check-in");
@@ -2777,7 +3523,7 @@ public final class RadioService extends Service implements RadioEngine.Listener 
         e.sendPresenceNow();
         if (locationWanted()) sendFix();
         checkInUnread = org.communitycomms.app.msg.MessageLog.unread;
-        catchUpAfterAway(PowerMode.ULTRA_CHECK_IN_MS + 60000);
+        catchUpAfterAway(PowerMode.ultraCheckInMs() + 60000);
         main.postDelayed(endCheckIn, 20000);
     }
 
@@ -2814,10 +3560,16 @@ public final class RadioService extends Service implements RadioEngine.Listener 
         android.location.LocationManager lm = (android.location.LocationManager) getSystemService(Context.LOCATION_SERVICE);
         main.removeCallbacks(locationTick);
         if (fixListener != null && lm != null) lm.removeUpdates(fixListener); // the rate may have changed
+        if (netListener != null && lm != null) lm.removeUpdates(netListener);
         fixListener = null;
+        netListener = null;
         if (!locationWanted()) return;
+        if (gpsResting) { // still: the last fix goes out as "still here", no GPS
+            main.postDelayed(locationTick, 0);
+            return;
+        }
         if (fixListener == null && lm != null) {
-            fixListener = new android.location.LocationListener() {
+            netListener = new android.location.LocationListener() {
                 @Override
                 public void onLocationChanged(android.location.Location l) {
                     if (lastFix == null || l.getTime() >= lastFix.getTime()) lastFix = l;
@@ -2835,10 +3587,36 @@ public final class RadioService extends Service implements RadioEngine.Listener 
                 public void onProviderDisabled(String p) {
                 }
             };
-            try {
-                for (String p : new String[]{android.location.LocationManager.GPS_PROVIDER, android.location.LocationManager.NETWORK_PROVIDER}) {
-                    if (lm.getAllProviders().contains(p)) lm.requestLocationUpdates(p, PowerMode.locationMs(PowerMode.gpsMs(5000, 30000)), 0, fixListener, Looper.getMainLooper());
+            fixListener = new android.location.LocationListener() {
+                @Override
+                public void onLocationChanged(android.location.Location l) {
+                    if (lastFix == null || l.getTime() >= lastFix.getTime()) lastFix = l;
+                    // A good GPS fix: network location is no longer needed (it costs radio time).
+                    android.location.LocationManager m = (android.location.LocationManager) getSystemService(Context.LOCATION_SERVICE);
+                    if (netListener != null && l.hasAccuracy() && l.getAccuracy() <= 30 && m != null) {
+                        m.removeUpdates(netListener);
+                        netListener = null;
+                    }
                 }
+
+                @Override
+                public void onStatusChanged(String p, int st, android.os.Bundle e) {
+                }
+
+                @Override
+                public void onProviderEnabled(String p) {
+                }
+
+                @Override
+                public void onProviderDisabled(String p) {
+                }
+            };
+            try {
+                long every = PowerMode.locationMs(PowerMode.gpsMs(5000, 30000));
+                if (lm.getAllProviders().contains(android.location.LocationManager.GPS_PROVIDER))
+                    lm.requestLocationUpdates(android.location.LocationManager.GPS_PROVIDER, every, 0, fixListener, Looper.getMainLooper());
+                if (lm.getAllProviders().contains(android.location.LocationManager.NETWORK_PROVIDER))
+                    lm.requestLocationUpdates(android.location.LocationManager.NETWORK_PROVIDER, every, 0, netListener, Looper.getMainLooper());
             } catch (RuntimeException ignored) {
                 // no permission or provider
             }
@@ -2857,6 +3635,12 @@ public final class RadioService extends Service implements RadioEngine.Listener 
         android.location.Location known = lm == null ? null : org.communitycomms.app.geo.LocationHelper.bestKnown(lm);
         if (l == null || (known != null && known.getTime() > l.getTime())) l = known;
         if (org.communitycomms.app.geo.FakeGps.isFake(known)) l = known; // fake GPS wins over real fixes
+        if (gpsResting && l != null) {
+            // GPS resting because the phone has not moved: the same place, confirmed now ("still here").
+            Log.i(TAG, "auto location sent (still)");
+            e.sendLocation(l.getLatitude(), l.getLongitude(), l.getAccuracy(), System.currentTimeMillis(), "");
+            return;
+        }
         if (l == null || System.currentTimeMillis() - l.getTime() > 10 * 60000L) {
             Log.i(TAG, "auto location skipped: no recent fix");
             return;

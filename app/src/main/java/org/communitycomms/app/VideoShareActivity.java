@@ -57,7 +57,8 @@ public final class VideoShareActivity extends Activity implements SurfaceHolder.
 
     private SharedPreferences sp;
     private Spinner source, size, rate;
-    private android.widget.CheckBox audio;
+    private android.widget.CheckBox audio, overlay;
+    private volatile VideoTelemetry telemetry;
     private org.communitycomms.app.audio.Capture mic;
     private final org.communitycomms.app.audio.ImaAdpcm adpcm = new org.communitycomms.app.audio.ImaAdpcm();
     private byte[] audioBuf;
@@ -98,6 +99,10 @@ public final class VideoShareActivity extends Activity implements SurfaceHolder.
         audio.setText("Send audio too (only heard by people on the Tactical videos screen)");
         audio.setChecked(sp.getBoolean("audio", false));
         root.addView(audio);
+        overlay = new android.widget.CheckBox(this);
+        overlay.setText("Telemetry overlay on the picture (position, compass heading, tilt and roll, speed, time)");
+        overlay.setChecked(sp.getBoolean("telemetry", true));
+        root.addView(overlay);
 
         go = new Button(this);
         go.setText("Start sharing");
@@ -205,7 +210,13 @@ public final class VideoShareActivity extends Activity implements SurfaceHolder.
             Toast.makeText(this, "More than " + MAX_FPS_LARGER + " a second sends Tiny pictures", Toast.LENGTH_LONG).show();
         }
         sp.edit().putInt("size", size.getSelectedItemPosition()).putInt("rate", rate.getSelectedItemPosition())
-                .putString("url", url.getText().toString().trim()).putBoolean("audio", audio.isChecked()).commit();
+                .putString("url", url.getText().toString().trim()).putBoolean("audio", audio.isChecked())
+                .putBoolean("telemetry", overlay.isChecked()).commit();
+        if (overlay.isChecked()) {
+            VideoTelemetry tm = new VideoTelemetry(this);
+            tm.start();
+            telemetry = tm;
+        }
         sharing = true;
         sent = 0;
         sentBytes = 0;
@@ -246,6 +257,9 @@ public final class VideoShareActivity extends Activity implements SurfaceHolder.
     private void stopSharing() {
         sharing = false;
         stopMic();
+        VideoTelemetry tm = telemetry;
+        telemetry = null;
+        if (tm != null) tm.stop();
         if (netThread != null) {
             netThread.interrupt();
             netThread = null;
@@ -263,12 +277,18 @@ public final class VideoShareActivity extends Activity implements SurfaceHolder.
     }
 
     /** Shrinks, turns upright and squeezes a picture to a small JPEG (under about 12 KB). */
-    private static byte[] squeeze(Bitmap src, int width, int rotation) {
+    private byte[] squeeze(Bitmap src, int width, int rotation) {
         float scale = (float) width / Math.max(src.getWidth(), src.getHeight());
         Matrix m = new Matrix();
         m.postScale(scale, scale);
         if (rotation != 0) m.postRotate(rotation);
         Bitmap small = Bitmap.createBitmap(src, 0, 0, src.getWidth(), src.getHeight(), m, true);
+        VideoTelemetry tm = telemetry;
+        if (tm != null) {
+            Bitmap drawn = tm.draw(small);
+            if (drawn != small && small != src) small.recycle();
+            small = drawn;
+        }
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         int q = 50;
         small.compress(Bitmap.CompressFormat.JPEG, q, out);

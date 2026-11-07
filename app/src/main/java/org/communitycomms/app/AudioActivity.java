@@ -411,7 +411,7 @@ public final class AudioActivity extends Activity {
                 .setNeutralButton("Clear", new android.content.DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(android.content.DialogInterface di, int w) {
-                        prefs.setPttKey(android.view.KeyEvent.KEYCODE_UNKNOWN);
+                        prefs.setPttKey(android.view.KeyEvent.KEYCODE_UNKNOWN); if (RadioService.instance() != null) RadioService.instance().restartBt();
                         showDevices();
                     }
                 })
@@ -421,7 +421,7 @@ public final class AudioActivity extends Activity {
             @Override
             public boolean onKey(android.content.DialogInterface di, int code, android.view.KeyEvent ev) {
                 if (code == android.view.KeyEvent.KEYCODE_BACK || ev.getAction() != android.view.KeyEvent.ACTION_DOWN) return false;
-                prefs.setPttKey(code);
+                prefs.setPttKey(code); if (RadioService.instance() != null) RadioService.instance().restartBt();
                 Toast.makeText(AudioActivity.this, "PTT button set: " + android.view.KeyEvent.keyCodeToString(code), Toast.LENGTH_SHORT).show();
                 di.dismiss();
                 showDevices();

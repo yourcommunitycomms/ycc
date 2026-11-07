@@ -180,6 +180,8 @@
     <string name="clear_mission_note">Deletes chat and report history, pictures and files sent or received, voice recordings, map points and contacts\' last positions. Keeps DRYAD sheets, channel names, settings and offline maps. You must leave every channel first.</string>
     <string name="tunnel_heading">Tunnel comms (advanced)</string>
     <string name="tunnel_client">Tunnel comms: connect to a relay over the internet…</string>
+    <string name="tunnel_vps">Internet relay (VPS): gateway or remote, relay mode…</string>
+    <string name="tunnel_sites">Internet relay sites (status)…</string>
     <string name="tunnel_relay">Tunnel relay: let remote phones connect to this one…</string>
     <string name="tunnel_note">For a phone away from the group\'s WiFi. The relay (best the commander tablet) stays on the group\'s network with a port forwarded to it from the internet, one port per remote person, each keyed by its own DRYAD row. The remote phone then sends and receives everything through the relay instead of WiFi. UDP, falling back to TCP. Everything stays encrypted end to end.</string>
     <string name="gunshot_note">* Untested. A phone microphone cannot tell a gunshot from a slammed door. Keeps the microphone open while on air (nothing is sent until it triggers) and uses more battery.</string>

@@ -11,7 +11,8 @@ import org.json.JSONObject;
 
 /**
  * Phone setup QR code from the LAN storage's admin page (Phone setup tab):
- * "YCCSETUP1|" + JSON {"name","url","user","pass","tunnel","tkey","pub","chA","omg","omh","home","defaults"}.
+ * "YCCSETUP1|" + JSON {"name","url","user","pass","tunnel","tkey","vps","vkey","rmode","mrange","mrole","pub","chA","omg","omh","home","defaults"}.
+ * "mrole" (on / off / auto: gateway on the MANET or remote off it) comes from the Relay admin screen.
  * A code for a remote person (the bridge tab) may hold only the tunnel, with no "url".
  * Asks, checks the storage login works, saves it, loads the network defaults and DRYAD sheets from it
  * (when "defaults" is set), then sets the tunnel server, Public key and channel A.
@@ -40,6 +41,12 @@ public final class SetupQr {
             put(o, "pass", sp.getString("lanPass", ""));
             put(o, "tunnel", p.tunnelServer());
             put(o, "tkey", p.tunnelKey());
+            put(o, "vps", p.vpsServer()); // internet relay: address, key, mode, MANET range
+            put(o, "vkey", p.vpsKey());
+            if (p.vpsServer().length() > 0) {
+                put(o, "rmode", p.relayMode());
+                put(o, "mrange", p.manetRange());
+            }
             if (!Prefs.PUBLIC_CHANNEL.equals(p.publicKey())) put(o, "pub", p.publicKey());
             if (withChannelA) put(o, "chA", p.channel(Prefs.SLOT_A));
             if (p.showOpenManet()) {
@@ -48,7 +55,26 @@ public final class SetupQr {
             }
             if (sp.getBoolean("homeNetOn", false)) put(o, "home", sp.getString("homeNetSsid", ""));
             put(o, "menus", p.menusOn()); // specialised menus this phone has on
+            o.put("burst", p.burstVoice() ? 1 : 0); // the group's voice mode
             o.put("defaults", 1);
+        } catch (org.json.JSONException e) {
+            return null;
+        }
+        return PREFIX + o.toString();
+    }
+
+    /**
+     * Relay admin screen: a setup code for one internet relay user (relay address, that user's key,
+     * relay mode, and the role: "on" the MANET for a site's gateway, "off" for a remote phone).
+     */
+    public static String makeRelayUser(String name, String relay, String key, String role) {
+        JSONObject o = new JSONObject();
+        try {
+            o.put("name", name + " (internet relay)");
+            o.put("vps", relay.trim());
+            o.put("vkey", key.trim());
+            o.put("rmode", "vps");
+            o.put("mrole", role);
         } catch (org.json.JSONException e) {
             return null;
         }
@@ -111,7 +137,7 @@ public final class SetupQr {
         }
         final String url = o.optString("url").trim();
         final boolean hasLan = url.startsWith("http://") || url.startsWith("https://");
-        if (!hasLan && o.optString("tunnel").length() == 0) { // a code for a remote person may hold only the tunnel
+        if (!hasLan && o.optString("tunnel").length() == 0 && o.optString("vps").length() == 0) { // a code for a remote person may hold only the tunnel
             Toast.makeText(a, "That setup QR code has no storage address", Toast.LENGTH_LONG).show();
             if (onCancel != null) onCancel.run();
             return;
@@ -121,6 +147,13 @@ public final class SetupQr {
         if (hasLan) sb.append("LAN storage: ").append(url);
         if (hasLan && o.optString("user").length() > 0) sb.append(" (user ").append(o.optString("user")).append(")");
         if (o.optString("tunnel").length() > 0) sb.append("\nTunnel server: ").append(o.optString("tunnel"));
+        if (o.optString("vps").length() > 0) {
+            sb.append("\nInternet relay: ").append(o.optString("vps"));
+            String mr = o.optString("mrole");
+            if (mr.equals("on")) sb.append(" (this phone is on the MANET: a gateway for the site)");
+            else if (mr.equals("off")) sb.append(" (this phone is off the MANET: a remote)");
+            else if (mr.equals("auto")) sb.append(" (on or off the MANET found by the WiFi address)");
+        }
         if (o.optString("pub").length() > 0) sb.append("\nPublic channel key");
         if (o.optString("chA").length() > 0) sb.append("\nChannel A: ").append(o.optString("chA"));
         if (o.optString("omg").length() > 0) {
@@ -129,6 +162,7 @@ public final class SetupQr {
         }
         if (o.optString("home").length() > 0) sb.append("\nHome WiFi: ").append(o.optString("home"));
         if (o.optString("menus").length() > 0) sb.append("\nSpecialised menus: ").append(o.optString("menus").replace(",", ", "));
+        if (o.has("burst")) sb.append("\nVoice: ").append(o.optInt("burst") == 1 ? "burst mode" : "live");
         if (o.optInt("defaults") == 1) {
             sb.append("\n\nThen it loads the network defaults and DRYAD sheets from the storage, replacing these "
                     + "settings and sheets. Your callsign, PIN and this phone's own settings stay.");
@@ -237,6 +271,7 @@ public final class SetupQr {
         p.setMenuOn("tasks", true);
         if (o.has("code")) p.setMenuOn("report", true);
         if (o.optString("menus").length() > 0) p.turnOnMenus(o.optString("menus"));
+        if (o.has("burst")) p.setBurstVoice(o.optInt("burst") == 1);
         if (o.has("chA") && o.has("pub")) { // talk on the team channel, hear Public
             p.setDualWatch(true, true, false);
             p.setListening(Prefs.SLOT_PUBLIC, true);
@@ -285,6 +320,15 @@ public final class SetupQr {
                         // After the defaults, which would otherwise clear the channel and Public key.
                         Prefs p = new Prefs(a);
                         if (o.optString("tunnel").length() > 0) p.setTunnel(o.optString("tunnel"), o.optString("tkey"));
+                        if (o.optString("vps").length() > 0) {
+                            String rm = o.optString("rmode", "vps");
+                            p.setVps("direct".equals(rm) || "both".equals(rm) ? rm : "vps", o.optString("vps"), o.optString("vkey"));
+                            String mr = o.optString("mrole"); // from the Relay admin screen: gateway or remote
+                            p.setManet(mr.equals("on") || mr.equals("off") || mr.equals("auto") ? mr : p.manetRole(),
+                                    o.optString("mrange", Prefs.DEFAULT_MANET_RANGE));
+                            RadioService rs = RadioService.instance();
+                            if (rs != null) rs.applyVpsNow(); // on air: connect with the new relay settings now
+                        }
                         if (o.optString("pub").length() > 0) p.setPublicKey(o.optString("pub"));
                         if (o.optString("chA").length() > 0) p.setChannel(Prefs.SLOT_A, o.optString("chA"));
                         android.content.SharedPreferences.Editor ed =
@@ -299,6 +343,7 @@ public final class SetupQr {
                         }
                         ed.commit();
                         if (o.optString("menus").length() > 0) p.turnOnMenus(o.optString("menus"));
+                        if (o.has("burst")) p.setBurstVoice(o.optInt("burst") == 1);
                         applyTeam(a, o, p);
                         p.setSetupDone();
                         Toast.makeText(a, done + (o.optString("tunnel").length() > 0
