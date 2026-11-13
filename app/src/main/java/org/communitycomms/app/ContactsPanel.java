@@ -188,6 +188,7 @@ final class ContactsPanel {
         readMyPosition();
         rows.clear();
         rows.addAll(Contacts.get(a).all());
+        bluetti = BluettiMonitor.heardByName(a);
         group();
         long now = System.currentTimeMillis();
         int online = 0;
@@ -199,6 +200,29 @@ final class ContactsPanel {
         int pos = list.getFirstVisiblePosition();
         adapter.notifyDataSetChanged();
         list.setSelection(pos);
+    }
+
+    /** Each phone's latest Bluetti power station message (shared on the channel). */
+    private java.util.Map<String, org.communitycomms.app.msg.MessageLog.Entry> bluetti = new java.util.HashMap<String, org.communitycomms.app.msg.MessageLog.Entry>();
+
+    /** A small power station icon and its battery % after the phone's own %, when that phone reports a Bluetti. */
+    @SuppressWarnings("deprecation")
+    private void bluettiBadge(SpannableStringBuilder sb, Contacts.Contact c) {
+        org.communitycomms.app.msg.MessageLog.Entry e = bluetti.get(c.name);
+        if (e == null) return;
+        int pct = BluettiMonitor.percentIn(e.body);
+        android.graphics.drawable.Drawable d = a.getResources().getDrawable(R.drawable.ic_bluetti);
+        int px = (int) (16 * a.getResources().getDisplayMetrics().density);
+        d.setBounds(0, 0, px, px);
+        sb.append("  ");
+        int at = sb.length();
+        sb.append("P");
+        sb.setSpan(new android.text.style.ImageSpan(d, android.text.style.ImageSpan.ALIGN_BASELINE), at, at + 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        if (pct >= 0) {
+            int ps = sb.length();
+            sb.append(String.valueOf(pct)).append('%');
+            sb.setSpan(new ForegroundColorSpan(pct <= 10 ? 0xffff8a80 : 0xfff0c75e), ps, sb.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        }
     }
 
     private boolean compact() {
@@ -225,6 +249,7 @@ final class ContactsPanel {
         sb.setSpan(new ForegroundColorSpan(Contacts.statusColour(c.status, on)), 0, sb.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
         burstBadge(sb, c, 2 + c.name.length());
         if (c.battery >= 0) sb.append(" · ").append(String.valueOf(c.battery)).append('%');
+        bluettiBadge(sb, c);
         if (c.hasFix() && me != null) {
             double brg = Geo.bearing(me.getLatitude(), me.getLongitude(), c.lat, c.lon);
             sb.append(" · ").append(Geo.arrow(brg)).append(' ')
@@ -254,6 +279,12 @@ final class ContactsPanel {
         sb.append("\nlast seen ").append(c.lastSeenMs == 0 ? "never" : Geo.age(now - c.lastSeenMs));
         if (c.heardOn.length() > 0) sb.append(" on ").append(c.heardOn);
         if (c.battery >= 0) sb.append(" · battery ").append(String.valueOf(c.battery)).append('%');
+        bluettiBadge(sb, c);
+        org.communitycomms.app.msg.MessageLog.Entry pe = bluetti.get(c.name);
+        if (pe != null) { // details: the whole latest power station message
+            String pb = pe.body.startsWith(RadioService.SAY) ? pe.body.substring(RadioService.SAY.length()) : pe.body;
+            sb.append("\n").append(pb).append(" (").append(Geo.age(now - pe.time)).append(')');
+        }
         if (c.voiceMode == 1) sb.append(" · voice: burst");
         if (c.hasFix()) {
             sb.append('\n');

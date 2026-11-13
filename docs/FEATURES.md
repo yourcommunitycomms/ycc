@@ -252,7 +252,7 @@ phone call volume (radio audio) and media volume, an in-app hearing boost and mi
 - **Navigate…** from a point: **Online** (Google Maps or any other map app) or **Offline on this map**, driving or walking. Offline routing uses the street routing data (OpenStreetMap roads, in areas of about 28 km): if the trip needs areas not on the phone, it offers to download them (LAN storage first, then the internet; the LAN storage keeps a copy). The route is drawn in blue with a bar showing the next turn, distance and time left, spoken prompts (Voice on / off, nothing in Stealth), a new route when you leave it, and Stop.
 - **Planning and sharing a route:** an offline route is shown first, with **Start**, **Route…** and **Stop**. Route… can **close the road at the +** (a tree down, a flood: roads within 25 m are avoided), **go via the +** (a set way for a convoy), undo or clear those, **share this route** (to the channel chat, one person privately, or another app as text), work out a new route now, and turn automatic new routes on or off. A shared route shows in Chat as one line; tapping it opens the same route (same start, via points and closed roads) ready to Start. **Don't reroute** is on by default (Settings > Audio, PTT and alerts): leaving the route only says how far off you are.
 - **Home screen choice** (Settings > Home screen and menus): Radio, Map, **Full map** (the app opens straight into the full map) or **TV mode** (opens in TV mode). **Screen orientation:** Auto, Portrait or Landscape for every screen, for a phone that keeps turning the wrong way, and **Invert screen** (upside down, e.g. mounted on a plate carrier with the leads out the other side; on Auto, the way the screen is held when a screen opens).
-- **Specialised menus** (Settings > Home screen and menus): Channel array, Report to leaders, Tasks and notes, Project NOMAD, VicEmergency alerts, the Melbourne trains preset, the Load station names button, the ARTC rail network the ATAK items in the map menu (import map file, export for ATAK, ATAK map source) , **Cast screen to TV**, **Calendar and notes** and **Relay admin** are hidden until ticked here (Trains on the map itself is always in the map menu, for your own home town's feed). All are off by default. A phone setup QR code carries the ticks of the phone that made it, and a team setup code turns on Tasks and notes (and Report to leaders with an approved code).
+- **Specialised menus** (Settings > Home screen and menus): Channel array, Report to leaders, Tasks and notes, Project NOMAD, VicEmergency alerts, the Melbourne trains preset, the Load station names button, the ARTC rail network the ATAK items in the map menu (import map file, export for ATAK, ATAK map source) , **Cast screen to TV**, **Calendar and notes**, **Relay admin** and **Bluetti power** are hidden until ticked here (Trains on the map itself is always in the map menu, for your own home town's feed). All are off by default. A phone setup QR code carries the ticks of the phone that made it, and a team setup code turns on Tasks and notes (and Report to leaders with an approved code).
 - **Calendar and notes** (a specialised menu): **My calendar** (on this phone), **Team** (entries shared on the channel; only whoever made one can change it), **Both** (team entries in amber, mine in green) and **My notes**. A month at a time with ◀ ▶. Entries have a title, date, time or all day, length, a note, and **Remind me** (at the time, 5, 10, 15 or 30 minutes, 1 or 2 hours, or a day before) with or without a **buzz**; team entries with a reminder remind everyone on the channel. Notes have a name, a date and text with pictures in it (**Insert picture / screenshot** puts it where the cursor is). Notes and my calendar never leave the phone.
 - **Cast screen to TV** (menu, when ticked): opens the phone's own Cast screen list (Google TV, Chromecast, smart TVs; some phones call it Smart View or Screen mirroring) so the app shows on the TV. While casting, the screen stays on and the black screen timer waits. Nothing is sent until casting starts; while casting, a continuous video stream uses the WiFi and battery, so stop it when done. **Stop casting after 1 hour without using the app** (in the Cast box, off by default) ends a forgotten cast; where a phone does not let an app end it, a notification asks you to. A Google TV can also run the app itself in TV mode.
 - **ARTC rail network** (a tick under Layer): Australia's interstate and freight track (ARTC Rail Centreline, CC BY 4.0, Australian Rail Track Corporation) as orange dashed lines, from map zoom 6 in. Read in squares of about 70 km as the map moves and kept on the phone, so areas seen before show offline.
@@ -577,6 +577,31 @@ type ERASE). Destructive buttons ask first.
   on or off through its web API (keeps a backup; the password is never saved).
 - **Project NOMAD** screen (menu): ask its AI (Ollama) and open its Command Center.
 - **Contacts > More details:** Remove a contact and add/edit its note.
+- **Bluetti power** (a specialised menu, off by default; Settings > Home screen and menus, or a setup QR code):
+  works with Bluetti power stations over **Bluetooth**, offline, never the Bluetti cloud (the units' WiFi only talks
+  to that cloud). Needs Android 4.3 or newer with Bluetooth LE; Android 6 to 11 also need Location turned on to find
+  the unit. **Find my unit** (menu) looks for nearby units for 8 s and you pick yours (close the Bluetti app first:
+  the unit takes one connection at a time). The screen shows **battery %**, **power in** (AC, and DC / solar),
+  **power out** (AC and DC), **time to full or time left** at the present load (from the battery size, 300 Wh for
+  an AC30, editable in Settings), when it was last read, and **AC / DC output on and off** buttons (with a
+  confirm). It reads every 10 s while open. Newer units that ask for an encrypted link get it automatically.
+  - **Watch in the background** (Settings, on the phone left near the unit): reads every 60 s (every 5 min in
+    Ultra low or while the radio sleeps) and lets go of the Bluetooth link between reads. **Quiet by default:** nothing
+    goes to the channel until the unit is down to **10%** (Settings: "Send status and alerts ... at or below %"; 100 =
+    always). From then it **shares a short status** ("Power station EL30V2: 9%, in 0 W, out 45 W, about 35 min left")
+    every 5 minutes when it has changed (the minutes are a setting) and at once on a 5% change. The **On the channel**
+    part of the Bluetti power screen lists the latest status from each phone (no Bluetooth needed there), and the
+    **commander view** (and Contacts) shows a small power station icon with the unit's % next to that phone's own
+    battery %; More details shows the whole latest message.
+  - **Alerts** to the channel, like the Reolink ones (text, optionally read aloud on the other phones): **low battery**
+    (10%) and **critical** (5%), **charging started / stopped**, **mains input lost / back**, **overload** (watts out,
+    300 W by default) and **out of contact** for 10 minutes (and back), all held back above the send level. All the
+    numbers are settings; 0 turns one off.
+  - **Tested** on a Galaxy S5 (Android 6) with a Bluetti Elite 30 V2 (it reports itself as EL30V2; its WiFi name says
+    AC30): finding it, the encrypted link, and reading battery % and the outputs' state. **Not yet tested on the
+    unit:** the AC/DC switches, watt readings under a real load or charge, and sharing / alerts on the channel.
+  - **Probe (raw log)** and **Show log** (menu) record what the unit says, in hex, to help add other models.
+  - Works with Bluetti power stations. Bluetti is a trademark of its owner; this app is not affiliated with Bluetti.
 
 ## DRYAD extras
 5-letter sheet IDs, optional random row order, huge AA–ZZ sheets (676 rows, not QR-shareable),

@@ -34,5 +34,15 @@ our own implementation, written from the protocol as described by reolink_aio
 
 The app works with Reolink cameras. Reolink is a trademark of its owner; this project is
 not affiliated with or endorsed by Reolink.
+
+Bluetti power stations over Bluetooth (app/src/main/java/org/communitycomms/app/power/BluettiProtocol.java):
+our own Java implementation, written from the Modbus framing, register layouts and encrypted
+handshake (including its published key constants) as described by these MIT licensed projects
+(same MIT License terms as quoted above):
+  bluetti-bt-lib (https://github.com/Patrick762/bluetti-bt-lib), Copyright (c) 2025 Patrick762,
+  whose encryption code credits https://github.com/nhurman/bluetti_mqtt
+  bluetti_mqtt (https://github.com/warhammerkid/bluetti_mqtt), Copyright 2022 Stephen Augenstein
+The app works with Bluetti power stations. Bluetti is a trademark of its owner; this project is
+not affiliated with or endorsed by Bluetti.
 Timer icons (app/src/main/res/drawable/ic_timer.xml, ic_timer_off.xml) use the shapes of Google's Material icons
 (Apache License 2.0).

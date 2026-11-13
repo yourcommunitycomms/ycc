@@ -1556,7 +1556,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
     private static final int MENU_DRYAD = 1, MENU_PIGPEN = 2, MENU_CHANNEL_QR = 3, MENU_SCAN = 4, MENU_FILES = 5,
             MENU_OPENMANET = 6, MENU_BLACKOUT = 7, MENU_RED = 8, MENU_SETTINGS = 9, MENU_CHAT = 10, MENU_AUDIO = 11, MENU_ABOUT = 12, MENU_EXIT = 13,
             MENU_STREAMS = 14, MENU_INTERCOM = 15, MENU_VIDEOS = 16, MENU_TV = 17, MENU_GATEWAY = 18,
-            MENU_HOME_TOGGLE = 19, MENU_TOP_CHAT = 20, MENU_TOP_BLACK = 21, MENU_NOMAD = 22, MENU_TV_MENU = 23, MENU_TASKS = 24, MENU_ARRAY = 25, MENU_REPORT_UP = 26, MENU_CAST = 27, MENU_CALENDAR = 28, MENU_RELAY_ADMIN = 29;
+            MENU_HOME_TOGGLE = 19, MENU_TOP_CHAT = 20, MENU_TOP_BLACK = 21, MENU_NOMAD = 22, MENU_TV_MENU = 23, MENU_TASKS = 24, MENU_ARRAY = 25, MENU_REPORT_UP = 26, MENU_CAST = 27, MENU_CALENDAR = 28, MENU_RELAY_ADMIN = 29, MENU_BLUETTI = 30;
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
@@ -1595,6 +1595,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         menu.add(0, MENU_CAST, 5, "Cast screen to TV");
         menu.add(0, MENU_CALENDAR, 2, "Calendar and notes");
         menu.add(0, MENU_RELAY_ADMIN, 6, "Relay admin");
+        menu.add(0, MENU_BLUETTI, 2, "Bluetti power");
         menu.add(0, MENU_GATEWAY, 6, "OpenMANET internet gateway");
         menu.add(0, MENU_EXIT, 10, "Exit (go off air and close)");
         return true;
@@ -1662,8 +1663,8 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         MenuItem st = menu.findItem(MENU_STREAMS);
         if (st != null) st.setVisible(prefs.streamsEnabled()); // Settings: Internet audio
         // Specialised menus: only when ticked (Settings > Home screen and menus, or a setup QR code).
-        int[] special = {MENU_ARRAY, MENU_REPORT_UP, MENU_TASKS, MENU_NOMAD, MENU_CAST, MENU_CALENDAR, MENU_RELAY_ADMIN};
-        String[] keys = {"array", "report", "tasks", "nomad", "cast", "calendar", "relayadmin"};
+        int[] special = {MENU_ARRAY, MENU_REPORT_UP, MENU_TASKS, MENU_NOMAD, MENU_CAST, MENU_CALENDAR, MENU_RELAY_ADMIN, MENU_BLUETTI};
+        String[] keys = {"array", "report", "tasks", "nomad", "cast", "calendar", "relayadmin", "bluetti"};
         for (int i = 0; i < special.length; i++) {
             MenuItem it = menu.findItem(special[i]);
             if (it != null && !prefs.menuOn(keys[i])) it.setVisible(false);
@@ -2024,6 +2025,8 @@ public final class MainActivity extends Activity implements RadioService.Ui {
             }, null);
         } else if (id == MENU_CALENDAR) {
             startActivity(new Intent(this, CalendarActivity.class));
+        } else if (id == MENU_BLUETTI) {
+            startActivity(new Intent(this, BluettiActivity.class));
         } else if (id == MENU_RELAY_ADMIN) {
             startActivity(new Intent(this, RelayAdminActivity.class));
         } else if (id == MENU_CAST) {
