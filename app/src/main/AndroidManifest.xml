@@ -13,6 +13,7 @@
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
@@ -100,6 +101,7 @@
         <activity android:name=".StreamsActivity" android:exported="false" />
         <activity android:name=".KeysActivity" android:exported="false" />
         <service android:name=".TilePrefetchService" android:exported="false" android:foregroundServiceType="dataSync" />
+        <service android:name=".CameraShareService" android:exported="false" android:foregroundServiceType="camera|microphone|dataSync" />
         <activity android:name=".CwSettingsActivity" android:exported="false" />
         <activity android:name=".CalendarActivity" android:exported="false" />
         <activity android:name=".NoteActivity" android:exported="false" android:windowSoftInputMode="adjustResize" />
@@ -114,6 +116,10 @@
         <activity android:name=".DryadExplainedActivity" android:exported="false" />
         <activity android:name=".VideoShareActivity" android:exported="false" android:screenOrientation="portrait" />
         <activity android:name=".TacticalVideoActivity" android:exported="false" />
+        <activity android:name=".ReolinkSetupActivity" android:exported="false" />
+        <activity android:name=".ReolinkWizardActivity" android:exported="false" android:windowSoftInputMode="stateHidden|adjustResize" />
+        <activity android:name=".ReolinkAlertActivity" android:exported="false" android:configChanges="orientation|screenSize|keyboardHidden" />
+        <activity android:name=".ReolinkViewActivity" android:exported="false" android:configChanges="orientation|screenSize|keyboardHidden" />
         <activity android:name=".TvActivity" android:exported="false" />
         <activity android:name=".GatewayActivity" android:exported="false" />
         <activity android:name=".NomadActivity" android:exported="false" android:windowSoftInputMode="stateHidden|adjustResize" />

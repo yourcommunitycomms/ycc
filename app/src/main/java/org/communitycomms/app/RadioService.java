@@ -1489,6 +1489,7 @@ public final class RadioService extends Service implements RadioEngine.Listener 
         super.onCreate();
         watchScreen();
         instance = this;
+        ReolinkMonitor.acquire(this, "bg"); // watches only if Reolink background watching is on
         restoreRapidShare(); // still sharing after a crash: carries on once back on a channel
         messages =new org.communitycomms.app.msg.MessageCenter(this, new org.communitycomms.app.msg.MessageCenter.Air() {
             @Override
@@ -1598,6 +1599,7 @@ public final class RadioService extends Service implements RadioEngine.Listener 
 
     @Override
     public void onDestroy() {
+        ReolinkMonitor.release("bg");
         unregisterReceiver(screenWatch);
         try {
             unregisterReceiver(powerWatch);

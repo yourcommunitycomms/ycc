@@ -22,6 +22,12 @@ public final class VideoHub {
         public Bitmap picture;
         public long atMs;
         public int frames;
+        /** A camera on this LAN (Reolink), not a person's camera heard on the air. */
+        public boolean local;
+        /** Shown after the name, e.g. "offline: ..." for a LAN camera that stopped answering. */
+        public volatile String note;
+        /** What set it off ("Person", "Motion"...) while it is triggered, else null. */
+        public volatile String alert;
 
         Feed(String name) {
             this.name = name;
@@ -123,6 +129,90 @@ public final class VideoHub {
         }
         Runnable r = ui;
         if (r != null) r.run();
+    }
+
+    /** A picture from a LAN camera (Reolink): shown with the others on the walls. */
+    public static void putLocal(String name, Bitmap bm, String note) {
+        synchronized (feeds) {
+            Feed f = feeds.get(name);
+            if (f == null) {
+                f = new Feed(name);
+                f.local = true;
+                feeds.put(name, f);
+            }
+            if (bm != null) {
+                f.picture = bm;
+                f.frames++;
+            }
+            f.note = note;
+            f.atMs = System.currentTimeMillis();
+        }
+        Runnable r = ui;
+        if (r != null) r.run();
+    }
+
+    /** Takes LAN camera tiles off the walls (cameras removed or watching stopped). */
+    public static void removeLocal(java.util.Collection<String> keep) {
+        synchronized (feeds) {
+            java.util.Iterator<Map.Entry<String, Feed>> it = feeds.entrySet().iterator();
+            while (it.hasNext()) {
+                Feed f = it.next().getValue();
+                if (f.local && (keep == null || !keep.contains(f.name))) it.remove();
+            }
+        }
+        Runnable r = ui;
+        if (r != null) r.run();
+    }
+
+    public static Feed feed(String name) {
+        synchronized (feeds) {
+            return feeds.get(name);
+        }
+    }
+
+    /** Triggered LAN cameras and until when each stays in front (its own last movement + the hold time). */
+    private static final Map<String, Long> alerts = new LinkedHashMap<String, Long>();
+
+    /** A LAN camera was triggered: its tile comes to the front until the hold time after its last movement. */
+    public static void alert(String name, String what, long untilMs) {
+        Feed f = feed(name);
+        if (f != null) f.alert = what;
+        synchronized (alerts) {
+            alerts.remove(name); // newest last
+            alerts.put(name, untilMs);
+        }
+        Runnable r = ui;
+        if (r != null) r.run();
+    }
+
+    /** Every camera to show in front now (several at once share the screen), oldest first. */
+    public static List<String> alertingAll() {
+        List<String> out = new ArrayList<String>();
+        long now = System.currentTimeMillis();
+        synchronized (alerts) {
+            java.util.Iterator<Map.Entry<String, Long>> it = alerts.entrySet().iterator();
+            while (it.hasNext()) {
+                Map.Entry<String, Long> e = it.next();
+                if (now >= e.getValue()) it.remove();
+                else out.add(e.getKey());
+            }
+        }
+        return out;
+    }
+
+    public static boolean isAlerting(String name) {
+        return alertingAll().contains(name);
+    }
+
+    public static void clearAlert(String name) {
+        Feed f = feed(name);
+        if (f != null) f.alert = null;
+    }
+
+    /** The most recently triggered camera still in front, or null. */
+    public static String alerting() {
+        List<String> l = alertingAll();
+        return l.isEmpty() ? null : l.get(l.size() - 1);
     }
 
     /** Feeds heard in the last 10 minutes, newest first. */

@@ -497,7 +497,76 @@ type ERASE). Destructive buttons ask first.
   waits (up to 1 min by default, set on the Audio page) and plays once it clears, with an optional call-waiting beep.
 - **Share my camera** (phone or network camera, small pictures 1–5 per second, or 10–15 when Tiny; optional audio, off by default, heard only on the Tactical videos screen) and **Tactical
   **Telemetry overlay** (ticked to start): each picture carries this phone's position (with accuracy), the compass heading the camera points (with a small north arrow), tilt and roll, speed when the GPS knows it, and the time, drawn onto the picture before it is sent, so every viewer sees it. With a network camera the figures are this phone's, so keep the phone with the camera.
+  Sharing keeps running after Home, another app or **Blackout** (it runs as its own service): a red-dot notification says the camera is live and has a **Stop** button. The Share my camera screen shows the pictures as they go out, and has **Torch** (the back camera's flash at full power) and **Blackout**; Tactical videos has **Blackout** in its top row and shows a dot on My camera while it is shared.
   videos** (a grid of chosen people's cameras, tap to enlarge).
+  Tactical videos goes to **Blackout by itself** after 60 s with no touch and no camera trigger (the **timer icon** beside
+  Blackout shows it on, or crossed out when off, and one tap switches it; menu > Auto blackout:
+  on or off and the time). A triggered Reolink camera wakes it and shows that camera; it goes back to Blackout once
+  the cameras have been quiet for the hold time.
+- **Reolink cameras** (Tactical videos menu > Reolink cameras, or on the Intercom the **Camera** button or the
+  menu dots > Reolink cameras, which ask for the PIN if one is set). One list, shared by both screens, kept only
+  on this phone: user names and passwords are never in the setup QR, shared settings, LAN sync or logs.
+  - **Find and add cameras** (a wizard, no internet needed): scans this network (an ONVIF discovery call, then
+    every address for Reolink's port 9000 and the video ports 554 / 80; up to half a minute) or takes an address
+    typed by hand (add :port for another web port) → tick the cameras → user name (admin by default) and
+    password → test (signs in, reads the model, name and number of lenses, shows a picture; tries HTTP, then
+    HTTPS for newer firmware) → for dual-lens cameras and recorders, tick the lenses (each becomes its own tile)
+    → stream for the full-screen view (**Sub**, recommended; **Main**, best but often H.265, which older phones
+    cannot play; **Pictures only**) → options per lens (name, **Bring to front when triggered**, **Linked
+    floodlight**) → save.
+    Newer Reolink cameras come with HTTP, HTTPS and RTSP switched off; the scan then shows them with only port 9000
+    and says so. Turn on HTTP (or HTTPS) and RTSP in the Reolink app (camera Settings > Network > Advanced > Port
+    Settings) and scan again.
+  - **Tiles**: small still pictures (asked for at 640x360, about 30 KB) from each lens every 2 s, shown with the
+    shared phone cameras on Tactical videos and TV, and in a strip above the rooms on the Intercom. They work on
+    every Android version. A tile says "offline" and why if the camera stops answering.
+  - **Full screen** (tap a camera tile): pictures at about 2 a second, **Live video** (the RTSP stream; if this
+    phone cannot play it, or it does not start in 15 s, it goes back to pictures), **Listen** (the camera's
+    microphone through the stream; live video always starts muted), **Light on/off** (cameras with a floodlight)
+    and **Close**. Live video did not play on the phones tried so far (see below), so expect pictures.
+  - **Triggers**: about once a second the app asks each lens for motion and AI detection (person, vehicle,
+    animal) while Tactical videos, TV, the Intercom or a camera is open. Triggered cameras with Bring to front
+    fill the Tactical videos wall together (one fills it, two split it...; tap to go back to the grid) and take
+    the TV's video corner. On the Intercom they open on a full-screen camera page (also out of Blackout, but
+    not while the intercom is talking); tap one there for its own full screen. Each stays up for the **hold
+    time** after its own movement ends (60 s by default). When all have gone quiet the camera page closes, and an
+    intercom that was in Blackout goes back to Blackout.
+  - **Motion alerts to the channel** (per camera, Change options, for the phone or tablet that watches the
+    cameras, e.g. one left on mains power with **Keep watching in the background** on): **Send motion alert to
+    channel** sends a chat message such as "Motion: Garage (person)" on the channel that phone is on, so it also
+    crosses the internet relay; **Announce it** makes the other phones read it aloud (text as voice); **Attach one
+    picture** adds a single small JPEG (640 wide, about 30-50 KB). At most one alert per camera per hold time.
+    **Tell the channel if this camera goes offline** sends "Camera offline: <name>" after 2 minutes without an
+    answer and "Camera back online: <name>" when it answers again (one message per camera, not per lens; read
+    aloud too if Announce it is ticked).
+    Never live video over the radio or relay.
+  - **Linked floodlights**: when any linked camera is triggered, every linked camera with a floodlight turns it
+    on (only those that were off), and they go off again a set time after the last trigger (60 s by default).
+    Triggers on linked cameras are ignored for 30 s after the lights go off, and after that until the camera's
+    alarm has dropped once, so the light changing does not set them off again (real cameras hold the alarm).
+    If the app stops while it has lights on, they are turned off the next time it starts watching.
+  - **Settings** (on the camera list): sign-in offered for new cameras, floodlight time, hold time, whether
+    plain motion and AI detection count, and **Keep watching in the background** (the linked floodlights and
+    channel alerts keep working while the radio runs, with no screen open).
+  - Tap a saved camera to view, change options, change its sign-in, test (sign-in, picture, triggers,
+    floodlight) or remove it. Old firmware without token sign-in is handled (the sign-in goes with each request).
+  - **Port 9000 cameras** (cameras with no HTTP or RTSP at all, such as the E1): the app signs in on Reolink's own
+    port 9000 (our own implementation of the camera's LAN protocol, LAN only, never Reolink's cloud) for picture
+    tiles, motion / person / vehicle / animal triggers and offline alerts. Find and add cameras tries this when HTTP
+    does not answer, or use **Add a port 9000 camera** (name, address, sign-in). Full screen shows pictures only: no
+    live video, Listen or light. Tested with an E1.
+  - **Not included: talking to the camera.** Reolink only offers two-way audio over its own closed protocol
+    (port 9000), not the web API, RTSP or ONVIF, so there is no Talk button. The E1 reports talk support (ADPCM,
+    16 kHz), but the messages that start talk and carry the audio are not publicly documented.
+  - Works with Reolink cameras. Reolink is a trademark of its owner; this app is not affiliated with Reolink.
+  - **Tested with real cameras** (RLC-510A, RLC-810A, Reolink Duo PoE, Reolink Duo Floodlight PoE) on an
+    Android 4.1 tablet: scan, sign-in, test pictures, the Duo PoE's two lenses (the Duo Floodlight PoE is one wide
+    180° stitched picture, so one long tile; it has no separate lens pictures), tiles, floodlight detection and switching, and motion / AI state answers. ONVIF discovery
+    found nothing (these cameras did not answer it; the port check finds them anyway). **Live video:** Android
+    4.1's player is refused by the camera's RTSP sign-in, and Android 14's (emulator) signs in but its media
+    service crashes on the stream, so both show pictures; it may play on other phones. Listen was never tried
+    aloud. Multiple triggers, the Intercom camera page and channel alerts were tested against the pretend camera
+    (tools/fake-reolink/FakeReolink.java).
 - **TV mode** (Settings): map, chat cards and cameras on a big screen; Android TV opens it by itself.
 - **Pinned announcements** in Chat (resent to newcomers), **automatic key rotation** hourly or daily
   (not Public), and a read-only **Public listen key** (hear and read Public, not send).

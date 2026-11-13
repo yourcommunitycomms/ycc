@@ -46,6 +46,7 @@ public final class IntercomActivity extends Activity {
         public void run() {
             renderStatus();
             keepOnAir();
+            cameraTick();
             if (++ticks % 7 == 0) renderRooms(); // "(not heard)" follows who is on air
             handler.postDelayed(this, 700);
         }
@@ -155,6 +156,18 @@ public final class IntercomActivity extends Activity {
         if (land) top.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
         top.addView(dots, new LinearLayout.LayoutParams((int) (48 * d), (int) (48 * d)));
         right.addView(top, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        // Reolink cameras: a strip of tiles (shown once cameras are saved); tap one for full screen and Listen.
+        camStrip = new TacticalVideoActivity.Wall(this);
+        camStrip.onlyLocal = true;
+        camStrip.onOpenLocal = new TacticalVideoActivity.Wall.OpenLocal() {
+            @Override
+            public void open(String name) {
+                ReolinkViewActivity.show(IntercomActivity.this, name, false);
+            }
+        };
+        LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, (int) ((land ? 200 : 150) * d));
+        cp.bottomMargin = (int) (6 * d);
+        left.addView(camStrip, cp);
         rooms = new LinearLayout(this);
         rooms.setOrientation(LinearLayout.VERTICAL);
         ScrollView sv = new ScrollView(this);
@@ -251,7 +264,7 @@ public final class IntercomActivity extends Activity {
     private void menu(View anchor) {
         android.widget.PopupMenu pm = new android.widget.PopupMenu(this, anchor);
         // No Exit: the intercom is a fixture on the wall (Settings > Mode changes that).
-        final String[] items = {"Settings", "Audio", "Contacts", "Radio streams", "Set intercom key"};
+        final String[] items = {"Settings", "Audio", "Contacts", "Radio streams", "Set intercom key", "Reolink cameras"};
         for (int i = 0; i < items.length; i++) {
             if (i == 3 && !prefs.streamsEnabled()) continue; // Internet audio off in Settings
             pm.getMenu().add(0, i, i, items[i]);
@@ -271,6 +284,9 @@ public final class IntercomActivity extends Activity {
                         break;
                     case 3:
                         startActivity(new Intent(IntercomActivity.this, StreamsActivity.class));
+                        break;
+                    case 5:
+                        reolinkSetup();
                         break;
                     default:
                         startActivity(new Intent(IntercomActivity.this, KeysActivity.class));
@@ -301,6 +317,9 @@ public final class IntercomActivity extends Activity {
         renderRooms();
         handler.post(tick);
         restartBlackTimer();
+        camStrip.setVisibility(org.communitycomms.app.camera.ReolinkCam.any(this) ? View.VISIBLE : View.GONE);
+        ReolinkMonitor.acquire(this, "intercom");
+        afterAlert();
         askOverlayOnce();
     }
 
@@ -335,6 +354,7 @@ public final class IntercomActivity extends Activity {
     protected void onPause() {
         handler.removeCallbacks(tick);
         handler.removeCallbacks(goBlack);
+        ReolinkMonitor.release("intercom");
         if (latched || isTalking()) {
             latched = false;
             transmit(false);
@@ -540,11 +560,81 @@ public final class IntercomActivity extends Activity {
         handsFree.setTextColor(latched ? 0xffff8a80 : 0xffffffff);
     }
 
+    // ---- Reolink cameras ----
+
+    private TacticalVideoActivity.Wall camStrip;
+    /** Triggered cameras already shown by themselves (not again until each has gone quiet). */
+    private final java.util.Set<String> autoOpened = new java.util.HashSet<String>();
+    /** The intercom was in Blackout when a camera came up: it goes back to Blackout once they have all gone quiet. */
+    private boolean blackBeforeAlert;
+
+    /** Camera setup from the intercom is behind the PIN (if one is set): the intercom is often a shared wall screen. */
+    private void reolinkSetup() {
+        PinLock.require(this, "Enter your PIN to set up the cameras.", new PinLock.Done() {
+            @Override
+            public void onUnlocked() {
+                startActivity(new Intent(IntercomActivity.this, ReolinkSetupActivity.class));
+            }
+        }, null);
+    }
+
+    /** Every tick: redraw the camera tiles, and show triggered cameras full screen (several share it). */
+    private void cameraTick() {
+        if (camStrip.getVisibility() == View.VISIBLE) camStrip.invalidate();
+        java.util.List<String> now = new ArrayList<String>();
+        for (String a : VideoHub.alertingAll()) {
+            VideoHub.Feed f = VideoHub.feed(a);
+            if (f != null && f.local) now.add(a);
+        }
+        autoOpened.retainAll(now);
+        if (now.isEmpty() || autoOpened.containsAll(now) || ReolinkAlertActivity.open || ReolinkViewActivity.open != null) return;
+        autoOpened.addAll(now);
+        if (latched || isTalking()) return; // never cover the screen while someone is talking from it
+        blackBeforeAlert = LightDiscipline.blackedOut(this);
+        LightDiscipline.endBlackout(this);
+        startActivity(new Intent(this, ReolinkAlertActivity.class));
+    }
+
+    /** Back from the camera screen: if it closed because everything went quiet, go back to Blackout if it was black before. */
+    private void afterAlert() {
+        if (!blackBeforeAlert || ReolinkAlertActivity.open) return;
+        blackBeforeAlert = false;
+        if (ReolinkAlertActivity.endedQuiet && VideoHub.alertingAll().isEmpty()) LightDiscipline.blackout(this);
+    }
+
     // ---- gate / door camera ----
 
     private volatile boolean camOn;
 
+    /** Camera button: Reolink cameras (when saved) or the plain snapshot address. */
     private void camera() {
+        final boolean reolink = org.communitycomms.app.camera.ReolinkCam.any(this);
+        final boolean snap = prefs.intercomCamera().length() > 0;
+        if (!reolink && !snap) {
+            new AlertDialog.Builder(this)
+                    .setTitle("Camera")
+                    .setItems(new String[]{"Reolink cameras (find on this network)", "Other camera (snapshot address)"},
+                            new DialogInterface.OnClickListener() {
+                                @Override
+                                public void onClick(DialogInterface di, int w) {
+                                    if (w == 0) reolinkSetup();
+                                    else snapshotCamera();
+                                }
+                            })
+                    .show();
+            return;
+        }
+        if (reolink && !snap) {
+            java.util.List<VideoHub.Feed> shown = new ArrayList<VideoHub.Feed>();
+            for (VideoHub.Feed f : VideoHub.feeds()) if (f.local) shown.add(f);
+            if (shown.size() == 1) ReolinkViewActivity.show(this, shown.get(0).name, false);
+            else reolinkSetup();
+            return;
+        }
+        snapshotCamera();
+    }
+
+    private void snapshotCamera() {
         String url = prefs.intercomCamera();
         if (url.length() == 0) {
             final EditText e = new EditText(this);
@@ -558,7 +648,7 @@ public final class IntercomActivity extends Activity {
                         @Override
                         public void onClick(DialogInterface di, int w) {
                             prefs.setIntercomCamera(e.getText().toString());
-                            if (prefs.intercomCamera().length() > 0) camera();
+                            if (prefs.intercomCamera().length() > 0) snapshotCamera();
                         }
                     })
                     .setNegativeButton(android.R.string.cancel, null)
@@ -582,7 +672,7 @@ public final class IntercomActivity extends Activity {
                     @Override
                     public void onClick(DialogInterface di, int w) {
                         prefs.setIntercomCamera("");
-                        camera();
+                        snapshotCamera();
                     }
                 })
                 .create();

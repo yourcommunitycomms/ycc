@@ -39,6 +39,11 @@ public final class Tls12SocketFactory extends SSLSocketFactory {
         }
     }
 
+    /** Wraps any factory (e.g. one that accepts a LAN camera's own certificate) so 1.1 and 1.2 are on. */
+    public static SSLSocketFactory wrap(SSLSocketFactory base) {
+        return android.os.Build.VERSION.SDK_INT >= 20 ? base : new Tls12SocketFactory(base);
+    }
+
     private static Socket enable(Socket s) {
         if (s instanceof SSLSocket) {
             SSLSocket ss = (SSLSocket) s;

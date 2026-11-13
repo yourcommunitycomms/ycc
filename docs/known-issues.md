@@ -110,7 +110,45 @@ Each of these happened in the original build. Check for them in yours.
 - **Old Android TLS:** Android 4.x cannot reach OSM, OpenTopoMap or Esri tile servers; fall back to
   Google road tiles there.
 
+**Reolink cameras (2026-11-10)**
+- **Do not force "Connection: close" on camera requests.** With it, about one snapshot in three came back cut
+  short ("unexpected end of stream") on the Android 14 emulator; Android's own connection handling is fine.
+- **A light changing sets off motion.** A floodlight switching off looks like motion and would turn the
+  linked lights straight back on, forever. Real cameras hold that alarm for a while, so 10 s was not enough
+  (lights came back every minute or so): ignore linked cameras for 30 s after the lights go off, and then until
+  their alarm has dropped once.
+- **Lights left on.** If the app is killed while it has floodlights on, nothing turns them off. Remember on
+  disk which lights the app switched on, and turn those off the next time it starts watching. Only switch on
+  lights that were off, and leave lights that were already on as they were.
+- **Camera pictures are 4 to 8 megapixels.** Decode snapshots at a reduced size (inSampleSize, RGB_565) or old
+  phones run out of memory.
+- **Lens numbers differ:** the HTTP API counts lenses from 0 (channel=0,1), RTSP from 1 with two digits
+  (h264Preview_01_sub; newer firmware also /Preview_01_sub). Newer firmware may turn HTTP off and keep only
+  HTTPS with its own certificate.
+- **Real cameras differ from the documentation** (found on real RLC-510A/810A and Duo models):
+  older firmware reports AI as flat "people_state" / "vehicle_state", not "people":{"alarm_state"};
+  GetWhiteLed answers even on cameras with no light (use GetAbility abilityChn[ch] supportFLswitch);
+  Snap needs both width and height to shrink the picture (a Duo Floodlight picks its own size: 640x360 gives 1536x576,
+  but 1280x720 gives its full 4608x1728, 5 MB; Android 4.1 cannot draw a bitmap over 2048 px wide and shows
+  nothing, and an OutOfMemoryError must not end the picture thread);
+  a wrong password gives -7 "login failed" on Login and -27 "invalid user" with user/password on the request.
+  New cameras can come with HTTP/HTTPS/RTSP off (only port 9000 answers): tell the user how to turn them on.
+  A 350 ms connect timeout in the LAN sweep missed Wi-Fi cameras; 900 ms finds them.
+- **Old Android (4.x) and kept-alive sockets:** a camera closes idle connections and the next request fails at
+  once, which pushed cameras onto HTTPS. Use a fresh connection there (Connection: close below Android 4.4) and
+  retry once. Sign out (Logout) after one-off checks: cameras allow only a few sessions.
+- **VideoView error retry:** calling setVideoURI from inside onError after "media server died" throws
+  IllegalStateException and closes the app. Never retry after error 100; post any retry.
+- **Android 4.1 RTSP and Reolink:** the built-in player gets 401 even with the right sign-in (ffprobe on a PC
+  plays the same address). Android 14 signs in, then its media service crashes on the stream. Fall back to
+  pictures.
+- **Port 9000 only cameras (E1):** no HTTP, RTSP or ONVIF at all. The camera's own LAN protocol: little-endian
+  header, login nonce over a 20-byte legacy header, XOR-scrambled login with MD5 hashes cut to 31 upper-case
+  hex characters, then AES-128-CFB (key = first 16 of MD5(nonce-password), IV "0123456789abcdef", a fresh
+  stream for each part), Snap = cmd 109 (the picture follows in more messages with the same number, ending
+  with an empty one), events = cmd 31 subscribe then cmd 33 pushes, keepalive cmd 93, answer heartbeat cmd 234.
+  Never copy AGPL code for this; keep the MIT notice of the description used (NOTICE).
 **Not yet tested on real equipment:** scanning a phone setup QR code with a real camera, Bluetooth PTT buttons (e.g. FalconClaw "BLU-PTT"; the signal it
 sends is unknown, so the app shows the last raw value in Settings), OpenMANET / ATAK Vx voice, USB,
 network and intercom cameras, the possible-gunshots alert, crash detection, tunnel comms over a real
-router and the internet, internet radio streams.
+router and the internet, internet radio streams, Reolink live video, sound and multi-camera alerts (tested against tools/fake-reolink only).

@@ -84,6 +84,7 @@ public final class TvActivity extends Activity {
 
         wall = new TacticalVideoActivity.Wall(this);
         wall.showEmptyHint = false;
+        wall.autoFront = true; // a triggered Reolink camera takes the video corner
         wall.hidden = TacticalVideoActivity.hidden(getSharedPreferences("video", MODE_PRIVATE));
         wall.setVisibility(View.GONE);
         FrameLayout.LayoutParams wl = new FrameLayout.LayoutParams((int) (320 * d), (int) (200 * d), Gravity.BOTTOM | Gravity.LEFT);
@@ -134,6 +135,7 @@ public final class TvActivity extends Activity {
             }
         };
         main.post(tick);
+        ReolinkMonitor.acquire(this, "tv");
     }
 
     @Override
@@ -145,6 +147,7 @@ public final class TvActivity extends Activity {
         main.removeCallbacks(tick);
         if (RadioService.poiUi == poiRefresh) RadioService.poiUi = null;
         VideoHub.ui = null;
+        ReolinkMonitor.release("tv");
         super.onPause();
     }
 
