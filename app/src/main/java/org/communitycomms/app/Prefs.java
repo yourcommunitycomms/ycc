@@ -436,7 +436,7 @@ public final class Prefs {
     public static final String[] MENU_LABELS = {"Channel array", "Report to leaders", "Tasks and notes", "Project NOMAD",
             "VicEmergency alerts on the map", "Melbourne trains preset (in Trains on the map)", "Load station names button (live trains)", "ARTC rail network on the map", "ATAK items in the map menu (map files, export, map source)", "Cast screen to TV (Google TV, Chromecast)", "Calendar and notes (mine, team, both; notes with pictures)",
             "Relay admin (add and remove the internet relay's sites and remotes; needs its admin key)",
-            "Bluetti power (a Bluetti power station's battery and power over Bluetooth, shared on the channel)"};
+            "Battery power (read-only: Bluetti, Tesla Powerwall 2, Anker SOLIX*, EcoFlow*; battery and power shared on the channel; * untested)"};
 
     public boolean menuOn(String key) {
         return sp.getBoolean("menu_" + key, false);

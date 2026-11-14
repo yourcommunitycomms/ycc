@@ -1595,7 +1595,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         menu.add(0, MENU_CAST, 5, "Cast screen to TV");
         menu.add(0, MENU_CALENDAR, 2, "Calendar and notes");
         menu.add(0, MENU_RELAY_ADMIN, 6, "Relay admin");
-        menu.add(0, MENU_BLUETTI, 2, "Bluetti power");
+        menu.add(0, MENU_BLUETTI, 2, "Battery power");
         menu.add(0, MENU_GATEWAY, 6, "OpenMANET internet gateway");
         menu.add(0, MENU_EXIT, 10, "Exit (go off air and close)");
         return true;
@@ -2026,7 +2026,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         } else if (id == MENU_CALENDAR) {
             startActivity(new Intent(this, CalendarActivity.class));
         } else if (id == MENU_BLUETTI) {
-            startActivity(new Intent(this, BluettiActivity.class));
+            startActivity(new Intent(this, BatteryActivity.class));
         } else if (id == MENU_RELAY_ADMIN) {
             startActivity(new Intent(this, RelayAdminActivity.class));
         } else if (id == MENU_CAST) {

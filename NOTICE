@@ -44,5 +44,29 @@ handshake (including its published key constants) as described by these MIT lice
   bluetti_mqtt (https://github.com/warhammerkid/bluetti_mqtt), Copyright 2022 Stephen Augenstein
 The app works with Bluetti power stations. Bluetti is a trademark of its owner; this project is
 not affiliated with or endorsed by Bluetti.
+
+Anker SOLIX power stations over Bluetooth (app/src/main/java/org/communitycomms/app/power/SolixReader.java):
+our own Java port of the read-only telemetry part of SolixBLE (https://github.com/jul1an-s/SolixBLE,
+fork of https://github.com/flip-dots/SolixBLE), including its published negotiation messages and
+key constants. SolixBLE is under the MIT License (same terms as quoted above):
+  Copyright (c) 2026 Harvey Lelliott
+Untested on a real unit. The app works with Anker SOLIX power stations. Anker and SOLIX are
+trademarks of their owner; this project is not affiliated with or endorsed by Anker.
+
+EcoFlow power stations over Bluetooth (app/src/main/java/org/communitycomms/app/power/EcoFlowReader.java,
+app/src/main/assets/ecoflow_keydata.bin): our own Java port of the read-only parts of ha-ef-ble
+(https://github.com/rabits/ha-ef-ble and the GnoX fork), Apache License 2.0 (see LICENSE): the
+framing, CRCs, handshake and protobuf field numbers, and its session key table (keydata.py, decoded
+unchanged from base64 into ecoflow_keydata.bin). Changes: rewritten in Java, read-only (no
+settings, clock-sync or control messages are sent). Untested on a real unit. The app works with
+EcoFlow power stations. EcoFlow is a trademark of its owner; this project is not affiliated with
+or endorsed by EcoFlow.
+
+Tesla Powerwall 2 (app/src/main/java/org/communitycomms/app/power/PowerwallReader.java): our own
+code, reading only the gateway's open local status pages as described publicly by pypowerwall
+(https://github.com/jasonacox/pypowerwall, MIT License, Copyright (c) 2021 Jason Cox) and the
+powerwall2 notes (https://github.com/gpez-git/powerwall2, Apache License 2.0). No code copied.
+The app works with Tesla Powerwall. Tesla and Powerwall are trademarks of their owner; this
+project is not affiliated with or endorsed by Tesla.
 Timer icons (app/src/main/res/drawable/ic_timer.xml, ic_timer_off.xml) use the shapes of Google's Material icons
 (Apache License 2.0).

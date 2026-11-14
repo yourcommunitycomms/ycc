@@ -117,7 +117,7 @@
         <activity android:name=".VideoShareActivity" android:exported="false" android:screenOrientation="portrait" />
         <activity android:name=".TacticalVideoActivity" android:exported="false" />
         <activity android:name=".ReolinkSetupActivity" android:exported="false" />
-        <activity android:name=".BluettiActivity" android:exported="false" />
+        <activity android:name=".BatteryActivity" android:exported="false" />
         <activity android:name=".ReolinkWizardActivity" android:exported="false" android:windowSoftInputMode="stateHidden|adjustResize" />
         <activity android:name=".ReolinkAlertActivity" android:exported="false" android:configChanges="orientation|screenSize|keyboardHidden" />
         <activity android:name=".ReolinkViewActivity" android:exported="false" android:configChanges="orientation|screenSize|keyboardHidden" />

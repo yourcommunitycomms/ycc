@@ -577,15 +577,30 @@ type ERASE). Destructive buttons ask first.
   on or off through its web API (keeps a backup; the password is never saved).
 - **Project NOMAD** screen (menu): ask its AI (Ollama) and open its Command Center.
 - **Contacts > More details:** Remove a contact and add/edit its note.
-- **Bluetti power** (a specialised menu, off by default; Settings > Home screen and menus, or a setup QR code):
-  works with Bluetti power stations over **Bluetooth**, offline, never the Bluetti cloud (the units' WiFi only talks
-  to that cloud). Needs Android 4.3 or newer with Bluetooth LE; Android 6 to 11 also need Location turned on to find
-  the unit. **Find my unit** (menu) looks for nearby units for 8 s and you pick yours (close the Bluetti app first:
-  the unit takes one connection at a time). The screen shows **battery %**, **power in** (AC, and DC / solar),
-  **power out** (AC and DC), **time to full or time left** at the present load (from the battery size, 300 Wh for
-  an AC30, editable in Settings), when it was last read, and **AC / DC output on and off** buttons (with a
-  confirm). It reads every 10 s while open. Newer units that ask for an encrypted link get it automatically.
-  - **Watch in the background** (Settings, on the phone left near the unit): reads every 60 s (every 5 min in
+- **Battery power** (a specialised menu, off by default, was "Bluetti power"; Settings > Home screen and menus, or a
+  setup QR code; menu key still "bluetti"): watches **several batteries at once**, each through the one reader for
+  its kind. **Read-only for every kind:** the app never switches outputs, changes settings or signs in; use the
+  maker's own app for those. Kinds (* = untested, nobody here owns one yet):
+  - **Bluetti** power stations over Bluetooth (offline; their WiFi only talks to the Bluetti cloud).
+  - **Tesla Powerwall 2** through the Backup Gateway's local status pages on your home network (no sign-in, no
+    cloud): battery %, as the Tesla app shows it (the 5% reserve left out), solar, home use, grid import / export,
+    battery charging or giving, grid status (an outage shows as OFF GRID), battery size and firmware. Add it with the
+    gateway's address from your router. Newer firmware may refuse pages from other networks: then join the phone to
+    the Powerwall's own Wi-Fi (TEG-xxx) and use its fixed address there. If the gateway asks for a sign-in the app
+    says so and stops (it never signs in, and never calls the control pages).
+  - **Anker SOLIX*** C300, C300 DC, C800, C1000, C1000 Gen 2 over Bluetooth (pick the model when adding).
+  - **EcoFlow*** River 3 and Delta 3 family over Bluetooth. Needs your EcoFlow **user ID** typed in once (the unit
+    checks it; the app never signs in to EcoFlow) and the unit's serial (filled in from Bluetooth). Delta 2 and older
+    use another format and are not read.
+
+  Bluetooth kinds need Android 4.3 or newer with Bluetooth LE; Android 6 to 11 also need Location turned on to find
+  units. **Add a battery** (menu) looks for nearby Bluetooth units for 9 s, labels each by kind, and you pick yours
+  (close the maker's app first: each unit takes one connection at a time), or type a Powerwall's address. Each card
+  shows **battery %**, **power in** (AC, and DC / solar), **power out** (AC and DC / USB), whether the outputs are on
+  (shown only), **time to full or time left** at the present load (from the battery size the unit reports, or a
+  setting), and when it was last read; tap a card for its settings (name, size, overload, address / model / user ID),
+  **Probe (raw log)** and **Remove**. It reads every 10 s while open.
+  - **Watch in the background** (Settings, on the phone left near the units): reads every 60 s (every 5 min in
     Ultra low or while the radio sleeps) and lets go of the Bluetooth link between reads. **Quiet by default:** nothing
     goes to the channel until the unit is down to **10%** (Settings: "Send status and alerts ... at or below %"; 100 =
     always). From then it **shares a short status** ("Power station EL30V2: 9%, in 0 W, out 45 W, about 35 min left")
@@ -594,14 +609,19 @@ type ERASE). Destructive buttons ask first.
     **commander view** (and Contacts) shows a small power station icon with the unit's % next to that phone's own
     battery %; More details shows the whole latest message.
   - **Alerts** to the channel, like the Reolink ones (text, optionally read aloud on the other phones): **low battery**
-    (10%) and **critical** (5%), **charging started / stopped**, **mains input lost / back**, **overload** (watts out,
-    300 W by default) and **out of contact** for 10 minutes (and back), all held back above the send level. All the
-    numbers are settings; 0 turns one off.
+    (10%) and **critical** (5%), **charging started / stopped** (portable units only), **mains / grid lost and back**
+    (for a Powerwall: the grid outage), **overload** (watts out; 300 W by default for a Bluetti, 5000 W for a
+    Powerwall, off for the others) and **out of contact** for 10 minutes (and back), each per battery, all held back
+    above the send level. All the numbers are settings; 0 turns one off.
   - **Tested** on a Galaxy S5 (Android 6) with a Bluetti Elite 30 V2 (it reports itself as EL30V2; its WiFi name says
-    AC30): finding it, the encrypted link, and reading battery % and the outputs' state. **Not yet tested on the
-    unit:** the AC/DC switches, watt readings under a real load or charge, and sharing / alerts on the channel.
-  - **Probe (raw log)** and **Show log** (menu) record what the unit says, in hex, to help add other models.
-  - Works with Bluetti power stations. Bluetti is a trademark of its owner; this app is not affiliated with Bluetti.
+    AC30): finding it, the encrypted link, and reading battery % and the outputs' state. **Not yet tested:** watt
+    readings under a real load or charge, sharing / alerts on the channel, the Powerwall reader on a real gateway
+    (written to the public field names; Probe logs the gateway's raw answers to check them), and the Anker SOLIX* and
+    EcoFlow* readers on any real unit (their crypto and framing were checked on a PC only).
+  - **Probe (raw log)** and **Show log** (menu) record what each unit says (hex, or the gateway's JSON), to help add
+    other models.
+  - Works with Bluetti, Tesla Powerwall, Anker SOLIX and EcoFlow products. These names are trademarks of their owners;
+    this app is not affiliated with any of them.
 
 ## DRYAD extras
 5-letter sheet IDs, optional random row order, huge AA–ZZ sheets (676 rows, not QR-shareable),

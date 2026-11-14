@@ -333,15 +333,7 @@ public final class BluettiBle {
         return BluettiProtocol.registers(a, a.length);
     }
 
-    public boolean write(int addr, int value) {
-        byte[] a = request(BluettiProtocol.write(addr, value), 5000);
-        if (a == null) return false;
-        if (a.length >= 2 && (a[1] & 0x80) != 0) {
-            lastError = "refused (Modbus exception " + (a.length > 2 ? a[2] & 0xFF : 0) + ")";
-            return false;
-        }
-        return a.length >= 2 && a[1] == 6;
-    }
+    // No write(): the app is read-only for every battery (since 2026-11-14). Use the Bluetti app to switch outputs.
 
     public void close() {
         BluetoothGatt g;

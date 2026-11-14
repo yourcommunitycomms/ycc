@@ -188,7 +188,7 @@ final class ContactsPanel {
         readMyPosition();
         rows.clear();
         rows.addAll(Contacts.get(a).all());
-        bluetti = BluettiMonitor.heardByName(a);
+        bluetti = BatteryMonitor.heardByName(a);
         group();
         long now = System.currentTimeMillis();
         int online = 0;
@@ -210,7 +210,7 @@ final class ContactsPanel {
     private void bluettiBadge(SpannableStringBuilder sb, Contacts.Contact c) {
         org.communitycomms.app.msg.MessageLog.Entry e = bluetti.get(c.name);
         if (e == null) return;
-        int pct = BluettiMonitor.percentIn(e.body);
+        int pct = BatteryMonitor.percentIn(e.body);
         android.graphics.drawable.Drawable d = a.getResources().getDrawable(R.drawable.ic_bluetti);
         int px = (int) (16 * a.getResources().getDisplayMetrics().density);
         d.setBounds(0, 0, px, px);

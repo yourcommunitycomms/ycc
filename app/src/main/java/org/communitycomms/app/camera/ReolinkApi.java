@@ -427,7 +427,7 @@ public final class ReolinkApi {
     private static SSLSocketFactory lanFactory;
 
     /** Cameras use self-signed certificates: accept them, for these LAN camera connections only. */
-    private static synchronized void lanTls(HttpsURLConnection c) {
+    public static synchronized void lanTls(HttpsURLConnection c) {
         try {
             if (lanFactory == null) {
                 TrustManager[] all = {new X509TrustManager() {
