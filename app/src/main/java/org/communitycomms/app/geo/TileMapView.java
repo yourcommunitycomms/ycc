@@ -551,8 +551,7 @@ public final class TileMapView extends View {
             c.drawText(m.label, mx + r * 1.4f, my + r * 0.5f, textPaint);
         }
         float d = getResources().getDisplayMetrics().density;
-        List<TrexMaps.Entry> tx = trex;
-        creditH = trexCredit != null && tx != null && TrexMaps.overlaps(tx, bounds()) ? 13 * d : 0;
+        creditH = trexCredit != null && trexOverlaps(bounds()) ? 13 * d : 0;
         drawMe(c, d);
         drawCompass(c, d);
         drawCentreMe(c, d);
@@ -924,7 +923,7 @@ public final class TileMapView extends View {
                 boolean base = t[3] == 0;
                 String url = base ? onlineUrl : ovUrl;
                 File cacheDir = base ? onlineCache : ovCache;
-                if (base && trex != null) b = fromTrex(trex, t); // T.REX Arms Topo Map first, where it has the area
+                if (base && (trex != null || trexRemote != null)) b = fromTrex(t); // T.REX Arms Topo Map first, where it has the area
                 if (b == null) b = fromFolder(base ? offline : ovOffline, t);
                 if (b == null) b = fromFolder(cacheDir, t);
                 // The LAN storage location (shared maps cache) before going online.
@@ -964,12 +963,33 @@ public final class TileMapView extends View {
     private volatile String trexCredit;
     private final Paint creditPaint = new Paint(Paint.ANTI_ALIAS_FLAG), creditBg = new Paint();
 
-    /** The imported T.REX files to draw from first (null = off). */
-    public void setTrex(List<TrexMaps.Entry> files) {
-        List<TrexMaps.Entry> old = trex;
-        trex = files == null || files.isEmpty() ? null : files;
-        trexCredit = trex == null ? null : TrexMaps.attribution(trex);
-        if (old == null && trex == null) return;
+    /** T.REX files on the cache server that this phone has no copy of: tiles are read from there as it pans. */
+    private volatile List<TrexShare.Remote> trexRemote;
+    private volatile LanTiles trexLan;
+    private volatile File trexCache;
+    private volatile String trexState = "";
+
+    /**
+     * The T.REX map to draw first: imported files (local), and files on the cache server (remote, read
+     * tile by tile through the LAN storage and kept in cacheDir). All null = off.
+     */
+    public void setTrex(List<TrexMaps.Entry> files, List<TrexShare.Remote> remote, LanTiles lanStore, File cacheDir) {
+        List<TrexMaps.Entry> l = files == null || files.isEmpty() ? null : files;
+        List<TrexShare.Remote> r = remote == null || remote.isEmpty() || lanStore == null || !lanStore.configured() ? null : remote;
+        StringBuilder key = new StringBuilder();
+        if (l != null) for (TrexMaps.Entry e : l) key.append(e.file.getName()).append('|');
+        key.append('/');
+        if (r != null) for (TrexShare.Remote x : r) key.append(x.file).append(x.tilesShared).append('|');
+        trex = l;
+        trexRemote = r;
+        trexLan = r == null ? null : lanStore;
+        trexCache = cacheDir;
+        List<String> credits = new ArrayList<String>();
+        if (l != null) for (TrexMaps.Entry e : l) credits.add(e.attribution);
+        if (r != null) for (TrexShare.Remote x : r) credits.add(x.attribution);
+        trexCredit = l == null && r == null ? null : TrexMaps.attributionOf(credits);
+        if (key.toString().equals(trexState)) return;
+        trexState = key.toString();
         cache.evictAll();
         synchronized (missing) {
             missing.clear();
@@ -977,13 +997,64 @@ public final class TileMapView extends View {
         invalidate();
     }
 
-    /** The tile, or past the file's top zoom a scaled-up piece of its deepest tile (up to 6 levels). */
-    private static Bitmap fromTrex(List<TrexMaps.Entry> files, int[] t) {
-        int top = TrexMaps.maxZoom(files);
+    private boolean trexOverlaps(double[] box) {
+        List<TrexMaps.Entry> l = trex;
+        List<TrexShare.Remote> r = trexRemote;
+        if (l != null && TrexMaps.overlaps(l, box)) return true;
+        if (r != null) for (TrexShare.Remote x : r) if (x.overlaps(box[0], box[1], box[2], box[3])) return true;
+        return false;
+    }
+
+    private int trexTop() {
+        int top = TrexMaps.maxZoom(trex);
+        List<TrexShare.Remote> r = trexRemote;
+        if (r != null) for (TrexShare.Remote x : r) top = Math.max(top, x.maxZoom);
+        return top;
+    }
+
+    /** One T.REX tile's bytes: an imported file, else the copy kept from the cache server, else the server. */
+    private byte[] trexBytes(int z, int x, int y) {
+        byte[] b = TrexMaps.tile(trex, z, x, y);
+        if (b != null) return b;
+        List<TrexShare.Remote> r = trexRemote;
+        LanTiles lan = trexLan;
+        if (r == null || lan == null) return null;
+        boolean covered = false;
+        for (TrexShare.Remote rr : r) if (rr.covers(z, x, y)) covered = true;
+        if (!covered) return null;
+        File dir = trexCache;
+        File kept = dir == null ? null : new File(dir, z + "/" + x + "/" + y + ".jpg");
+        if (kept != null && kept.isFile()) {
+            try {
+                java.io.FileInputStream in = new java.io.FileInputStream(kept);
+                byte[] data = new byte[(int) kept.length()];
+                int got = 0, k;
+                while (got < data.length && (k = in.read(data, got, data.length - got)) > 0) got += k;
+                in.close();
+                if (got == data.length) return data;
+            } catch (java.io.IOException ignored) {
+            }
+        }
+        b = lan.getPath(TrexShare.tilePath(z, x, y));
+        if (b != null && kept != null) {
+            try {
+                kept.getParentFile().mkdirs();
+                FileOutputStream os = new FileOutputStream(kept);
+                os.write(b);
+                os.close();
+            } catch (java.io.IOException ignored) {
+            }
+        }
+        return b;
+    }
+
+    /** The tile, or past the map's top zoom a scaled-up piece of its deepest tile (up to 6 levels). */
+    private Bitmap fromTrex(int[] t) {
+        int top = trexTop();
         for (int up = 0; up <= 6 && t[0] - up >= 0; up++) {
             int pz = t[0] - up;
             if (up > 0 && pz > top) continue;
-            byte[] data = TrexMaps.tile(files, pz, t[1] >> up, t[2] >> up);
+            byte[] data = trexBytes(pz, t[1] >> up, t[2] >> up);
             if (data == null) {
                 if (up == 0 && t[0] <= top) return null; // inside its zooms: missing here, use the other sources
                 continue;

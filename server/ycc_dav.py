@@ -22,7 +22,7 @@ if not PASSWORD:
     sys.exit("Set YCC_PASSWORD")
 MAX_UPLOAD = int(os.environ.get("YCC_MAX_UPLOAD_MB", "2048")) * 1024 * 1024
 MAX_FORM = 300 * 1024 * 1024  # admin page posts (an APK upload)
-STORE_FOLDERS = ("Maps cache", "Updates", "Logs", "Data", "DRYAD", "Configs", "Missions")
+STORE_FOLDERS = ("Maps cache", "Updates", "Logs", "Data", "DRYAD", "Configs", "Missions", "T.REX Arms Topo Map")
 for sub in ("Maps cache", "Updates"):
     os.makedirs(os.path.join(ROOT, "YCC", sub), exist_ok=True)
 admin.init(ROOT, USER, PASSWORD)

@@ -6,6 +6,9 @@ import android.content.DialogInterface;
 import android.os.Handler;
 import android.widget.Toast;
 
+import java.io.File;
+import java.util.List;
+
 /**
  * Feeds a map its tile sources, and when online tiles are off and the view lands on an area with
  * no offline tiles, asks for 10 s whether to fetch online tiles for 5 minutes. No answer = stay
@@ -74,13 +77,36 @@ public final class OnlineTilePrompt {
     public void apply() {
         boolean online = mp.onlineActive();
         map.setSources(mp.offlineFolder(), online ? mp.onlineUrl() : null, mp.onlineCache());
-        map.setTrex(TrexMaps.active(activity));
+        applyTrex();
+        TrexShare.refreshIfStale(activity, new Runnable() {
+            @Override
+            public void run() {
+                handler.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        applyTrex();
+                        if (onChange != null) onChange.run();
+                    }
+                });
+            }
+        });
         mp.applyOverlay(map);
         map.setLan(new LanTiles(activity), mp.chosenUrl(), mp.overlayUrl());
         handler.removeCallbacks(expire);
         long left = mp.onlineUntil() - System.currentTimeMillis();
         if (online && !mp.onlineEnabled() && left > 0) handler.postDelayed(expire, left + 200);
         if (onChange != null) onChange.run();
+    }
+
+    /** The T.REX Arms Topo Map when it is the chosen layer: imported files, then files on the cache server. */
+    private void applyTrex() {
+        if (!TrexMaps.enabled(activity)) {
+            map.setTrex(null, null, null, null);
+            return;
+        }
+        List<TrexMaps.Entry> local = TrexMaps.list(activity);
+        map.setTrex(local, TrexShare.remoteOnly(activity, local), new LanTiles(activity),
+                new File(MapPrefs.mapsRoot(activity), "_trex-cache"));
     }
 
     private void maybeAsk() {

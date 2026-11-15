@@ -9,32 +9,53 @@ import android.content.Intent;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.os.Handler;
 import android.view.View;
 import android.widget.Button;
-import android.widget.CheckBox;
-import android.widget.CompoundButton;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import org.communitycomms.app.geo.Geo;
+import org.communitycomms.app.geo.LanTiles;
 import org.communitycomms.app.geo.TrexMaps;
+import org.communitycomms.app.geo.TrexShare;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 
 /**
- * Data import and layers: the T.REX Arms Topo Map (.mbtiles baked on maps.trex-arms.com). How to
- * make and download the file, Import (copied into the app's own folder), the list of imported files
- * with size and bounds, Remove, and the on/off switch for the map. Kept apart from the ATAK imports
- * and offline sets.
+ * Data import and layers: the T.REX Arms Topo Map (.mbtiles baked on maps.trex-arms.com). How to make
+ * and download the file, Import (copied into the app's own folder and sent to the cache server), the
+ * files on this phone (Send to cache server, Remove) and the files on the cache server (Download).
+ * The map itself is chosen under Layer on the map.
  */
 public final class TrexMapsActivity extends Activity {
     private static final int REQ_PICK = 1;
 
-    private LinearLayout list;
-    private CheckBox show;
-    private TextView credit;
+    private LinearLayout list, remoteList;
+    private TextView credit, shareStatus;
+    private final Handler handler = new Handler();
+    private boolean wasBusy;
+    private List<TrexShare.Remote> remote;
+    private boolean remoteAsked, remoteFailed;
+
+    private final Runnable poll = new Runnable() {
+        @Override
+        public void run() {
+            boolean busy = TrexShare.busy();
+            shareStatus.setText(TrexShare.status());
+            shareStatus.setVisibility(TrexShare.status().length() > 0 ? View.VISIBLE : View.GONE);
+            if (wasBusy && !busy) { // an upload or download just finished
+                render();
+                loadRemote();
+            }
+            wasBusy = busy;
+            handler.postDelayed(this, 1000);
+        }
+    };
 
     @Override
     protected void onCreate(Bundle b) {
@@ -49,23 +70,8 @@ public final class TrexMapsActivity extends Activity {
 
         root.addView(head(TrexMaps.NAME));
         root.addView(note("An offline topographic map (OpenStreetMap with hill shading, zoom 12 to 15) baked as an ATAK "
-                + ".mbtiles file on the T.REX Arms Maps site. After import it works with no internet and is drawn first "
-                + "wherever it covers; outside its area the usual map shows."));
-        show = new CheckBox(this);
-        show.setText("Show " + TrexMaps.NAME + " on the map");
-        show.setChecked(TrexMaps.enabled(this));
-        show.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
-            @Override
-            public void onCheckedChanged(CompoundButton bt, boolean on) {
-                if (on && TrexMaps.list(TrexMapsActivity.this).isEmpty()) {
-                    bt.setChecked(false);
-                    toast("Import a .mbtiles file first");
-                    return;
-                }
-                TrexMaps.setEnabled(TrexMapsActivity.this, on);
-            }
-        });
-        root.addView(show);
+                + ".mbtiles file on the T.REX Arms Maps site. Choose it under Layer on the map (" + TrexMaps.NAME
+                + "); outside its area the usual map shows."));
         LinearLayout r1 = row(root);
         button(r1, "How to make the file").setOnClickListener(new View.OnClickListener() {
             @Override
@@ -79,26 +85,58 @@ public final class TrexMapsActivity extends Activity {
                 pick();
             }
         });
-        root.addView(head("\nImported files"));
+        shareStatus = note("");
+        shareStatus.setTextColor(0xfff0c75e);
+        root.addView(shareStatus);
+
+        root.addView(head("\nOn this phone"));
         list = new LinearLayout(this);
         list.setOrientation(LinearLayout.VERTICAL);
         root.addView(list);
+
+        root.addView(head("\nOn the cache server"));
+        remoteList = new LinearLayout(this);
+        remoteList.setOrientation(LinearLayout.VERTICAL);
+        root.addView(remoteList);
+        Button refresh = new Button(this);
+        refresh.setText("Check the cache server again");
+        refresh.setAllCaps(false);
+        refresh.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                loadRemote();
+            }
+        });
+        root.addView(refresh, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+
         credit = note("");
         credit.setTextSize(12);
         root.addView(credit);
-        root.addView(note("\nThese files stay on this phone: they are not part of the ATAK imports, offline map sets, "
-                + "Send map tiles or sync."));
+        root.addView(note("\nImported files are also sent to the cache server (Settings > LAN storage location) in its folder \""
+                + TrexShare.FOLDER + "\", apart from the ATAK imports and offline map sets. Other phones can view the map "
+                + "from there as they pan, or Download it to keep it for offline use."));
         setContentView(scroll);
         render();
+        loadRemote();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        wasBusy = TrexShare.busy();
+        handler.post(poll);
+    }
+
+    @Override
+    protected void onPause() {
+        handler.removeCallbacks(poll);
+        super.onPause();
     }
 
     private void render() {
         list.removeAllViews();
         List<TrexMaps.Entry> files = TrexMaps.list(this);
-        if (files.isEmpty()) {
-            list.addView(note("None yet. Tap How to make the file, then Import .mbtiles file."));
-            if (show.isChecked()) show.setChecked(false);
-        }
+        if (files.isEmpty()) list.addView(note("None yet. Tap How to make the file, then Import .mbtiles file, or Download one below."));
         int pad = (int) (8 * getResources().getDisplayMetrics().density);
         for (final TrexMaps.Entry e : files) {
             TextView t = new TextView(this);
@@ -107,18 +145,110 @@ public final class TrexMapsActivity extends Activity {
             t.setPadding(0, pad, 0, 0);
             list.addView(t);
             list.addView(note(TrexMaps.describe(e)));
-            Button rm = new Button(this);
-            rm.setText("Remove");
-            rm.setAllCaps(false);
-            rm.setOnClickListener(new View.OnClickListener() {
+            LinearLayout r = row(list);
+            button(r, "Send to cache server").setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    send(e);
+                }
+            });
+            button(r, "Remove").setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
                     confirmRemove(e);
                 }
             });
-            list.addView(rm, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
         }
         credit.setText(files.isEmpty() ? "" : "\nShown on the map: " + TrexMaps.attribution(files));
+        renderRemote();
+    }
+
+    private void renderRemote() {
+        remoteList.removeAllViews();
+        if (!new LanTiles(this).configured()) {
+            remoteList.addView(note("No cache server is set (Settings > LAN storage location)."));
+            return;
+        }
+        if (remote == null) {
+            remoteList.addView(note(remoteFailed ? "The cache server did not answer." : remoteAsked ? "Checking…" : ""));
+            if (!remoteFailed) return;
+            remote = TrexShare.remote(this); // the last list seen
+            if (remote.isEmpty()) return;
+            remoteList.addView(note("Last seen there:"));
+        }
+        if (remote.isEmpty()) {
+            remoteList.addView(note("Nothing there yet. Import a file on this phone (it is sent there), or tap Send to cache server."));
+            return;
+        }
+        List<TrexMaps.Entry> local = TrexMaps.list(this);
+        int pad = (int) (8 * getResources().getDisplayMetrics().density);
+        for (final TrexShare.Remote r : remote) {
+            boolean here = false;
+            for (TrexMaps.Entry e : local) if (e.file.getName().equalsIgnoreCase(r.file)) here = true;
+            TextView t = new TextView(this);
+            t.setText(r.title);
+            t.setTextSize(16);
+            t.setPadding(0, pad, 0, 0);
+            remoteList.addView(t);
+            StringBuilder s = new StringBuilder();
+            s.append(r.size > 0 ? TrexMaps.size(r.size) : "size unknown");
+            if (r.tiles > 0) s.append(String.format(Locale.US, " · %,d tiles", r.tiles));
+            if (r.maxZoom >= 0) s.append(" · zoom ").append(r.minZoom).append(" to ").append(r.maxZoom);
+            if (r.hasBounds) s.append("\nBounds: ").append(Geo.latLon(r.north, r.west)).append(" to ").append(Geo.latLon(r.south, r.east));
+            s.append("\nFile: ").append(r.file);
+            s.append(r.tilesDone ? "\nViewable from the server as you pan: yes"
+                    : r.tilesShared > 0 ? String.format(Locale.US, "\nViewable from the server as you pan: %,d of %,d tiles", r.tilesShared, r.tiles)
+                    : "\nViewable from the server as you pan: not yet (Send to cache server from the phone that has it)");
+            if (here) s.append("\nAlso on this phone.");
+            remoteList.addView(note(s.toString()));
+            if (!here) {
+                Button dl = new Button(this);
+                dl.setText("Download" + (r.size > 0 ? " (" + TrexMaps.size(r.size) + ")" : ""));
+                dl.setAllCaps(false);
+                dl.setOnClickListener(new View.OnClickListener() {
+                    @Override
+                    public void onClick(View v) {
+                        if (!TrexShare.startDownload(TrexMapsActivity.this, r)) toast("Wait for the current upload or download to finish");
+                        else wasBusy = true;
+                    }
+                });
+                remoteList.addView(dl, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+            }
+        }
+    }
+
+    private void loadRemote() {
+        if (!new LanTiles(this).configured()) {
+            renderRemote();
+            return;
+        }
+        remote = null;
+        remoteAsked = true;
+        remoteFailed = false;
+        renderRemote();
+        new AsyncTask<Void, Void, List<TrexShare.Remote>>() {
+            @Override
+            protected List<TrexShare.Remote> doInBackground(Void... v) {
+                return TrexShare.refresh(TrexMapsActivity.this);
+            }
+
+            @Override
+            protected void onPostExecute(List<TrexShare.Remote> r) {
+                if (isFinishing()) return;
+                remote = r;
+                remoteFailed = r == null;
+                renderRemote();
+            }
+        }.execute();
+    }
+
+    private void send(TrexMaps.Entry e) {
+        if (!new LanTiles(this).configured()) {
+            toast("No cache server is set (Settings > LAN storage location)");
+            return;
+        }
+        if (!TrexShare.startUpload(this, e)) toast("Wait for the current upload or download to finish");
+        else wasBusy = true;
     }
 
     private void howTo() {
@@ -131,7 +261,7 @@ public final class TrexMapsActivity extends Activity {
                         + "3. Bake it as an ATAK .mbtiles file and download it. On a phone it lands in Download; "
                         + "on a PC, copy it to the phone (USB, LAN storage or a memory card).\n"
                         + "4. Come back here, tap Import .mbtiles file and pick it. The app copies it into its own "
-                        + "folder, so you can delete the download afterwards.\n\n"
+                        + "folder (you can delete the download afterwards) and sends it to the cache server for the other phones.\n\n"
                         + "Map data " + TrexMaps.OSM + ", plus the hillshade sources the file names.")
                 .setPositiveButton("Open maps site", new DialogInterface.OnClickListener() {
                     @Override
@@ -204,12 +334,17 @@ public final class TrexMapsActivity extends Activity {
                 }
                 if (r instanceof TrexMaps.Entry) {
                     TrexMaps.Entry e = (TrexMaps.Entry) r;
-                    TrexMaps.setEnabled(TrexMapsActivity.this, true);
-                    show.setChecked(true);
+                    boolean lan = new LanTiles(TrexMapsActivity.this).configured();
+                    boolean sending = lan && TrexShare.startUpload(TrexMapsActivity.this, e);
+                    if (sending) wasBusy = true;
                     render();
                     new AlertDialog.Builder(TrexMapsActivity.this)
                             .setTitle("Imported")
-                            .setMessage(e.title() + "\n\n" + TrexMaps.describe(e) + "\n\nIt is switched on for the map.")
+                            .setMessage(e.title() + "\n\n" + TrexMaps.describe(e) + "\n\n"
+                                    + (sending ? "It is being sent to the cache server for the other phones (progress on this screen)."
+                                    : lan ? "Tap Send to cache server when the current transfer has finished."
+                                    : "No cache server is set, so it is only on this phone.")
+                                    + "\n\nChoose " + TrexMaps.NAME + " under Layer on the map to see it.")
                             .setPositiveButton(android.R.string.ok, null)
                             .show();
                 } else {
@@ -227,7 +362,8 @@ public final class TrexMapsActivity extends Activity {
     private void confirmRemove(final TrexMaps.Entry e) {
         new AlertDialog.Builder(this)
                 .setTitle("Remove " + e.title() + "?")
-                .setMessage("Deletes the app's copy (" + TrexMaps.size(e.file.length()) + "). Import it again to get it back.")
+                .setMessage("Deletes this phone's copy (" + TrexMaps.size(e.file.length()) + "). The copy on the cache server stays; "
+                        + "Download it again to get it back.")
                 .setPositiveButton("Remove", new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface d, int w) {

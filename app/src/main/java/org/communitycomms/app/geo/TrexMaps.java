@@ -296,11 +296,18 @@ public final class TrexMaps {
 
     /** The credit line for the map: OpenStreetMap, then any others the files name. */
     public static String attribution(List<Entry> es) {
+        List<String> all = new ArrayList<String>();
+        if (es != null) for (Entry e : es) all.add(e.attribution);
+        return attributionOf(all);
+    }
+
+    /** The credit line from attribution texts (local files and files on the cache server). */
+    public static String attributionOf(List<String> texts) {
         Set<String> parts = new LinkedHashSet<String>();
         boolean osm = false;
-        if (es != null) {
-            for (Entry e : es) {
-                String a = e.attribution.trim();
+        if (texts != null) {
+            for (String t : texts) {
+                String a = t == null ? "" : t.trim();
                 if (a.length() == 0) continue;
                 if (a.toLowerCase(Locale.US).contains("openstreetmap")) osm = true; // already credits OSM
                 parts.add(a);
@@ -394,6 +401,15 @@ public final class TrexMaps {
         } finally {
             in.close();
         }
+        return importTmp(c, tmp, shown);
+    }
+
+    /**
+     * Checks a file already in the app's T.REX folder (a copy or a download), then names it after
+     * {@code shown} and adds it to the list. Not valid: the file is deleted and nothing is kept.
+     */
+    public static Entry importTmp(Context c, File tmp, String shown) throws IOException {
+        File d = dir(c);
         Entry e;
         try {
             e = read(tmp);
@@ -402,7 +418,7 @@ public final class TrexMaps {
             throw ex;
         }
         String base = shown.replaceAll("(?i)\\.mbtiles$", "");
-        if (base.length() == 0 || base.equalsIgnoreCase("import.tmp")) base = e.name;
+        if (base.length() == 0 || base.equalsIgnoreCase("import.tmp") || base.endsWith(".part")) base = e.name;
         base = base.replaceAll("[^A-Za-z0-9 _.()-]", "").trim();
         if (base.length() == 0) base = "trex-topo";
         if (base.length() > 60) base = base.substring(0, 60);

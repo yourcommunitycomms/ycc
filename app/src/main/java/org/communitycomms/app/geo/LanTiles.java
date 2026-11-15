@@ -489,8 +489,108 @@ public final class LanTiles {
         }
     }
 
+    /** Names in a folder of the storage (rel like "T.REX Arms Topo Map"), folders ending in /; null if unreachable. */
+    public java.util.List<String> listPath(String rel) {
+        java.util.List<String> out = new java.util.ArrayList<String>();
+        if (!up()) return null;
+        HttpURLConnection c = null;
+        try {
+            c = open(pathUrl(rel) + "/", "GET");
+            int code = c.getResponseCode();
+            ok();
+            if (code == 404) return out;
+            if (code != 200) return null;
+            InputStream in = c.getInputStream();
+            ByteArrayOutputStream bo = new ByteArrayOutputStream();
+            byte[] buf = new byte[16384];
+            int n;
+            while ((n = in.read(buf)) > 0 && bo.size() < 2 * 1024 * 1024) bo.write(buf, 0, n);
+            java.util.regex.Matcher m = java.util.regex.Pattern.compile("href=\"([^\"?#:]+)\"").matcher(new String(bo.toByteArray(), "UTF-8"));
+            while (m.find()) {
+                String name = java.net.URLDecoder.decode(m.group(1), "UTF-8");
+                if (name.equals("../") || name.startsWith("/") || name.startsWith(".")) continue;
+                if (name.indexOf('/') >= 0 && name.indexOf('/') != name.length() - 1) continue;
+                if (!out.contains(name)) out.add(name);
+            }
+            return out;
+        } catch (Exception e) {
+            markDown();
+            return null;
+        } finally {
+            if (c != null) c.disconnect();
+        }
+    }
+
+    /** A file's size from a HEAD request, or -1. */
+    public long sizeOf(String rel) {
+        if (!up()) return -1;
+        HttpURLConnection c = null;
+        try {
+            c = open(pathUrl(rel), "HEAD");
+            if (c.getResponseCode() != 200) return -1;
+            String len = c.getHeaderField("Content-Length");
+            return len == null ? -1 : Long.parseLong(len.trim());
+        } catch (Exception e) {
+            return -1;
+        } finally {
+            if (c != null) c.disconnect();
+        }
+    }
+
+    /**
+     * Downloads a big file into {@code part}, carrying on from what is already there when the server
+     * accepts a Range request (otherwise it starts again). Returns "" when complete, else why not.
+     */
+    public String getPathResumable(String rel, File part, long total, Progress p) {
+        if (!up()) return "the cache server is not set or not answering";
+        HttpURLConnection c = null;
+        try {
+            long have = part.isFile() ? part.length() : 0;
+            if (total > 0 && have == total) return "";
+            c = open(pathUrl(rel), "GET");
+            c.setReadTimeout(60000);
+            if (have > 0) c.setRequestProperty("Range", "bytes=" + have + "-");
+            int code = c.getResponseCode();
+            if (code != 200 && code != 206) return "the cache server answered " + code;
+            boolean append = code == 206 && have > 0;
+            if (!append) have = 0;
+            InputStream in = c.getInputStream();
+            java.io.FileOutputStream os = new java.io.FileOutputStream(part, append);
+            byte[] buf = new byte[65536];
+            int n;
+            long last = 0;
+            try {
+                while ((n = in.read(buf)) > 0) {
+                    os.write(buf, 0, n);
+                    have += n;
+                    if (p != null && have - last >= 1024 * 1024) {
+                        last = have;
+                        p.update((append ? "Carrying on: " : "") + String.format(java.util.Locale.US, "%.1f MB", have / 1048576.0)
+                                + (total > 0 ? String.format(java.util.Locale.US, " of %.1f MB", total / 1048576.0) : ""));
+                    }
+                }
+            } finally {
+                os.close();
+                in.close();
+            }
+            ok();
+            if (total > 0 && part.length() != total) return "the download stopped part way (" + part.length() + " of " + total + " bytes)";
+            return "";
+        } catch (Exception e) {
+            markDown();
+            return "the download stopped (" + e.getMessage() + ")";
+        } finally {
+            if (c != null) c.disconnect();
+        }
+    }
+
     public boolean putPath(String rel, File f) {
-        if (f.length() > 4L * 1024 * 1024) return putPathStream(rel, f); // big files (videos): streamed, not held in memory
+        return putPath(rel, f, null);
+    }
+
+    /** As putPath, with progress for big files. */
+    public boolean putPath(String rel, File f, Progress p) {
+        if (f.length() > 4L * 1024 * 1024) return putPathStream(rel, f, p); // big files (videos): streamed, not held in memory
         try {
             InputStream in = new FileInputStream(f);
             ByteArrayOutputStream bo = new ByteArrayOutputStream();
@@ -505,7 +605,7 @@ public final class LanTiles {
     }
 
     /** Uploads a large file straight from disk (up to 2 GB). */
-    private boolean putPathStream(String rel, File f) {
+    private boolean putPathStream(String rel, File f, Progress p) {
         if (!up() || f.length() > Integer.MAX_VALUE) return false;
         try {
             String[] parts = rel.split("/");
@@ -524,7 +624,15 @@ public final class LanTiles {
             InputStream in = new FileInputStream(f);
             byte[] buf = new byte[65536];
             int n;
-            while ((n = in.read(buf)) > 0) os.write(buf, 0, n);
+            long sent = 0, last = 0;
+            while ((n = in.read(buf)) > 0) {
+                os.write(buf, 0, n);
+                sent += n;
+                if (p != null && sent - last >= 1024 * 1024) {
+                    last = sent;
+                    p.update(String.format(java.util.Locale.US, "%.1f MB of %.1f MB", sent / 1048576.0, f.length() / 1048576.0));
+                }
+            }
             in.close();
             os.close();
             int code = c.getResponseCode();

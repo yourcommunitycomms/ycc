@@ -153,7 +153,9 @@ MAPS AND LOCATION
   switch (positions and All Chat Rooms; never private channels or voice).
 - T.REX Arms Topo Map (map menu, Data import and layers): steps to bake an offline topo .mbtiles file
   on the T.REX Arms Maps site, import it into the app's own folder (size and bounds shown), remove it,
-  and switch it on or off as a map layer, with the OpenStreetMap credit shown on the map.
+  and choose it under Layer as a map type, with the OpenStreetMap credit shown on the map. Imported
+  files go to the cache server's own T.REX folder; other phones view the map from there as they pan,
+  or download the file for offline use.
 
 CODES AND SECURITY
 - Modern DRYAD sheets: batches, validity times, names, colours, 5-letter IDs, random row order, huge

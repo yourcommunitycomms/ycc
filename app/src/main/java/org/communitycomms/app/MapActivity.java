@@ -80,6 +80,7 @@ public final class MapActivity extends Activity {
     private static final int[] LAYER_PRESETS = {0, 1, 3};
 
     private String layerWord() {
+        if (org.communitycomms.app.geo.TrexMaps.enabled(this)) return "T.REX";
         int p = mp.onlinePreset();
         return p == 1 ? "Satellite" : p == 3 ? "Topo" : p == 0 ? "Street" : "Layer";
     }
@@ -102,41 +103,43 @@ public final class MapActivity extends Activity {
         box.setOrientation(LinearLayout.VERTICAL);
         box.setPadding((int) (20 * d), (int) (8 * d), (int) (20 * d), 0);
         android.widget.RadioGroup types = new android.widget.RadioGroup(this);
+        final boolean trexOn = org.communitycomms.app.geo.TrexMaps.enabled(this);
         for (int i = 0; i < LAYER_PRESETS.length; i++) {
             android.widget.RadioButton r = new android.widget.RadioButton(this);
             r.setId(i + 1);
             r.setText(LAYER_NAMES[i]);
             types.addView(r);
-            if (LAYER_PRESETS[i] == mp.onlinePreset()) types.check(r.getId());
+            if (!trexOn && LAYER_PRESETS[i] == mp.onlinePreset()) types.check(r.getId());
         }
+        // T.REX Arms Topo Map: one of the map choices (imported, or on the cache server). Outside its
+        // area the last other choice still shows.
+        final int trexId = LAYER_PRESETS.length + 1;
+        android.widget.RadioButton tr = new android.widget.RadioButton(this);
+        tr.setId(trexId);
+        tr.setText(org.communitycomms.app.geo.TrexMaps.NAME);
+        types.addView(tr);
+        if (trexOn) types.check(trexId);
         types.setOnCheckedChangeListener(new android.widget.RadioGroup.OnCheckedChangeListener() {
             @Override
             public void onCheckedChanged(android.widget.RadioGroup g, int id) {
-                mp.setOnline(LAYER_PRESETS[id - 1], mp.customUrl());
+                if (id == trexId) {
+                    org.communitycomms.app.geo.TrexMaps.setEnabled(MapActivity.this, true);
+                    java.util.List<org.communitycomms.app.geo.TrexMaps.Entry> local = org.communitycomms.app.geo.TrexMaps.list(MapActivity.this);
+                    if (local.isEmpty() && org.communitycomms.app.geo.TrexShare.remote(MapActivity.this).isEmpty()) {
+                        android.widget.Toast.makeText(MapActivity.this, "No " + org.communitycomms.app.geo.TrexMaps.NAME
+                                + " on this phone or the cache server yet: map menu > Data import and layers", android.widget.Toast.LENGTH_LONG).show();
+                    }
+                } else {
+                    org.communitycomms.app.geo.TrexMaps.setEnabled(MapActivity.this, false);
+                    mp.setOnline(LAYER_PRESETS[id - 1], mp.customUrl());
+                }
                 tilePrompt.apply();
                 layerButton.setText(layerWord());
                 refresh();
             }
         });
         box.addView(types);
-        // T.REX Arms Topo Map: an imported offline map, switched on and off like the other sources.
-        final boolean haveTrex = !org.communitycomms.app.geo.TrexMaps.list(this).isEmpty();
         final android.app.AlertDialog[] dlg = new android.app.AlertDialog[1];
-        layerTick(box, org.communitycomms.app.geo.TrexMaps.NAME + (haveTrex ? " (offline)" : " (import first)"),
-                haveTrex && org.communitycomms.app.geo.TrexMaps.enabled(this), dlg, new LayerFeed() {
-                    @Override
-                    public boolean set(boolean on) {
-                        if (!haveTrex) return false;
-                        org.communitycomms.app.geo.TrexMaps.setEnabled(MapActivity.this, on);
-                        tilePrompt.apply();
-                        return true;
-                    }
-
-                    @Override
-                    public void setUp() {
-                        startActivity(new android.content.Intent(MapActivity.this, TrexMapsActivity.class));
-                    }
-                });
         TextView over = new TextView(this);
         over.setText("\nOver the map:");
         box.addView(over);
@@ -1574,8 +1577,19 @@ public final class MapActivity extends Activity {
         boolean online = map.hasOnline();
         String off = mp.offlineSetName();
         int mins = tilePrompt == null ? 0 : tilePrompt.minutesLeft();
-        sourceLabel.setText("Tiles: " + (org.communitycomms.app.geo.TrexMaps.active(this) != null
-                ? org.communitycomms.app.geo.TrexMaps.NAME + " + " : "")
+        // T.REX Arms Topo Map when chosen: imported files and files on the cache server.
+        String trexWords = "", trexCredit = "";
+        if (org.communitycomms.app.geo.TrexMaps.enabled(this)) {
+            java.util.List<org.communitycomms.app.geo.TrexMaps.Entry> local = org.communitycomms.app.geo.TrexMaps.list(this);
+            java.util.List<org.communitycomms.app.geo.TrexShare.Remote> remote = org.communitycomms.app.geo.TrexShare.remoteOnly(this, local);
+            java.util.List<String> credits = new java.util.ArrayList<String>();
+            for (org.communitycomms.app.geo.TrexMaps.Entry e : local) credits.add(e.attribution);
+            for (org.communitycomms.app.geo.TrexShare.Remote r : remote) credits.add(r.attribution);
+            trexWords = org.communitycomms.app.geo.TrexMaps.NAME + (!local.isEmpty() ? " (on this phone)"
+                    : !remote.isEmpty() ? " (from the cache server)" : " (none yet)") + " + ";
+            if (!local.isEmpty() || !remote.isEmpty()) trexCredit = "\nMap data: " + org.communitycomms.app.geo.TrexMaps.attributionOf(credits);
+        }
+        sourceLabel.setText("Tiles: " + trexWords
                 + (off.length() > 0 ? "offline \"" + off + "\"" : "no offline set")
                 + (online ? " + online (" + MapPrefs.ONLINE_NAMES[mp.onlinePreset()].split(" \\(")[0] + ")"
                 + (mp.onlineEnabled() ? " always" : mins >= 120 ? " for " + (mins + 59) / 60 + " h" : mins > 0 ? " for " + mins + " min" : "")
@@ -1589,8 +1603,7 @@ public final class MapActivity extends Activity {
                 + (online && android.os.Build.VERSION.SDK_INT < 20 && (mp.overlay().equals("web:3") || mp.overlay().equals("web:5"))
                 ? "\nThe OpenTopoMap / Esri overlay needs Android 5 or newer." : "")
                 + adsbStatus()
-                + (org.communitycomms.app.geo.TrexMaps.active(this) != null
-                ? "\nMap data: " + org.communitycomms.app.geo.TrexMaps.attribution(org.communitycomms.app.geo.TrexMaps.active(this)) : ""));
+                + trexCredit);
     }
 
     /** The shared maps cache at work: tiles read from the LAN storage and given to it since the app started. */

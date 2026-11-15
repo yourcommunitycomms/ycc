@@ -501,12 +501,20 @@ type ERASE). Destructive buttons ask first.
   topographic map (OpenStreetMap with hill shading, usually zoom 12 to 15) baked as an ATAK .mbtiles file
   on the T.REX Arms Maps site. **How to make the file** gives the steps and opens maps.trex-arms.com in the
   browser; **Import .mbtiles file** picks the file, copies it into the app's own folder (delete the download
-  afterwards) and shows its size, tiles, zooms and bounds; **Remove** deletes the copy. A file that is not
-  SQLite or has no tiles table is refused and nothing is kept. Switch it on or off with the tick on that
-  screen or under **Layer** on the map. It is read straight from the file, drawn first wherever it covers
-  (past its top zoom the deepest tile is enlarged; elsewhere the usual map shows), and the map shows its
-  credit line (© OpenStreetMap contributors plus the file's own attribution). These files are kept in their
-  own list: not part of the ATAK imports, offline sets, Send map tiles or sync.
+  afterwards) and shows its size, tiles, zooms and bounds; **Remove** deletes this phone's copy. A file that
+  is not SQLite or has no tiles table is refused and nothing is kept. Choose it under **Layer** on the map:
+  **T.REX Arms Topo Map** is one of the map choices with Street map, Satellite and Topographic (picking
+  another turns it off). It is drawn first wherever it covers (past its top zoom the deepest tile is
+  enlarged; elsewhere the usual map shows), with its credit line (© OpenStreetMap contributors plus the
+  file's own attribution).
+  **Sharing through the cache server** (Settings > LAN storage location): an imported file is also sent, in
+  the background, to the cache server's own **T.REX Arms Topo Map** folder (separate from the Maps cache and
+  the ATAK imports): the whole file, plus each tile so other phones can view it. **Send to cache server**
+  sends it again. Under **On the cache server** other phones see each file's name, size, zooms and bounds,
+  and **Download** saves it on the phone for offline use (it carries on after a break only where the server
+  supports that; otherwise it starts again). Until then, with T.REX chosen under Layer, a phone reads the
+  tiles it needs from the cache server as it pans and keeps them; if the server does not answer, the usual
+  map shows.
 - **Commander view** extras: ▶ slides the side buttons away, leaving a small PTT and + POI on the map.
 - **Commander view:** someone back after more than 2 minutes offline who missed messages brings up a 10 s
   pop-up, "X has been offline for Y min and missed N messages on B. Send?" (Settings can switch it off).
