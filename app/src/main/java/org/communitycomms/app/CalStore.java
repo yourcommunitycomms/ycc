@@ -180,7 +180,7 @@ public final class CalStore {
     static void schedule(Context c, Entry e) {
         AlarmManager am = (AlarmManager) c.getSystemService(Context.ALARM_SERVICE);
         if (am == null) return;
-        Intent i = new Intent(c, CalReminder.class).putExtra("id", e.id).putExtra("title", e.prot ? "Protected entry" : e.title)
+        Intent i = new Intent(c, CalReminder.class).putExtra("id", e.id).putExtra("title", e.prot ? "Protected Meeting reminder" : e.title)
                 .putExtra("start", e.start).putExtra("allDay", e.allDay).putExtra("vibrate", e.vibrate).putExtra("team", e.team)
                 .putExtra("by", e.by);
         int fl = PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE : 0);

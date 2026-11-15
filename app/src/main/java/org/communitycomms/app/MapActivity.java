@@ -1999,7 +1999,16 @@ public final class MapActivity extends Activity {
     private boolean navRerouting, navArrived, navFarWarned;
     /** Planning: the route is shown and can be changed (closed roads, via points) or shared before Start. */
     private boolean navPlanning;
-    private final List<double[]> navVias = new java.util.ArrayList<double[]>(), navBlocked = new java.util.ArrayList<double[]>();
+    /** The points the route goes through, in order: via points, waypoints and rest / meeting stops. */
+    private final List<RouteStop> navVias = new java.util.ArrayList<RouteStop>();
+    private final List<double[]> navBlocked = new java.util.ArrayList<double[]>();
+    /** Route notes, shared and saved with it ("meet at the servo 10am"). */
+    private String navNotes = "";
+    /** The points as they were when the route now shown was worked out (lines up with its viaAlong). */
+    private List<RouteStop> navStopsAtPlan = new java.util.ArrayList<RouteStop>();
+    private final java.util.Set<String> navStopSpoken = new java.util.HashSet<String>();
+    /** After the next route is worked out, centre here instead of fitting the whole route (Show from the editor). */
+    private double[] navCenterOn;
     private double navStartLat, navStartLon;
     static final String EXTRA_ROUTE = "route";
     static final String ROUTE_TAG = "[route] ";
@@ -2027,6 +2036,7 @@ public final class MapActivity extends Activity {
         navBlocked.clear();
         navIgnored.clear();
         navLastChange.clear();
+        navNotes = "";
         navLat = lat;
         navLon = lon;
         navName = name;
@@ -2041,8 +2051,8 @@ public final class MapActivity extends Activity {
         pts[0] = fromLat;
         pts[1] = fromLon;
         for (int i = 0; i < navVias.size(); i++) {
-            pts[2 + i * 2] = navVias.get(i)[0];
-            pts[3 + i * 2] = navVias.get(i)[1];
+            pts[2 + i * 2] = navVias.get(i).lat;
+            pts[3 + i * 2] = navVias.get(i).lon;
         }
         pts[pts.length - 2] = navLat;
         pts[pts.length - 1] = navLon;
@@ -2183,10 +2193,14 @@ public final class MapActivity extends Activity {
                         navVoice = getSharedPreferences("map", MODE_PRIVATE).getBoolean("navVoice", true);
                         navBar.setVisibility(View.VISIBLE);
                         map.setRoute(route.pts);
-                        map.setRouteMarks(flat(navBlocked), flat(navVias));
+                        navStopsAtPlan = new java.util.ArrayList<RouteStop>(navVias);
+                        navStopSpoken.clear();
+                        showRouteMarks();
                         if (!reroute) {
                             navPlanning = true;
-                            fitRoute(route.pts);
+                            if (navCenterOn != null) map.center(navCenterOn[0], navCenterOn[1], Math.max(15, map.zoom()));
+                            else fitRoute(route.pts);
+                            navCenterOn = null;
                             showPlanning();
                             RouteStore.remember(MapActivity.this, currentSaved(false, ""));
                             checkOldClosures(route);
@@ -2229,7 +2243,8 @@ public final class MapActivity extends Activity {
         long mins = Math.round(r.seconds / 60);
         navText.setText("Route to " + (navName.length() > 0 ? navName : "the point") + " (" + modeWord() + "): " + Geo.distance(r.lengthM) + ", "
                 + (mins >= 60 ? (mins / 60) + " h " + (mins % 60) + " min" : mins + " min")
-                + (navVias.isEmpty() ? "" : ", via " + navVias.size()) + (navBlocked.isEmpty() ? "" : ", " + navBlocked.size() + " closed")
+                + (navVias.isEmpty() ? "" : ", " + RouteStop.summary(navVias)) + (navBlocked.isEmpty() ? "" : ", " + navBlocked.size() + " closed")
+                + (navNotes.length() > 0 ? "\nNotes: " + navNotes : "")
                 + "\nRoute… to change or share it, then Start");
     }
 
@@ -2243,11 +2258,16 @@ public final class MapActivity extends Activity {
         final List<Integer> ids = new java.util.ArrayList<Integer>();
         items.add("Close the road at the + (a tree down, a flood…)");
         ids.add(1);
-        items.add("Go via the + (a set way for a convoy)");
+        items.add("+ Go via here (a small dot at the map's +; shapes the route)");
         ids.add(2);
+        items.add("+ Planned rest / meeting stop here…");
+        ids.add(11);
+        items.add("+ Add a waypoint here…");
+        ids.add(12);
+        // The route editor replaces "Undo the last change" (each point can be changed or deleted there).
+        items.add("Edit this route (stops, notes, start, undo changes)…");
+        ids.add(10);
         if (!navBlocked.isEmpty() || !navVias.isEmpty()) {
-            items.add("Undo the last change");
-            ids.add(3);
             items.add("Clear all changes");
             ids.add(4);
         }
@@ -2268,17 +2288,29 @@ public final class MapActivity extends Activity {
                     @Override
                     public void onClick(android.content.DialogInterface d, int which) {
                         int id = ids.get(which);
-                        if (id == 1 || id == 2) {
-                            (id == 1 ? navBlocked : navVias).add(new double[]{map.centerLat(), map.centerLon(), System.currentTimeMillis()});
-                            if (id == 1) RouteStore.addClosed(MapActivity.this, map.centerLat(), map.centerLon(), System.currentTimeMillis(), new Prefs(MapActivity.this).callsign());
-                            if (id == 1) navLastChange.add(1);
-                            else navLastChange.add(2);
+                        if (id == 1) {
+                            double[] b = new double[]{map.centerLat(), map.centerLon(), System.currentTimeMillis()};
+                            navBlocked.add(b);
+                            RouteStore.addClosed(MapActivity.this, b[0], b[1], (long) b[2], new Prefs(MapActivity.this).callsign());
+                            navLastChange.add(b);
                             replan();
+                        } else if (id == 2) {
+                            addStop(new RouteStop(map.centerLat(), map.centerLon(), RouteStop.VIA)); // no questions: just a dot
+                        } else if (id == 11 || id == 12) {
+                            final RouteStop s = new RouteStop(map.centerLat(), map.centerLon(), id == 11 ? RouteStop.REST : RouteStop.WAYPOINT);
+                            editStop(s, true, new Runnable() {
+                                @Override
+                                public void run() {
+                                    addStop(s);
+                                }
+                            });
+                        } else if (id == 10) {
+                            routeEditor(false);
                         } else if (id == 3) {
                             if (!navLastChange.isEmpty()) {
-                                int last = navLastChange.remove(navLastChange.size() - 1);
-                                List<double[]> l = last == 1 ? navBlocked : navVias;
-                                if (!l.isEmpty()) l.remove(l.size() - 1);
+                                Object last = navLastChange.remove(navLastChange.size() - 1);
+                                navBlocked.remove(last);
+                                navVias.remove(last);
                             }
                             replan();
                         } else if (id == 4) {
@@ -2307,7 +2339,8 @@ public final class MapActivity extends Activity {
                 }).setNegativeButton(android.R.string.cancel, null).show();
     }
 
-    private final List<Integer> navLastChange = new java.util.ArrayList<Integer>();
+    /** Changes in order (a closed road double[] or a RouteStop), for Undo. */
+    private final List<Object> navLastChange = new java.util.ArrayList<Object>();
 
     /** After a change: planning starts again from the planned start; following, from where I am now. */
     private void replan() {
@@ -2316,6 +2349,422 @@ public final class MapActivity extends Activity {
             dropPassedVias();
             planRoute(true, me.getLatitude(), me.getLongitude());
         }
+    }
+
+    // ---- route points: via points, waypoints, rest / meeting stops; the route editor ----
+
+    private void showRouteMarks() {
+        map.setRouteMarks(flat(navBlocked), RouteStop.flat(navVias), RouteStop.kinds(navVias), RouteStop.labels(navVias));
+    }
+
+    /** Start of the part still to go: the planned start, or where I am while following. */
+    private double[] fromPoint() {
+        if (!navPlanning && me != null) return new double[]{me.getLatitude(), me.getLongitude()};
+        return new double[]{navStartLat, navStartLon};
+    }
+
+    /** A new point goes where it adds the least distance, then the route is worked out again. */
+    private void addStop(RouteStop s) {
+        double[] from = fromPoint();
+        int at = RouteStop.bestIndex(navVias, from[0], from[1], navLat, navLon, s.lat, s.lon);
+        navVias.add(at, s);
+        navLastChange.add(s);
+        replan();
+    }
+
+    /** Name, note (and for a rest stop its time and length), or change its kind. */
+    private void editStop(final RouteStop s, final boolean isNew, final Runnable done) {
+        float d = getResources().getDisplayMetrics().density;
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        int pad = (int) (16 * d);
+        box.setPadding(pad, pad / 2, pad, 0);
+        final android.widget.Spinner kind = new android.widget.Spinner(this);
+        kind.setAdapter(new android.widget.ArrayAdapter<String>(this, android.R.layout.simple_spinner_dropdown_item, RouteStop.KIND_NAMES));
+        kind.setSelection(s.kind);
+        final android.widget.EditText name = new android.widget.EditText(this), when = new android.widget.EditText(this),
+                mins = new android.widget.EditText(this), note = new android.widget.EditText(this);
+        name.setSingleLine(true);
+        name.setHint("Name, e.g. Servo at Seymour");
+        name.setText(s.name);
+        when.setSingleLine(true);
+        when.setHint("Planned time, e.g. 10:00 (optional)");
+        when.setText(s.when);
+        mins.setSingleLine(true);
+        mins.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+        mins.setHint("How long, minutes (optional)");
+        if (s.mins > 0) mins.setText(String.valueOf(s.mins));
+        note.setHint("Note, e.g. Meet here 10am (shared with the route)");
+        note.setText(s.note);
+        final Runnable showFields = new Runnable() {
+            @Override
+            public void run() {
+                int k = kind.getSelectedItemPosition();
+                name.setVisibility(k == RouteStop.VIA ? View.GONE : View.VISIBLE);
+                when.setVisibility(k == RouteStop.REST ? View.VISIBLE : View.GONE);
+                mins.setVisibility(k == RouteStop.REST ? View.VISIBLE : View.GONE);
+            }
+        };
+        kind.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(android.widget.AdapterView<?> a, View v, int pos, long id) {
+                showFields.run();
+            }
+
+            @Override
+            public void onNothingSelected(android.widget.AdapterView<?> a) {
+            }
+        });
+        box.addView(kind);
+        box.addView(name);
+        box.addView(when);
+        box.addView(mins);
+        box.addView(note);
+        showFields.run();
+        android.widget.ScrollView sv = new android.widget.ScrollView(this);
+        sv.addView(box);
+        new AlertDialog.Builder(this).setTitle(isNew ? "New " + RouteStop.KIND_NAMES[s.kind].toLowerCase(java.util.Locale.US) + " at the +" : "Change this point")
+                .setView(sv)
+                .setPositiveButton(isNew ? "Add" : "OK", new android.content.DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(android.content.DialogInterface di, int w) {
+                        s.kind = kind.getSelectedItemPosition();
+                        s.name = RouteStop.clip(name.getText().toString(), 60);
+                        s.note = RouteStop.clip(note.getText().toString(), 200);
+                        s.when = s.kind == RouteStop.REST ? RouteStop.clip(when.getText().toString(), 20) : "";
+                        try {
+                            s.mins = s.kind == RouteStop.REST ? Math.max(0, Integer.parseInt(mins.getText().toString().trim())) : 0;
+                        } catch (NumberFormatException e) {
+                            s.mins = 0;
+                        }
+                        done.run();
+                    }
+                }).setNegativeButton(android.R.string.cancel, null).show();
+    }
+
+    private AlertDialog routeEditorDlg;
+
+    /**
+     * The route editor: route notes, start, each point in order (move up / down, change, move to the map's +,
+     * show, delete), the destination and closed roads. Changes are worked out when it closes with Done (or Show);
+     * Cancel puts everything back. fromSaved: opened from Routes (nothing is shown until Done).
+     */
+    private void routeEditor(final boolean fromSaved) {
+        final List<RouteStop> keepVias = new java.util.ArrayList<RouteStop>();
+        for (RouteStop s : navVias) keepVias.add(s.copy());
+        final List<double[]> keepBlocked = new java.util.ArrayList<double[]>(navBlocked);
+        final double[] keep = {navStartLat, navStartLon, navLat, navLon};
+        final String keepName = navName, keepNotes = navNotes;
+        final boolean[] changed = {false};
+        float d = getResources().getDisplayMetrics().density;
+        final int pad = (int) (12 * d);
+        final LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding(pad, pad / 2, pad, 0);
+        final android.widget.EditText notes = new android.widget.EditText(this);
+        notes.setHint("Route notes, e.g. Meet at the servo 10am (shared with the route)");
+        notes.setText(navNotes);
+        notes.setMinLines(2);
+        final Runnable[] fill = new Runnable[1];
+        final Runnable change = new Runnable() {
+            @Override
+            public void run() {
+                changed[0] = true;
+                showRouteMarks();
+                fill[0].run();
+            }
+        };
+        fill[0] = new Runnable() {
+            @Override
+            public void run() {
+                box.removeAllViews();
+                box.addView(label("Notes"));
+                box.addView(notes);
+                if (navPlanning || fromSaved) {
+                    box.addView(row("Start: " + Geo.latLon(navStartLat, navStartLon), 0xffa5d6a7, new Runnable() {
+                        @Override
+                        public void run() {
+                            pick("Start", new String[]{"Set to the map's +", "Set to my position", "Show on the map"}, new int[]{1, 2, 3}, new Pick() {
+                                @Override
+                                public void on(int id) {
+                                    if (id == 1) {
+                                        navStartLat = map.centerLat();
+                                        navStartLon = map.centerLon();
+                                        change.run();
+                                    } else if (id == 2) {
+                                        if (me == null) {
+                                            android.widget.Toast.makeText(MapActivity.this, "No GPS position yet", android.widget.Toast.LENGTH_SHORT).show();
+                                            return;
+                                        }
+                                        navStartLat = me.getLatitude();
+                                        navStartLon = me.getLongitude();
+                                        change.run();
+                                    } else showOnMap(navStartLat, navStartLon);
+                                }
+                            });
+                        }
+                    }));
+                } else {
+                    box.addView(row("Start: where I am now (following the route)", 0xffa5d6a7, null));
+                }
+                if (navVias.isEmpty()) box.addView(row("No via points, waypoints or stops yet: Add at the + (below)", 0xffbdbdbd, null));
+                for (int i = 0; i < navVias.size(); i++) {
+                    final int idx = i;
+                    final RouteStop s = navVias.get(i);
+                    int colour = s.kind == RouteStop.VIA ? 0xff90caf9 : s.kind == RouteStop.WAYPOINT ? 0xffce93d8 : 0xffffb74d;
+                    box.addView(row((i + 1) + ". " + s.title() + (s.note.length() > 0 ? "\n    " + s.note : ""), colour, new Runnable() {
+                        @Override
+                        public void run() {
+                            List<String> o = new java.util.ArrayList<String>();
+                            final List<Integer> oi = new java.util.ArrayList<Integer>();
+                            if (idx > 0) {
+                                o.add("Move up (earlier)");
+                                oi.add(1);
+                            }
+                            if (idx < navVias.size() - 1) {
+                                o.add("Move down (later)");
+                                oi.add(2);
+                            }
+                            o.add("Change name, note or kind…");
+                            oi.add(3);
+                            o.add("Move it to the map's +");
+                            oi.add(4);
+                            o.add("Show on the map");
+                            oi.add(5);
+                            o.add("Delete");
+                            oi.add(6);
+                            int[] ids = new int[oi.size()];
+                            for (int k = 0; k < ids.length; k++) ids[k] = oi.get(k);
+                            pick(s.title(), o.toArray(new String[0]), ids, new Pick() {
+                                @Override
+                                public void on(int id) {
+                                    if (id == 1 || id == 2) {
+                                        navVias.remove(idx);
+                                        navVias.add(id == 1 ? idx - 1 : idx + 1, s);
+                                        change.run();
+                                    } else if (id == 3) {
+                                        editStop(s, false, change);
+                                    } else if (id == 4) {
+                                        s.lat = map.centerLat();
+                                        s.lon = map.centerLon();
+                                        change.run();
+                                    } else if (id == 5) {
+                                        showOnMap(s.lat, s.lon);
+                                    } else {
+                                        navVias.remove(idx);
+                                        change.run();
+                                    }
+                                }
+                            });
+                        }
+                    }));
+                }
+                box.addView(row("Destination: " + (navName.length() > 0 ? navName : Geo.latLon(navLat, navLon)), 0xffa5d6a7, new Runnable() {
+                    @Override
+                    public void run() {
+                        pick("Destination", new String[]{"Rename…", "Set to the map's +", "Show on the map"}, new int[]{1, 2, 3}, new Pick() {
+                            @Override
+                            public void on(int id) {
+                                if (id == 1) {
+                                    final android.widget.EditText n = new android.widget.EditText(MapActivity.this);
+                                    n.setSingleLine(true);
+                                    n.setText(navName);
+                                    new AlertDialog.Builder(MapActivity.this).setTitle("Destination name").setView(n)
+                                            .setPositiveButton(android.R.string.ok, new android.content.DialogInterface.OnClickListener() {
+                                                @Override
+                                                public void onClick(android.content.DialogInterface di, int w) {
+                                                    navName = RouteStop.clip(n.getText().toString(), 60);
+                                                    change.run();
+                                                }
+                                            }).setNegativeButton(android.R.string.cancel, null).show();
+                                } else if (id == 2) {
+                                    navLat = map.centerLat();
+                                    navLon = map.centerLon();
+                                    change.run();
+                                } else showOnMap(navLat, navLon);
+                            }
+                        });
+                    }
+                }));
+                for (int i = 0; i < navBlocked.size(); i++) {
+                    final double[] b = navBlocked.get(i);
+                    box.addView(row("Closed road " + (i + 1) + (b.length > 2 ? " (" + RouteStore.ago((long) b[2]) + ")" : ""), 0xffef9a9a, new Runnable() {
+                        @Override
+                        public void run() {
+                            pick("Closed road", new String[]{"Show on the map", "Open it again (remove)"}, new int[]{1, 2}, new Pick() {
+                                @Override
+                                public void on(int id) {
+                                    if (id == 1) showOnMap(b[0], b[1]);
+                                    else {
+                                        navBlocked.remove(b);
+                                        change.run();
+                                    }
+                                }
+                            });
+                        }
+                    }));
+                }
+                box.addView(label("Tap a line to change it. Pan the map first to use the map's + (Show on the map closes this; Route… > Edit opens it again)."));
+            }
+
+            private android.widget.TextView label(String s) {
+                android.widget.TextView t = new android.widget.TextView(MapActivity.this);
+                t.setText(s);
+                t.setTextColor(0xffbdbdbd);
+                t.setTextSize(13);
+                t.setPadding(0, pad / 2, 0, pad / 4);
+                return t;
+            }
+
+            private android.widget.TextView row(String s, int colour, final Runnable tap) {
+                android.widget.TextView t = new android.widget.TextView(MapActivity.this);
+                t.setText(s);
+                t.setTextColor(colour);
+                t.setTextSize(16);
+                t.setPadding(0, pad / 2, 0, pad / 2);
+                if (tap != null) {
+                    t.setBackgroundResource(android.R.drawable.list_selector_background);
+                    t.setOnClickListener(new View.OnClickListener() {
+                        @Override
+                        public void onClick(View v) {
+                            tap.run();
+                        }
+                    });
+                }
+                return t;
+            }
+        };
+        fill[0].run();
+        android.widget.ScrollView sv = new android.widget.ScrollView(this);
+        sv.addView(box);
+        routeEditorDlg = new AlertDialog.Builder(this).setTitle("Edit route").setView(sv)
+                .setPositiveButton("Done", null)
+                .setNeutralButton("Add at the +…", null)
+                .setNegativeButton(android.R.string.cancel, new android.content.DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(android.content.DialogInterface di, int w) {
+                        navVias.clear();
+                        navVias.addAll(keepVias);
+                        navBlocked.clear();
+                        navBlocked.addAll(keepBlocked);
+                        navStartLat = keep[0];
+                        navStartLon = keep[1];
+                        navLat = keep[2];
+                        navLon = keep[3];
+                        navName = keepName;
+                        navNotes = keepNotes;
+                        if (fromSaved) stopNav();
+                        else showRouteMarks();
+                    }
+                }).create();
+        routeEditorDlg.show();
+        routeEditorDlg.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                routeEditorDlg.dismiss();
+                finishEdit(notes, changed[0] || fromSaved, null);
+            }
+        });
+        routeEditorDlg.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                pick("Add at the map's +", new String[]{"Via point (a dot)", "Waypoint…", "Rest / meeting stop…"}, new int[]{0, 1, 2}, new Pick() {
+                    @Override
+                    public void on(final int kind) {
+                        final RouteStop s = new RouteStop(map.centerLat(), map.centerLon(), kind);
+                        final Runnable add = new Runnable() {
+                            @Override
+                            public void run() {
+                                double[] from = fromPoint();
+                                navVias.add(RouteStop.bestIndex(navVias, from[0], from[1], navLat, navLon, s.lat, s.lon), s);
+                                change.run();
+                            }
+                        };
+                        if (kind == RouteStop.VIA) add.run();
+                        else editStop(s, true, add);
+                    }
+                });
+            }
+        });
+        editorShow = new ShowHook() {
+            @Override
+            public void show(double lat, double lon) {
+                routeEditorDlg.dismiss();
+                finishEdit(notes, changed[0] || fromSaved, new double[]{lat, lon});
+                if (!(changed[0] || fromSaved)) map.center(lat, lon, Math.max(15, map.zoom()));
+            }
+        };
+    }
+
+    private interface ShowHook {
+        void show(double lat, double lon);
+    }
+
+    private ShowHook editorShow;
+
+    private void showOnMap(double lat, double lon) {
+        if (editorShow != null) editorShow.show(lat, lon);
+    }
+
+    /** Closing the editor: notes kept, and the route worked out again if anything changed. */
+    private void finishEdit(android.widget.EditText notes, boolean replanNow, double[] centre) {
+        String n = RouteStop.clip(notes.getText().toString(), 500);
+        boolean notesChanged = !n.equals(navNotes);
+        navNotes = n;
+        if (replanNow) {
+            navCenterOn = centre;
+            navLastChange.clear();
+            if (navPlanning || me == null) planRoute(false, navStartLat, navStartLon);
+            else replan();
+        } else {
+            if (notesChanged && navPlanning) {
+                showPlanning();
+                RouteStore.remember(this, currentSaved(false, ""));
+            }
+            showRouteMarks();
+        }
+    }
+
+    private interface Pick {
+        void on(int id);
+    }
+
+    private void pick(String title, String[] items, final int[] ids, final Pick p) {
+        new AlertDialog.Builder(this).setTitle(title).setItems(items, new android.content.DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(android.content.DialogInterface di, int which) {
+                p.on(ids[which]);
+            }
+        }).setNegativeButton(android.R.string.cancel, null).show();
+    }
+
+    /**
+     * While following: waypoints and rest stops are announced once ahead (500 m driving, 100 m walking) and
+     * again on arrival, with their note. Returns "Next: Rest stop: Servo in 1.2 km" for the bar (or "").
+     */
+    private String announceStops(org.communitycomms.app.geo.RoadGraph.Route r, double along) {
+        List<RouteStop> stops = navStopsAtPlan;
+        int n = Math.min(stops.size(), r.viaAlong.size());
+        double early = navMode == org.communitycomms.app.geo.RoadGraph.CAR ? 500 : 100, near = navMode == org.communitycomms.app.geo.RoadGraph.CAR ? 40 : 20;
+        String next = "";
+        for (int i = 0; i < n; i++) {
+            RouteStop s = stops.get(i);
+            if (s.kind == RouteStop.VIA) continue;
+            double to = r.viaAlong.get(i) - along;
+            if (to < -near) continue; // passed
+            String key = i + ":" + s.t;
+            String said = s.title() + (s.note.length() > 0 ? ". " + s.note : "");
+            if (to <= near) {
+                if (navStopSpoken.add("a" + key)) {
+                    navStopSpoken.add("e" + key);
+                    navSay("Arriving at " + said + ".");
+                }
+            } else if (to <= early && navStopSpoken.add("e" + key)) {
+                navSay("In " + org.communitycomms.app.geo.Geo.spoken(to) + ", " + said + ".");
+            }
+            if (next.length() == 0) next = "Next: " + s.title() + (to > near ? " in " + Geo.distance(to) : " (here)") + (s.note.length() > 0 ? " · " + s.note : "");
+        }
+        return next;
     }
 
     /** Via points already passed on the current route are left out of a new route from here. */
@@ -2334,9 +2783,18 @@ public final class MapActivity extends Activity {
         org.communitycomms.app.geo.RoadGraph.Route r = navRoute;
         sb.append("Route to ").append(navName.length() > 0 ? navName : Geo.latLon(navLat, navLon)).append(" (").append(modeWord());
         if (r != null) sb.append(", ").append(Geo.distance(r.lengthM));
-        if (!navVias.isEmpty()) sb.append(", via ").append(navVias.size()).append(" point").append(navVias.size() == 1 ? "" : "s");
+        if (!navVias.isEmpty()) sb.append(", ").append(RouteStop.summary(navVias));
         if (!navBlocked.isEmpty()) sb.append(", ").append(navBlocked.size()).append(" road").append(navBlocked.size() == 1 ? "" : "s").append(" closed");
-        sb.append("): tap it in Chat to follow it\n").append(ROUTE_TAG).append("m=").append(navMode).append(";n=")
+        sb.append("): tap it in Chat to follow it");
+        // For people: the notes and each named stop (the app reads the last line).
+        if (navNotes.length() > 0) sb.append("\nNotes: ").append(navNotes.replace("\n", " "));
+        int k = 0;
+        for (RouteStop s : navVias) {
+            k++;
+            if (s.kind == RouteStop.VIA) continue;
+            sb.append("\n").append(k).append(". ").append(s.title()).append(s.note.length() > 0 ? " - " + s.note.replace("\n", " ") : "");
+        }
+        sb.append("\n").append(ROUTE_TAG).append("m=").append(navMode).append(";n=")
                 .append(navName.replace(";", ",").replace("\n", " ")).append(";p=");
         for (int i = 0; i + 1 < pts.length; i += 2) sb.append(i > 0 ? "|" : "").append(String.format(java.util.Locale.US, "%.6f,%.6f", pts[i], pts[i + 1]));
         sb.append(";x=");
@@ -2344,6 +2802,25 @@ public final class MapActivity extends Activity {
             double[] b = navBlocked.get(i);
             sb.append(i > 0 ? "|" : "").append(String.format(java.util.Locale.US, "%.6f,%.6f", b[0], b[1]));
             if (b.length > 2) sb.append(",").append((long) b[2]); // when it was closed
+        }
+        // Newer parts (older apps skip keys they do not know, so they still get the plain route):
+        // k = kind of each point between start and destination, wn / wo / wt / wm = name, note, time, minutes,
+        // t = route notes. Text is URL-encoded so ; | = and new lines cannot break the line.
+        if (navNotes.length() > 0) sb.append(";t=").append(RouteStop.enc(navNotes));
+        boolean extra = false;
+        for (RouteStop s : navVias) extra |= s.kind != RouteStop.VIA || s.note.length() > 0;
+        if (extra) {
+            StringBuilder kk = new StringBuilder(), wn = new StringBuilder(), wo = new StringBuilder(), wt = new StringBuilder(), wm = new StringBuilder();
+            for (int i = 0; i < navVias.size(); i++) {
+                RouteStop s = navVias.get(i);
+                String sep = i > 0 ? "|" : "";
+                kk.append(sep).append(s.kind);
+                wn.append(sep).append(RouteStop.enc(s.name));
+                wo.append(sep).append(RouteStop.enc(s.note));
+                wt.append(sep).append(RouteStop.enc(s.when));
+                wm.append(sep).append(s.mins);
+            }
+            sb.append(";k=").append(kk).append(";wn=").append(wn).append(";wo=").append(wo).append(";wt=").append(wt).append(";wm=").append(wm);
         }
         return sb.toString();
     }
@@ -2397,12 +2874,20 @@ public final class MapActivity extends Activity {
         int mode = org.communitycomms.app.geo.RoadGraph.CAR;
         String name = "";
         List<double[]> p = new java.util.ArrayList<double[]>(), x = new java.util.ArrayList<double[]>();
+        String notes = "";
+        String[] kk = null, wn = null, wo = null, wt = null, wm = null;
         for (String part : def.split(";")) {
             int eq = part.indexOf('=');
             if (eq < 0) continue;
             String k = part.substring(0, eq), v = part.substring(eq + 1);
             if (k.equals("m")) mode = "1".equals(v.trim()) ? org.communitycomms.app.geo.RoadGraph.FOOT : org.communitycomms.app.geo.RoadGraph.CAR;
             else if (k.equals("n")) name = v;
+            else if (k.equals("t")) notes = RouteStop.clip(RouteStop.dec(v), 500);
+            else if (k.equals("k")) kk = v.split("\\|", -1);
+            else if (k.equals("wn")) wn = v.split("\\|", -1);
+            else if (k.equals("wo")) wo = v.split("\\|", -1);
+            else if (k.equals("wt")) wt = v.split("\\|", -1);
+            else if (k.equals("wm")) wm = v.split("\\|", -1);
             else if (k.equals("p") || k.equals("x")) {
                 for (String ll : v.split("\\|")) {
                     String[] q = ll.split(",");
@@ -2426,7 +2911,20 @@ public final class MapActivity extends Activity {
         navLat = p.get(p.size() - 1)[0];
         navLon = p.get(p.size() - 1)[1];
         navVias.clear();
-        navVias.addAll(p.subList(1, p.size() - 1));
+        for (int i = 1; i < p.size() - 1; i++) {
+            int j = i - 1;
+            RouteStop s = new RouteStop(p.get(i)[0], p.get(i)[1], RouteStop.VIA);
+            try {
+                if (kk != null && j < kk.length) s.kind = Math.max(0, Math.min(2, Integer.parseInt(kk[j].trim())));
+                if (wm != null && j < wm.length && wm[j].trim().length() > 0) s.mins = Math.max(0, Integer.parseInt(wm[j].trim()));
+            } catch (NumberFormatException ignored) {
+            }
+            if (wn != null && j < wn.length) s.name = RouteStop.clip(RouteStop.dec(wn[j]), 60);
+            if (wo != null && j < wo.length) s.note = RouteStop.clip(RouteStop.dec(wo[j]), 200);
+            if (wt != null && j < wt.length) s.when = RouteStop.clip(RouteStop.dec(wt[j]), 20);
+            navVias.add(s);
+        }
+        navNotes = notes;
         navBlocked.clear();
         navBlocked.addAll(x);
         for (double[] b : x) RouteStore.addClosed(this, b[0], b[1], (long) b[2], "shared route");
@@ -2450,6 +2948,8 @@ public final class MapActivity extends Activity {
         s.closed = c;
         s.mode = navMode;
         s.dest = navName;
+        s.notes = navNotes;
+        for (RouteStop m : navVias) s.stops.add(m.copy());
         s.name = name;
         s.kept = kept;
         s.time = System.currentTimeMillis();
@@ -2483,10 +2983,12 @@ public final class MapActivity extends Activity {
         final int closedCount = RouteStore.closed(this).size();
         List<String> labels = new java.util.ArrayList<String>();
         for (RouteStore.Saved s : all) {
-            int vias = s.pts.length / 2 - 2, closed = s.closed.length / 2;
+            int closed = s.closed.length / 2;
+            String stops = RouteStop.summary(s.stopList());
             labels.add((s.kept ? "★ " : "") + (s.name.length() > 0 ? s.name : "To " + (s.dest.length() > 0 ? s.dest : "a point"))
                     + " · " + (s.mode == org.communitycomms.app.geo.RoadGraph.CAR ? "driving" : "walking")
-                    + (vias > 0 ? " · via " + vias : "") + (closed > 0 ? " · " + closed + " closed" : "") + " · " + RouteStore.ago(s.time));
+                    + (stops.length() > 0 ? " · " + stops : "") + (closed > 0 ? " · " + closed + " closed" : "")
+                    + (s.notes.length() > 0 ? " · notes" : "") + " · " + RouteStore.ago(s.time));
         }
         if (closedCount > 0) labels.add("Forget the " + closedCount + " remembered closed road" + (closedCount == 1 ? "" : "s"));
         if (labels.isEmpty()) {
@@ -2508,13 +3010,15 @@ public final class MapActivity extends Activity {
     }
 
     private void routeChoice(final RouteStore.Saved s) {
-        String[] opts = s.kept ? new String[]{"Open (show and plan it)", "Delete"} : new String[]{"Open (show and plan it)", "Save for later", "Delete"};
+        String[] opts = s.kept ? new String[]{"Open (show and plan it)", "Edit (start, stops, notes)…", "Delete"}
+                : new String[]{"Open (show and plan it)", "Edit (start, stops, notes)…", "Save for later", "Delete"};
         new AlertDialog.Builder(this).setTitle(s.name.length() > 0 ? s.name : "To " + s.dest)
                 .setItems(opts, new android.content.DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(android.content.DialogInterface d, int which) {
-                        if (which == 0) openSaved(s);
-                        else if (!s.kept && which == 1) {
+                        if (which == 0) openSaved(s, false);
+                        else if (which == 1) openSaved(s, true);
+                        else if (!s.kept && which == 2) {
                             s.kept = true;
                             RouteStore.remember(MapActivity.this, s);
                             android.widget.Toast.makeText(MapActivity.this, "Route saved", android.widget.Toast.LENGTH_SHORT).show();
@@ -2524,7 +3028,7 @@ public final class MapActivity extends Activity {
     }
 
     /** A kept route: the same start, via points and closed roads, planned again, ready to Start. */
-    private void openSaved(RouteStore.Saved s) {
+    private void openSaved(RouteStore.Saved s, boolean edit) {
         int n = s.pts.length / 2;
         navMode = s.mode;
         navName = s.dest;
@@ -2533,12 +3037,19 @@ public final class MapActivity extends Activity {
         navLat = s.pts[n * 2 - 2];
         navLon = s.pts[n * 2 - 1];
         navVias.clear();
-        for (int i = 1; i < n - 1; i++) navVias.add(new double[]{s.pts[i * 2], s.pts[i * 2 + 1]});
+        navVias.addAll(s.stopList());
+        navNotes = s.notes;
         navBlocked.clear();
         for (int i = 0; i + 1 < s.closed.length; i += 2) navBlocked.add(new double[]{s.closed[i], s.closed[i + 1], s.time});
         navLastChange.clear();
         navIgnored.clear();
-        planRoute(false, navStartLat, navStartLon);
+        if (edit) {
+            navRoute = null; // the editor's Done works it out
+            navPlanning = true;
+            map.setRoute(null);
+            showRouteMarks();
+            routeEditor(true);
+        } else planRoute(false, navStartLat, navStartLon);
     }
 
     /** A new plan going along roads closed before: "closed X ago: avoid, ignore or forget?" */
@@ -2633,6 +3144,7 @@ public final class MapActivity extends Activity {
         navIdx = bestI;
         navAlongNow = bestAlong;
         double left = Math.max(0, r.lengthM - bestAlong);
+        String nextStop = announceStops(r, bestAlong);
         if (left < 25 && !navArrived) {
             navArrived = true;
             navText.setText("Arrived" + (navName.length() > 0 ? " at " + navName : ""));
@@ -2681,7 +3193,8 @@ public final class MapActivity extends Activity {
         long mins = Math.round(left / speed / 60);
         navText.setText("In " + Geo.distance(toStep) + ": " + st.text + "\n" + Geo.distance(left) + " · "
                 + (mins >= 60 ? (mins / 60) + " h " + (mins % 60) + " min" : mins + " min") + " left"
-                + (bestD > offLimit ? " · off the route (" + Geo.distance(bestD) + ")" : ""));
+                + (bestD > offLimit ? " · off the route (" + Geo.distance(bestD) + ")" : "")
+                + (nextStop.length() > 0 ? "\n" + nextStop : ""));
         // Spoken: once well before the turn, and again just before it.
         double early = navMode == org.communitycomms.app.geo.RoadGraph.CAR ? 300 : 60, near = navMode == org.communitycomms.app.geo.RoadGraph.CAR ? 40 : 15;
         if (toStep <= early && toStep > near * 2 && navSpokenStep != next) {

@@ -39,6 +39,8 @@ public final class CalendarActivity extends Activity {
     static final String[] REMIND_LABELS = {"at the time", "5 min before", "10 min before", "15 min before", "30 min before",
             "1 hour before", "2 hours before", "1 day before"};
 
+    /** The reminder tick on a protected entry: its notification says only "Protected Meeting reminder". */
+    static final String PROT_REMIND = "Add a Protected Meeting reminder";
     private int tab = BOTH;
     private final Calendar month = Calendar.getInstance();
     private LinearLayout list;
@@ -372,6 +374,7 @@ public final class CalendarActivity extends Activity {
             teamTick.setEnabled(false); // a team entry stays a team entry (and a private one private)
             protTick.setChecked(old.prot);
             protTick.setEnabled(false);
+            if (old.prot) remind.setText(PROT_REMIND);
             for (int i = 0; i < REMIND_MIN.length; i++) if (REMIND_MIN[i] == old.remindMin) before.setSelection(i);
         } else {
             dur.setText("60");
@@ -381,6 +384,9 @@ public final class CalendarActivity extends Activity {
                 public void onCheckedChanged(android.widget.CompoundButton b, boolean on) {
                     if (on) teamTick.setChecked(false);
                     teamTick.setEnabled(!on); // a protected entry is never shared
+                    // A protected entry starts with no reminder; ticking one adds a reminder that shows no details.
+                    remind.setChecked(false);
+                    remind.setText(on ? PROT_REMIND : "Remind me");
                 }
             });
             vibrate.setChecked(true);

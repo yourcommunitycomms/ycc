@@ -43,6 +43,7 @@ public final class CloudGroupActivity extends Activity {
     private static final String EXTRA_NAME = "name", EXTRA_RELAY = "relay", EXTRA_RKEY = "rkey";
     private static final Charset UTF8 = Charset.forName("UTF-8");
 
+    private static final int REQ_SCAN = 41;
     private EditText name, key, relay, relayKey;
     private TextView status;
     private CheckBox shareLoc;
@@ -72,13 +73,13 @@ public final class CloudGroupActivity extends Activity {
         root.setPadding(pad, pad, pad, pad);
         scroll.addView(root);
 
-        root.addView(note("A community channel like Public that reaches people anywhere through its own relay server, "
+        root.addView(note("A community channel like Public that reaches people anywhere through its own Cloud Server (a relay), "
                 + "separate from your own tunnel and internet relay. Treat it as public: anyone with its link can join "
                 + "and hear it. It shows as \"Cloud\" with the other channels."));
         root.addView(head("\nGroup"));
         name = field(root, "Group name (shown on your phone)", pr.cloudName(), false);
         key = field(root, "Group key (the channel passcode; everyone uses the same)", pr.cloudKey(), false);
-        root.addView(head("\nIts relay server"));
+        root.addView(head("\nCloud Server"));
         relay = field(root, "Relay address (host:port)", pr.cloudRelay(), false);
         relayKey = field(root, "Relay key (a cloud group user on that relay)", pr.cloudRelayKey(), true);
         root.addView(note("The relay key comes from the relay's admin (Relay admin > Add cloud group), or with a share link."));
@@ -119,6 +120,14 @@ public final class CloudGroupActivity extends Activity {
         root.addView(note("Receive-only code: phones that join with it can listen and read the group, but cannot "
                 + "talk, send messages, positions or check-ins on it (like the Public listen key)."));
         LinearLayout r3 = row(root);
+        button(r3, "Scan QR").setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                // The app's own scanner hands back whatever it read; a cloud group code is then offered to join.
+                startActivityForResult(new Intent(CloudGroupActivity.this, QrScanActivity.class)
+                        .putExtra(QrScanActivity.EXTRA_ANY_TEXT, true), REQ_SCAN);
+            }
+        });
         button(r3, "Paste a link").setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -165,6 +174,15 @@ public final class CloudGroupActivity extends Activity {
         String code = i.getStringExtra(EXTRA_CODE);
         if (code == null && i.getData() != null) code = i.getData().toString(); // a ycc://cloud/ link opened
         if (code != null) offer(code);
+    }
+
+    @Override
+    protected void onActivityResult(int req, int res, Intent data) {
+        super.onActivityResult(req, res, data);
+        if (req != REQ_SCAN || res != RESULT_OK || data == null) return;
+        String text = data.getStringExtra(QrScanActivity.EXTRA_RESULT);
+        if (isCode(text)) offer(text);
+        else Toast.makeText(this, "That QR code is not a cloud group code", Toast.LENGTH_LONG).show();
     }
 
     @Override
@@ -438,7 +456,7 @@ public final class CloudGroupActivity extends Activity {
                 .setMessage((ro ? "RECEIVE ONLY: this phone will be able to listen and read, but not talk, send messages, "
                         + "positions or check-ins on this group.\n\n" : "")
                         + (pr.cloudSet() && !k.equals(pr.cloudKey()) ? "It replaces your cloud group \"" + pr.cloudName() + "\".\n\n" : "")
-                        + (r.length() > 0 ? "It uses its own relay server (" + r + ")." : "It has no relay: it works only on your own network.")
+                        + (r.length() > 0 ? "It uses its own Cloud Server (" + r + ")." : "It has no relay: it works only on your own network.")
                         + "\n\nTreat it as public: anyone with the link can hear it. Your location is not sent to it unless you "
                         + "tick \"Share my location with public and cloud groups\".")
                 .setPositiveButton("Join", new DialogInterface.OnClickListener() {

@@ -717,17 +717,30 @@ public final class TileMapView extends View {
         invalidate();
     }
 
-    /** Route planning marks: closed roads (red, crossed) and via points (numbered), lat, lon pairs. */
+    /**
+     * Route planning marks, lat, lon pairs: closed roads (red, crossed) and the points the route goes through,
+     * each drawn by kind (0 via point: a small dot; 1 waypoint: a flag; 2 rest / meeting stop: a cup) with its label.
+     */
     private volatile double[] routeBlocked, routeVias;
+    private volatile int[] routeKinds;
+    private volatile String[] routeLabels;
 
     public void setRouteMarks(double[] blocked, double[] vias) {
+        setRouteMarks(blocked, vias, null, null);
+    }
+
+    public void setRouteMarks(double[] blocked, double[] vias, int[] kinds, String[] labels) {
         routeBlocked = blocked;
         routeVias = vias;
+        routeKinds = kinds;
+        routeLabels = labels;
         invalidate();
     }
 
     private void drawRouteMarks(Canvas c, float d) {
         double[] b = routeBlocked, v = routeVias;
+        int[] kinds = routeKinds;
+        String[] labels = routeLabels;
         Paint p = routeHalo;
         p.setStyle(Paint.Style.FILL);
         if (b != null) for (int i = 0; i + 1 < b.length; i += 2) {
@@ -741,15 +754,72 @@ public final class TileMapView extends View {
         }
         if (v != null) for (int i = 0; i + 1 < v.length; i += 2) {
             float x = sx(Geo.lonToX(v[i + 1], z)), y = sy(Geo.latToY(v[i], z));
-            p.setColor(0xff1565c0);
-            c.drawCircle(x, y, 11 * d, p);
-            Paint.Align a = textPaint.getTextAlign();
-            textPaint.setTextAlign(Paint.Align.CENTER);
-            c.drawText(String.valueOf(i / 2 + 1), x, y + textPaint.getTextSize() / 3, textPaint);
-            textPaint.setTextAlign(a);
+            int kind = kinds != null && i / 2 < kinds.length ? kinds[i / 2] : 0;
+            if (kind == 1) drawFlag(c, x, y, d, p);
+            else if (kind == 2) drawCup(c, x, y, d, p);
+            else { // via point: a small dot
+                p.setColor(0xffffffff);
+                c.drawCircle(x, y, 5.5f * d, p);
+                p.setColor(0xff1565c0);
+                c.drawCircle(x, y, 4 * d, p);
+            }
+            String label = labels != null && i / 2 < labels.length ? labels[i / 2] : null;
+            if (label != null && label.length() > 0) {
+                Paint.Align a = textPaint.getTextAlign(), ha = haloPaint.getTextAlign();
+                textPaint.setTextAlign(Paint.Align.LEFT);
+                haloPaint.setTextAlign(Paint.Align.LEFT);
+                float ly = y + textPaint.getTextSize() / 3 + (kind == 1 ? -14 * d : 0); // a flag's label beside the flag
+                c.drawText(label, x + 15 * d, ly, haloPaint);
+                c.drawText(label, x + 15 * d, ly, textPaint);
+                textPaint.setTextAlign(a);
+                haloPaint.setTextAlign(ha);
+            }
+            p.setStyle(Paint.Style.FILL);
         }
     }
 
+    /** Waypoint: a purple flag on a pole, its foot on the point. */
+    private static void drawFlag(Canvas c, float x, float y, float d, Paint p) {
+        p.setStyle(Paint.Style.FILL);
+        p.setColor(0xffffffff);
+        c.drawCircle(x, y, 4 * d, p);
+        p.setColor(0xff6a1b9a);
+        c.drawCircle(x, y, 2.5f * d, p);
+        p.setColor(0xffffffff);
+        c.drawRect(x - 1.8f * d, y - 22 * d, x + 1.8f * d, y, p);
+        p.setColor(0xff4a148c);
+        c.drawRect(x - 0.9f * d, y - 21 * d, x + 0.9f * d, y, p);
+        android.graphics.Path f = new android.graphics.Path();
+        f.moveTo(x + 0.9f * d, y - 21 * d);
+        f.lineTo(x + 14 * d, y - 16 * d);
+        f.lineTo(x + 0.9f * d, y - 11 * d);
+        f.close();
+        p.setColor(0xffffffff);
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeWidth(2 * d);
+        c.drawPath(f, p);
+        p.setStyle(Paint.Style.FILL);
+        p.setColor(0xffab47bc);
+        c.drawPath(f, p);
+    }
+
+    /** Rest / meeting stop: an orange disc with a white cup. */
+    private static void drawCup(Canvas c, float x, float y, float d, Paint p) {
+        p.setStyle(Paint.Style.FILL);
+        p.setColor(0xffffffff);
+        c.drawCircle(x, y, 12.5f * d, p);
+        p.setColor(0xffef6c00);
+        c.drawCircle(x, y, 11 * d, p);
+        p.setColor(0xffffffff);
+        c.drawRect(x - 6 * d, y - 4 * d, x + 3 * d, y + 5 * d, p); // cup
+        c.drawRect(x - 7.5f * d, y + 5.5f * d, x + 4.5f * d, y + 7 * d, p); // saucer
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeWidth(1.8f * d);
+        c.drawCircle(x + 4.5f * d, y + 0.5f * d, 2.6f * d, p); // handle
+        c.drawLine(x - 3.5f * d, y - 9 * d, x - 3.5f * d, y - 6 * d, p); // steam
+        c.drawLine(x + 0.5f * d, y - 9 * d, x + 0.5f * d, y - 6 * d, p);
+        p.setStyle(Paint.Style.FILL);
+    }
     private void drawRoute(Canvas c) {
         double[] r = route;
         if (r == null || r.length < 4) return;

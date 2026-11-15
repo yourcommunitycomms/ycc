@@ -30,6 +30,23 @@ public final class RouteStore {
         public double[] pts = new double[0];
         /** Closed roads: lat, lon pairs. */
         public double[] closed = new double[0];
+        /** Route notes ("meet at the servo 10am"), shared with it. */
+        public String notes = "";
+        /** What each point between start and destination is (same order as pts; missing = via point). */
+        public List<RouteStop> stops = new ArrayList<RouteStop>();
+
+        /** The points between start and destination, with their kinds, names and notes. */
+        public List<RouteStop> stopList() {
+            List<RouteStop> out = new ArrayList<RouteStop>();
+            int n = pts.length / 2;
+            for (int i = 1; i < n - 1; i++) {
+                RouteStop m = i - 1 < stops.size() ? stops.get(i - 1).copy() : new RouteStop(0, 0, RouteStop.VIA);
+                m.lat = pts[i * 2];
+                m.lon = pts[i * 2 + 1];
+                out.add(m);
+            }
+            return out;
+        }
     }
 
     public static final class Closed {
@@ -69,6 +86,18 @@ public final class RouteStore {
                 s.mode = o.optInt("mode");
                 s.pts = dbl(o.optJSONArray("pts"));
                 s.closed = dbl(o.optJSONArray("closed"));
+                s.notes = o.optString("notes");
+                JSONArray st = o.optJSONArray("stops");
+                if (st != null) for (int k = 0; k < st.length(); k++) {
+                    JSONObject so = st.optJSONObject(k);
+                    if (so == null) continue;
+                    RouteStop m = new RouteStop(0, 0, Math.max(0, Math.min(2, so.optInt("k"))));
+                    m.name = so.optString("n");
+                    m.note = so.optString("o");
+                    m.when = so.optString("w");
+                    m.mins = so.optInt("m");
+                    s.stops.add(m);
+                }
                 if (s.pts.length >= 4) out.add(s);
             }
         } catch (JSONException ignored) {
@@ -80,8 +109,10 @@ public final class RouteStore {
         JSONArray a = new JSONArray();
         try {
             for (Saved s : l) {
+                JSONArray st = new JSONArray();
+                for (RouteStop m : s.stops) st.put(new JSONObject().put("k", m.kind).put("n", m.name).put("o", m.note).put("w", m.when).put("m", m.mins));
                 a.put(new JSONObject().put("name", s.name).put("dest", s.dest).put("time", s.time).put("kept", s.kept)
-                        .put("mode", s.mode).put("pts", arr(s.pts)).put("closed", arr(s.closed)));
+                        .put("mode", s.mode).put("pts", arr(s.pts)).put("closed", arr(s.closed)).put("notes", s.notes).put("stops", st));
             }
         } catch (JSONException ignored) {
         }

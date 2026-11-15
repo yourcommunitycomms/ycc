@@ -16,7 +16,8 @@ import android.widget.Toast;
 /** The lock button's dialogs: set the password the first time, unlock, change the password, erase all. */
 final class ProtectedUi {
     static final String WARNING = "There is no password recovery. If you forget this password, your protected notes "
-            + "and calendar entries are lost forever.";
+            + "and calendar entries are lost forever.\n\n" + ProtectedStore.MAX_TRIES + " wrong passwords in a row erase all protected "
+            + "entries on this phone.";
 
     private ProtectedUi() {
     }
@@ -118,6 +119,13 @@ final class ProtectedUi {
 
     static void unlock(final Activity a, final Runnable changed) {
         LinearLayout box = box(a);
+        int left = ProtectedStore.triesLeft(a);
+        TextView tries = new TextView(a);
+        tries.setText(left <= 1 ? "Last attempt: a wrong password erases all protected entries."
+                : left < ProtectedStore.MAX_TRIES ? left + " attempts left. After " + ProtectedStore.MAX_TRIES + " wrong passwords all protected entries are erased."
+                : ProtectedStore.MAX_TRIES + " wrong passwords in a row erase all protected entries.");
+        tries.setTextColor(left <= 1 ? 0xffff8a80 : left < ProtectedStore.MAX_TRIES ? 0xffffcc80 : 0xffbdbdbd);
+        box.addView(tries);
         final EditText p = pw(a, "Password");
         box.addView(p);
         final AlertDialog d = new AlertDialog.Builder(a).setTitle("Unlock protected entries").setView(box)
@@ -145,7 +153,17 @@ final class ProtectedUi {
                     @Override
                     public void done(boolean ok) {
                         if (!ok) {
-                            Toast.makeText(a, "Wrong password", Toast.LENGTH_LONG).show();
+                            if (ProtectedStore.erasedByFails) {
+                                new AlertDialog.Builder(a).setTitle("Protected entries erased")
+                                        .setMessage(ProtectedStore.MAX_TRIES + " wrong passwords: all protected notes and calendar entries and "
+                                                + "the protected password were erased from this phone.\n\nTap the lock to set a new password.")
+                                        .setPositiveButton(android.R.string.ok, null).show();
+                                changed.run();
+                                return;
+                            }
+                            int left = ProtectedStore.triesLeft(a);
+                            Toast.makeText(a, "Wrong password. " + (left <= 1 ? "Last attempt left: a wrong one erases all protected entries."
+                                    : left + " attempts left."), Toast.LENGTH_LONG).show();
                             return;
                         }
                         if (ProtectedStore.badItems > 0) {
@@ -199,7 +217,9 @@ final class ProtectedUi {
                 }, new Done() {
                     @Override
                     public void done(boolean ok) {
-                        Toast.makeText(a, ok ? "Password changed. Protected entries are locked." : "Wrong current password: nothing changed",
+                        Toast.makeText(a, ok ? "Password changed. Protected entries are locked." : ProtectedStore.erasedByFails
+                                        ? ProtectedStore.MAX_TRIES + " wrong passwords: all protected entries were erased" : "Wrong current password: nothing changed ("
+                                        + ProtectedStore.triesLeft(a) + " attempts left)",
                                 Toast.LENGTH_LONG).show();
                         changed.run();
                     }

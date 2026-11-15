@@ -34,6 +34,12 @@ public final class ProtectedStore {
     private static int iter = ProtectedCrypto.DEFAULT_ITERATIONS;
     /** Items that failed their check at the last unlock (changed or damaged file). */
     public static int badItems;
+    /** Wrong passwords allowed in a row; the next one after that erases everything protected. */
+    public static final int MAX_TRIES = 3;
+    /** Wrong passwords so far, kept in the file so leaving the screen or restarting does not reset it. */
+    private static int fails;
+    /** The last unlock was the last wrong try: everything protected was erased. */
+    public static boolean erasedByFails;
 
     private ProtectedStore() {
     }
@@ -69,6 +75,7 @@ public final class ProtectedStore {
             iter = ProtectedCrypto.DEFAULT_ITERATIONS;
             keys = ProtectedCrypto.derive(pw, salt, iter);
             chk = ProtectedCrypto.verifier(keys);
+            fails = 0;
             return write(c);
         } catch (Exception e) {
             lock();
@@ -83,12 +90,22 @@ public final class ProtectedStore {
         try {
             lock();
             if (!load(c) || salt == null || chk == null) return false;
+            erasedByFails = false;
             ProtectedCrypto.Keys k = ProtectedCrypto.derive(pw, salt, iter);
             if (!ProtectedCrypto.check(k, chk)) {
                 k.wipe();
+                fails++;
+                if (fails >= MAX_TRIES) {
+                    eraseAll(c);
+                    erasedByFails = true;
+                } else write(c);
                 return false;
             }
             keys = k;
+            if (fails != 0) {
+                fails = 0;
+                write(c);
+            }
             badItems = 0;
             for (Map.Entry<String, String> e : sealed.entrySet()) {
                 byte[] plain = ProtectedCrypto.open(keys, ProtectedCrypto.unhex(e.getValue()));
@@ -187,6 +204,7 @@ public final class ProtectedStore {
             iter = ProtectedCrypto.DEFAULT_ITERATIONS;
             keys = ProtectedCrypto.derive(newPw, salt, iter);
             chk = ProtectedCrypto.verifier(keys);
+            fails = 0;
             sealed.clear();
             for (CalStore.Note n : ns) {
                 sealed.put(n.id, seal(new JSONObject().put("k", "n").put("name", n.name).put("body", n.body).put("date", n.date).put("edited", n.edited)));
@@ -206,6 +224,12 @@ public final class ProtectedStore {
             Arrays.fill(oldPw, '\0');
             Arrays.fill(newPw, '\0');
         }
+    }
+
+    /** Wrong passwords still allowed before everything is erased (works while locked). */
+    public static synchronized int triesLeft(Context c) {
+        load(c);
+        return Math.max(0, MAX_TRIES - fails);
     }
 
     /** How many protected items are stored (works while locked). */
@@ -259,6 +283,7 @@ public final class ProtectedStore {
         sealed.clear();
         salt = null;
         chk = null;
+        fails = 0;
         if (!f.isFile()) return true;
         try {
             String t = ChannelArray.read(c, FILE);
@@ -267,6 +292,7 @@ public final class ProtectedStore {
             salt = ProtectedCrypto.unhex(o.optString("salt", null));
             chk = ProtectedCrypto.unhex(o.optString("chk", null));
             iter = o.optInt("iter", ProtectedCrypto.DEFAULT_ITERATIONS);
+            fails = o.optInt("fails", 0);
             JSONObject items = o.optJSONObject("items");
             if (items != null) {
                 List<String> ids = new ArrayList<String>();
@@ -290,7 +316,7 @@ public final class ProtectedStore {
             JSONObject items = new JSONObject();
             for (Map.Entry<String, String> e : sealed.entrySet()) items.put(e.getKey(), e.getValue());
             JSONObject o = new JSONObject().put("v", 1).put("salt", ProtectedCrypto.hex(salt)).put("iter", iter)
-                    .put("chk", ProtectedCrypto.hex(chk)).put("items", items);
+                    .put("chk", ProtectedCrypto.hex(chk)).put("fails", fails).put("items", items);
             File f = file(c), tmp = new File(f.getPath() + ".tmp");
             FileOutputStream out = new FileOutputStream(tmp);
             out.write(o.toString().getBytes("UTF-8"));

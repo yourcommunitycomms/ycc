@@ -102,6 +102,7 @@ MAPS AND LOCATION
 - Copy the + position (for pasting into Google Maps); Share asks clipboard or team.
 - Personal map points: kept on this phone only, never shared.
 - Offline routes: plan first, close roads at the +, go via points (convoys), share the route to the channel, a person or another app; automatic rerouting off by default.
+- Route via points (small dots), waypoints (flags) and planned rest / meeting stops (cups) with names, times and notes, a route editor, and route notes shared with the route; waypoints and stops are announced while following.
 - The app can open into the full map or TV mode, and the screen can be locked to portrait or landscape, or turned upside down.
 - Calendar and notes: my calendar, a team calendar shared on the channel, both together in two colours, reminders with an optional buzz, and notes with pictures in the text.
 - Protected notes and calendar entries: a padlock and a password (no recovery) keep chosen notes and entries encrypted on this phone only; they are hidden every time the screen opens until unlocked, and never shared or synced.
@@ -183,7 +184,7 @@ NETWORKS
   marked with the globe are shared, one gateway per MANET with automatic standby, relay mode Direct,
   Internet relay or Both, link down notices and a site status list. Every site and remote has its
   own key and all share one port.
-- Cloud group: a community channel like Public with its own relay server (a cloud group user on an
+- Cloud group: a community channel like Public with its own Cloud Server (relay); join by link, Scan QR or paste (a cloud group user on an
   internet relay, one key that many phones share), separate from your own relay settings. It shows as
   Cloud beside the other channels, and a share link or QR code carries only that group and its
   settings. Show receive-only code gives a second link and QR code whose holders can listen and read
