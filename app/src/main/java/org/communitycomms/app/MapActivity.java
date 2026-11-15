@@ -3272,16 +3272,88 @@ public final class MapActivity extends Activity {
         moveBar.setVisibility(View.GONE);
     }
 
+    /**
+     * Type where a map point goes: GPS latitude / longitude (decimal, or degrees minutes seconds) or the military
+     * grid reference the map shows (6, 8 or 10 figures; the zone and square are taken from the map's + when left
+     * out). The line then says "GPS: …" or "mil: …".
+     */
+    private void typePosition(final double[] at, final TextView where, final Runnable showWhere) {
+        float d = getResources().getDisplayMetrics().density;
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding((int) (16 * d), (int) (8 * d), (int) (16 * d), 0);
+        final TextView help = new TextView(this);
+        help.setText("GPS latitude, longitude (e.g. -37.81234, 144.96123 or 37°48'44\"S 144°57'40\"E), or a grid reference as the map "
+                + "shows it (e.g. " + org.communitycomms.app.geo.Mgrs.of(at[0], at[1]) + ", or just 6, 8 or 10 figures in the map's square).");
+        box.addView(help);
+        final android.widget.EditText in = new android.widget.EditText(this);
+        in.setSingleLine(true);
+        in.setHint("-37.81234, 144.96123   or   123 456");
+        box.addView(in);
+        final TextView err = new TextView(this);
+        err.setTextColor(0xffff8a80);
+        box.addView(err);
+        final AlertDialog dlg = new AlertDialog.Builder(this).setTitle("Type a position").setView(box)
+                .setPositiveButton(android.R.string.ok, null).setNegativeButton(android.R.string.cancel, null)
+                .setNeutralButton("Use the +", null).create();
+        dlg.show();
+        dlg.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                try {
+                    org.communitycomms.app.geo.CoordInput.Result r = org.communitycomms.app.geo.CoordInput.parse(
+                            in.getText().toString(), map.centerLat(), map.centerLon());
+                    at[0] = r.lat;
+                    at[1] = r.lon;
+                    where.setTag(r.grid ? "mil: " + r.text : "GPS: " + r.text);
+                    showWhere.run();
+                    dlg.dismiss();
+                } catch (IllegalArgumentException e) {
+                    err.setText(e.getMessage());
+                }
+            }
+        });
+        dlg.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) { // back to the map's + (no typed position)
+                at[0] = map.centerLat();
+                at[1] = map.centerLon();
+                where.setTag(null);
+                showWhere.run();
+                dlg.dismiss();
+            }
+        });
+    }
+
     /** New POI (old == null) at lat/lon, or edit of an existing one (moved to lat/lon); then sends it. */
     private void editPoi(final org.communitycomms.app.geo.Poi old, final double lat, final double lon) {
         float d = getResources().getDisplayMetrics().density;
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
         box.setPadding((int) (16 * d), (int) (8 * d), (int) (16 * d), 0);
-        TextView where = new TextView(this);
-        boolean moved = old != null && (old.lat != lat || old.lon != lon);
-        where.setText(Geo.latLon(lat, lon) + (moved ? "  (moved "
-                + Geo.distance(Geo.distanceM(old.lat, old.lon, lat, lon)) + ")" : ""));
+        // Where it goes: the + (or its own place), or a position typed by tapping this line.
+        final double[] at = {lat, lon};
+        final TextView where = new TextView(this);
+        final Runnable showWhere = new Runnable() {
+            @Override
+            public void run() {
+                boolean moved = old != null && (old.lat != at[0] || old.lon != at[1]);
+                String typed = (String) where.getTag();
+                where.setText((typed != null ? typed : "at " + Geo.latLon(at[0], at[1]))
+                        + (moved ? "  (moved " + Geo.distance(Geo.distanceM(old.lat, old.lon, at[0], at[1])) + ")" : "")
+                        + "\n" + org.communitycomms.app.geo.Mgrs.of(at[0], at[1]) + "   (tap to type a position)");
+            }
+        };
+        where.setTextColor(0xff90caf9);
+        where.setPadding(0, (int) (6 * d), 0, (int) (6 * d));
+        where.setBackgroundResource(android.R.drawable.list_selector_background);
+        where.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                typePosition(at, where, showWhere);
+            }
+        });
+        showWhere.run();
         box.addView(where);
         final android.widget.EditText note = new android.widget.EditText(this);
         note.setHint("Note");
@@ -3470,13 +3542,13 @@ public final class MapActivity extends Activity {
                         int li = life.getSelectedItemPosition() - (old == null ? 0 : 1);
                         org.communitycomms.app.geo.Poi p;
                         if (old == null) {
-                            p = org.communitycomms.app.geo.Poi.create(lat, lon, icon[0],
+                            p = org.communitycomms.app.geo.Poi.create(at[0], at[1], icon[0],
                                     note.getText().toString().trim(), LIFE_MS[li], myName());
                         } else {
                             p = copy(old);
                             p.version++;
-                            p.lat = lat;
-                            p.lon = lon;
+                            p.lat = at[0];
+                            p.lon = at[1];
                             p.icon = icon[0];
                             p.note = note.getText().toString().trim();
                             Long photoKey = org.communitycomms.app.geo.Poi.photoKey(old.note);
@@ -3522,7 +3594,7 @@ public final class MapActivity extends Activity {
                         // Only turned, resized or given an arrow: update everyone's map without a spoken announcement.
                         boolean poseOnly = old != null && (poseTouched[0] || arrowChanged)
                                 && org.communitycomms.app.geo.Poi.readable(old.note).equals(note.getText().toString().trim())
-                                && old.icon == icon[0] && old.lat == lat && old.lon == lon && t < 0 && li < 0
+                                && old.icon == icon[0] && old.lat == at[0] && old.lon == at[1] && t < 0 && li < 0
                                 && org.communitycomms.app.geo.Poi.shape(old.note) == null;
                         p.note = org.communitycomms.app.geo.Poi.withQuiet(p.note, poseOnly || !announce.isChecked());
                         RadioService rs = RadioService.instance();

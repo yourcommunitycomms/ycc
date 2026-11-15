@@ -443,7 +443,7 @@ type ERASE). Destructive buttons ask first.
 - **Online map tiles…** (map menu, or tap the Tiles line): online for 5 min, 1 hour, 1 day,
   permanently, or offline now. Android 4.x uses Google's road map in place of OSM/Topo/Esri (their
   servers need newer TLS).
-- The + position as lat/lon and **MGRS**; ▼/▲ folds the buttons and list away; **+ POI** adds a point
+- The + position as lat/lon and **MGRS**; ▼/▲ folds the buttons and list away; **+ POI** adds a point In the point's box the position line ("at …" with the grid reference) can be tapped to **type a position**: GPS latitude / longitude (decimal or degrees minutes seconds) or a grid reference (full, square + figures, or 6 / 8 / 10 figures in the map's square); it then reads "GPS: …" or "mil: …".
   at the +; the home map centres on you when opened.
 - **Map point shapes** (rectangle, circle, oval, line, arrow, text box) with colours; **Also share on
   Public**. Photo points keep the photo's direction and field of view (a cone). Icon picker with all
