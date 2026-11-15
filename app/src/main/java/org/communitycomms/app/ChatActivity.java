@@ -440,6 +440,11 @@ public final class ChatActivity extends Activity {
             else input.setText("");
             return;
         }
+        RadioEngine on = s == null ? null : s.engine();
+        if (on != null && on.listenOnly()) { // a listen key (Public) or a cloud group's receive-only code
+            Toast.makeText(this, "Receive only: this phone can read this channel but not send on it", Toast.LENGTH_LONG).show();
+            return;
+        }
         if (s == null || s.messages() == null || !s.messages().sendText(t)) {
             Toast.makeText(this, "Join a channel first", Toast.LENGTH_SHORT).show();
             return;

@@ -70,7 +70,7 @@ public final class YccRelay {
     static final String VERSION = "2";
 
     static final class User {
-        String kind; // "site" or "remote"
+        String kind; // "site", "remote" or "community" (a cloud group: many phones share its one key)
         String name;
         String key;
         int keyId;
@@ -262,6 +262,7 @@ public final class YccRelay {
         ChannelCrypto k = Tunnel.key(u.key);
         u.keyId = k.channelTag;
         u.remote = relay.addShared(u.name, k);
+        u.remote.multi = "community".equals(u.kind); // a cloud group: one key, many phones
         mux.put(u.keyId, u.remote);
     }
 
@@ -331,7 +332,7 @@ public final class YccRelay {
             if (cmd.equals("add")) {
                 if (l.length < 3) return "err\nadd needs a kind and a name";
                 String kind = l[1].trim();
-                if (!kind.equals("site") && !kind.equals("remote")) return "err\nkind must be site or remote";
+                if (!kind.equals("site") && !kind.equals("remote") && !kind.equals("community")) return "err\nkind must be site, remote or community";
                 String name = cleanName(l[2]);
                 if (name.length() == 0) return "err\nthe name is empty";
                 if (nameTaken(name, null)) return "err\nthere is already a user called " + name;
@@ -421,7 +422,7 @@ public final class YccRelay {
             } catch (NumberFormatException e) {
                 continue;
             }
-            if (u.key.length() > 0 && (u.kind.equals("site") || u.kind.equals("remote"))) users.add(u);
+            if (u.key.length() > 0 && (u.kind.equals("site") || u.kind.equals("remote") || u.kind.equals("community"))) users.add(u);
         }
         r.close();
     }
@@ -549,6 +550,7 @@ public final class YccRelay {
         List<byte[]> parts = new ArrayList<byte[]>();
         int len = 1;
         for (User e : users) {
+            if ("community".equals(e.kind)) continue; // cloud groups are not sites
             if (parts.size() >= 255) break;
             byte[] nm = e.name.getBytes(UTF8);
             int nl = Math.min(nm.length, 40);
@@ -675,7 +677,8 @@ public final class YccRelay {
             long seen = e.seen();
             String st = e.state == 1 ? "UP" : e.state == 2 ? "DOWN" : "never";
             String when = seen == 0 ? "-" : ago(now - seen) + " ago";
-            String detail = rx == 0 ? "" : e.remote.transport() + " " + e.remote.peer() + ", " + e.remote.channels() + " channel(s), "
+            String detail = rx == 0 ? "" : e.remote.multi ? e.remote.phones() + " phone(s) connected now (a cloud group: many phones, one key)"
+                    : e.remote.transport() + " " + e.remote.peer() + ", " + e.remote.channels() + " channel(s), "
                     + e.remote.framesIn + " frames";
             if (e.state == 1) detail = "up " + ago(now - e.upSince) + "; " + detail;
             if (e.state == 2) detail = "down " + ago(now - e.downSince) + "; " + detail;

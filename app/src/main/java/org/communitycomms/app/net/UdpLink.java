@@ -165,6 +165,8 @@ public final class UdpLink implements Tunnel.Local {
         if (c != null) c.send(data);
         Tunnel.Client v = Tunnel.vps; // internet relay: everything (off the MANET) or the shared channels (gateway)
         if (v != null) v.send(data);
+        Tunnel.Client cg = Tunnel.cloud; // cloud group: only its own channel goes to its relay
+        if (cg != null) cg.send(data);
         Tunnel.Relay r = Tunnel.relay;
         if (r != null) r.onOwnSend(data, data.length);
         for (InetSocketAddress d : destinations) {

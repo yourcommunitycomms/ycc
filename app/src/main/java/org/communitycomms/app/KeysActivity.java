@@ -101,6 +101,14 @@ public final class KeysActivity extends Activity {
                 }
             });
             box.addView(onHome);
+            box.addView(label("Cloud group"));
+            box.addView(note("A community channel like Public with its own relay server, joined from a share link."));
+            box.addView(button("Cloud group…", new Runnable() {
+                @Override
+                public void run() {
+                    startActivity(new Intent(KeysActivity.this, CloudGroupActivity.class));
+                }
+            }));
         }
 
         Button done = button("Save", new Runnable() {

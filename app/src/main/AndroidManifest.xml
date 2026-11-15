@@ -101,6 +101,15 @@
         <activity android:name=".ToolsActivity" android:exported="false" android:windowSoftInputMode="stateHidden|adjustResize" />
         <activity android:name=".MapActivity" android:exported="false" />
         <activity android:name=".TrexMapsActivity" android:exported="false" />
+        <!-- Cloud group: opens ycc://cloud/... share links (the group's own settings only). -->
+        <activity android:name=".CloudGroupActivity" android:exported="true" android:windowSoftInputMode="stateHidden|adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="ycc" android:host="cloud" />
+            </intent-filter>
+        </activity>
         <activity android:name=".StreamsActivity" android:exported="false" />
         <activity android:name=".KeysActivity" android:exported="false" />
         <service android:name=".TilePrefetchService" android:exported="false" android:foregroundServiceType="dataSync" />

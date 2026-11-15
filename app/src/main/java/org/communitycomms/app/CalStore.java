@@ -35,6 +35,8 @@ public final class CalStore {
         public long start, rev;
         public int durMin = 60, remindMin = 15;
         public boolean allDay, remind, vibrate = true, team, removed;
+        /** Protected (password-encrypted, this phone only): kept in ProtectedStore, never sent. */
+        public boolean prot;
     }
 
     public static boolean is(String body) {
@@ -162,6 +164,7 @@ public final class CalStore {
         ctx = c.getApplicationContext();
         List<Entry> out = new ArrayList<Entry>();
         if (mine) out.addAll(mine(c));
+        if (mine && ProtectedStore.unlocked()) out.addAll(ProtectedStore.entries());
         if (team) out.addAll(team(c));
         Collections.sort(out, new Comparator<Entry>() {
             @Override
@@ -177,7 +180,7 @@ public final class CalStore {
     static void schedule(Context c, Entry e) {
         AlarmManager am = (AlarmManager) c.getSystemService(Context.ALARM_SERVICE);
         if (am == null) return;
-        Intent i = new Intent(c, CalReminder.class).putExtra("id", e.id).putExtra("title", e.title)
+        Intent i = new Intent(c, CalReminder.class).putExtra("id", e.id).putExtra("title", e.prot ? "Protected entry" : e.title)
                 .putExtra("start", e.start).putExtra("allDay", e.allDay).putExtra("vibrate", e.vibrate).putExtra("team", e.team)
                 .putExtra("by", e.by);
         int fl = PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE : 0);
@@ -203,6 +206,8 @@ public final class CalStore {
     public static final class Note {
         public String id = "", name = "", body = "";
         public long date, edited;
+        /** Protected (password-encrypted, this phone only): kept in ProtectedStore, never sent. */
+        public boolean prot;
     }
 
     public static File noteImages(Context c) {

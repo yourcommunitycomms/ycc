@@ -1467,7 +1467,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
     /** "Channel A", "Channel D", "Public", "OpenMANET (experimental)". */
     static String label(int slot) {
         return slot == Prefs.SLOT_PUBLIC ? "Public" : slot == Prefs.SLOT_OPENMANET ? "OpenMANET (experimental)"
-                : "Channel " + Prefs.letter(slot);
+                : slot == Prefs.SLOT_CLOUD ? "Cloud group" : "Channel " + Prefs.letter(slot);
     }
 
     /** Ticks the button of the channel on air, if it is on the home screen, without switching anything. */
@@ -1963,6 +1963,10 @@ public final class MainActivity extends Activity implements RadioService.Ui {
     }
     /** Shows the QR that carries a channel's name (the passcode). Also used from Settings. */
     static void showChannelQr(Activity a, int slot) {
+        if (slot == Prefs.SLOT_CLOUD) { // the cloud group has its own link (with its relay)
+            a.startActivity(new android.content.Intent(a, CloudGroupActivity.class));
+            return;
+        }
         String name = new Prefs(a).channel(slot);
         if (name.length() == 0) {
             Toast.makeText(a, "Set a channel name in Settings first", Toast.LENGTH_SHORT).show();
@@ -2145,7 +2149,9 @@ public final class MainActivity extends Activity implements RadioService.Ui {
     private void renderSlots() {
         // Simple modes: just the private channel (A) and Public.
         homeSlots = !prefs.simple() ? prefs.homeSlots()
-                : prefs.showPublic() ? new int[]{Prefs.SLOT_A, Prefs.SLOT_PUBLIC} : new int[]{Prefs.SLOT_A};
+                : prefs.showPublic() ? (prefs.shown(Prefs.SLOT_CLOUD) ? new int[]{Prefs.SLOT_A, Prefs.SLOT_PUBLIC, Prefs.SLOT_CLOUD}
+                : new int[]{Prefs.SLOT_A, Prefs.SLOT_PUBLIC})
+                : prefs.shown(Prefs.SLOT_CLOUD) ? new int[]{Prefs.SLOT_A, Prefs.SLOT_CLOUD} : new int[]{Prefs.SLOT_A};
         for (int i = 0; i < SLOT_IDS.length; i++) {
             android.widget.RadioButton rb = (android.widget.RadioButton) findViewById(SLOT_IDS[i]);
             if (i >= homeSlots.length) {
@@ -2154,9 +2160,14 @@ public final class MainActivity extends Activity implements RadioService.Ui {
             }
             int s = homeSlots[i];
             rb.setVisibility(View.VISIBLE);
-            rb.setText(s == Prefs.SLOT_PUBLIC ? (mapHome ? "Pub" : "Public")
+            boolean cloudIcon = s == Prefs.SLOT_CLOUD && mapHome; // short label: a little cloud, not "Cld"
+            rb.setText(cloudIcon ? "" : s == Prefs.SLOT_PUBLIC ? (mapHome ? "Pub" : "Public")
                     : s == Prefs.SLOT_OPENMANET ? (mapHome ? "OM" : "OpenMANET*")
+                    : s == Prefs.SLOT_CLOUD ? "Cloud"
                     : s == Prefs.SLOT_A && prefs.simple() ? "Private" : Prefs.letter(s));
+            rb.setCompoundDrawables(null, null, cloudIcon
+                    ? CloudIcon.drawable(this, (int) (rb.getTextSize() * 1.1f), rb.getCurrentTextColor()) : null, null);
+            rb.setContentDescription(cloudIcon ? "Cloud group" : null);
         }
         showChecked(); // the channel on air may have no button now: then none is ticked
         shownWatch = "";

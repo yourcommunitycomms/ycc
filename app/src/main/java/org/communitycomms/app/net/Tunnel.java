@@ -117,6 +117,8 @@ public final class Tunnel {
     public static volatile Client vps;
     /** Relay side, while on. */
     public static volatile Relay relay;
+    /** Cloud group: its own internet relay connection, carrying only the cloud channel. */
+    public static volatile Client cloud;
     /** Channel tags this phone is on (on air + listened to), for the HELLO. */
     public static volatile int[] tags = new int[0];
     /** Only some channels go through the tunnel (the per-channel tunnel icons): send only packets of tags. */
@@ -471,6 +473,27 @@ public final class Tunnel {
             cl.withId = true; // the internet relay serves many users on one port and finds each by key ID
             vps = cl;
             cl.begin();
+        }
+
+        /**
+         * Starts the cloud group's own relay connection (replaces any running one). It carries only the
+         * cloud channel (channelTag), with the group's relay key, separate from the tunnel and internet relay.
+         */
+        public static void startCloud(String hostPort, String relayKey, int channelTag) {
+            stopCloud();
+            Client cl = create(hostPort, relayKey, false);
+            if (cl == null) return;
+            cl.ownTags = new int[]{channelTag};
+            cl.ownOnly = true;
+            cl.withId = true;
+            cloud = cl;
+            cl.begin();
+        }
+
+        public static void stopCloud() {
+            Client c = cloud;
+            cloud = null;
+            if (c != null) c.shutdown();
         }
 
         private static Client create(String hostPort, String dryadRow, boolean gateway) {
@@ -861,7 +884,7 @@ public final class Tunnel {
         }
 
         public String describe() {
-            String what = gateway ? "Internet relay gateway" : this == vps ? "Internet relay" : "Tunnel";
+            String what = gateway ? "Internet relay gateway" : this == vps ? "Internet relay" : this == cloud ? "Cloud group relay" : "Tunnel";
             if (standby || revoked) return what + ": " + state;
             return connected() ? what + ": connected to " + host + ":" + port + " over " + transport : what + ": " + state;
         }
@@ -926,6 +949,37 @@ public final class Tunnel {
         public void removeShared(final Remote m, String reason) {
             remotes.remove(m);
             m.kick(reason);
+            for (Remote c : m.children.values()) {
+                remotes.remove(c);
+                c.kick(reason);
+            }
+            m.children.clear();
+        }
+
+        /** Most phones one community key may have at once. */
+        static final int MAX_PHONES = 500;
+
+        /** A community user's phone with this session: found, or made (after its frame passed the key check). */
+        synchronized Remote child(Remote parent, long session) {
+            Remote c = parent.children.get(session);
+            if (c != null) return c;
+            long now = System.currentTimeMillis();
+            // Phones not heard for 2 minutes are dropped (a phone that comes back starts a new session anyway).
+            for (Map.Entry<Long, Remote> e : parent.children.entrySet()) {
+                Remote x = e.getValue();
+                if (now - Math.max(x.lastRxMs, x.createdMs) > 120000) {
+                    parent.children.remove(e.getKey());
+                    remotes.remove(x);
+                    x.stop();
+                }
+            }
+            if (parent.children.size() >= MAX_PHONES) return null;
+            c = new Remote(this, 0, parent.label, parent.k, nextId++);
+            c.sharedSocket = true;
+            c.sender.start();
+            parent.children.put(session, c);
+            remotes.add(c);
+            return c;
         }
 
         /** UdpLink receive: false = a second copy of a packet already delivered here, drop it. */
@@ -1018,6 +1072,22 @@ public final class Tunnel {
         final int id;
         /** Shared port: the socket the user's last UDP frame came in on (replies go out the same way). */
         private volatile DatagramSocket lastSock;
+        /**
+         * Community user (a cloud group): many phones share this one key, each with its own session.
+         * Frames go to a per-session child Remote, so phones never fight over one replay window.
+         */
+        public volatile boolean multi;
+        final Map<Long, Remote> children = new java.util.concurrent.ConcurrentHashMap<Long, Remote>();
+        volatile long createdMs = System.currentTimeMillis();
+
+        /** Phones connected lately (a community user: its children; else 0 or 1). */
+        public int phones() {
+            long now = System.currentTimeMillis();
+            if (!multi) return now - lastRxMs < DOWN_MS ? 1 : 0;
+            int n = 0;
+            for (Remote c : children.values()) if (now - c.lastRxMs < DOWN_MS) n++;
+            return n;
+        }
 
         Remote(Relay r, int port, String label, ChannelCrypto k) {
             this(r, port, label, k, port);
@@ -1077,9 +1147,11 @@ public final class Tunnel {
             return false;
         }
 
-        /** Last authenticated frame from this remote (0 = never). */
+        /** Last authenticated frame from this remote (0 = never); a community user: from any of its phones. */
         public long lastRx() {
-            return lastRxMs;
+            long t = lastRxMs;
+            if (multi) for (Remote c : children.values()) t = Math.max(t, c.lastRxMs);
+            return t;
         }
 
         public String transport() {
@@ -1101,6 +1173,7 @@ public final class Tunnel {
 
         /** Headless relay: the site list to this remote (if it has been heard lately). */
         public void sendSites(byte[] body) {
+            if (multi) return; // a cloud group's phones do not get the relay's site list (other users' names)
             if (System.currentTimeMillis() - lastRxMs < DOWN_MS) queue(SITES, body, body.length);
         }
 
@@ -1281,7 +1354,12 @@ public final class Tunnel {
         }
 
         private Remote find(byte[] b, int len) {
-            if (hasId(b, len)) return byId.get(Packet.getInt(b, 16));
+            if (hasId(b, len)) {
+                Remote m = byId.get(Packet.getInt(b, 16));
+                // A community user: each phone (session) gets its own child, once its frame passes the key check.
+                if (m != null && m.multi) return open(m.k, b, len) == null ? null : relay.child(m, Packet.getLong(b, 4));
+                return m;
+            }
             if (len < HDR + ChannelCrypto.MAC_LEN || b[0] != 'U' || b[1] != 'T' || b[3] != 0) return null;
             for (Remote m : relay.remotes) {
                 if (m.sharedSocket && m.running && open(m.k, b, len) != null) return m;

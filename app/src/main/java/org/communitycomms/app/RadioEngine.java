@@ -78,6 +78,10 @@ public final class RadioEngine {
     public void sendPoiBodyFor(ChannelCrypto other, org.communitycomms.app.crypto.ListenKey lk, byte[] body) {
         UdpLink l = link;
         if (l == null || radioSilent || other == null) return;
+        if (!shareLocationPublic) { // a map point for Public: held back unless location may go to public groups
+            locationHeldBack++;
+            return;
+        }
         byte[] p = namePayload(body.length);
         System.arraycopy(body, 0, p, p.length - body.length, body.length);
         try {
@@ -1124,7 +1128,27 @@ public final class RadioEngine {
      */
     public static volatile boolean radioSilent;
 
+    /** Public or the cloud group: treated as public, so positions go out only when the user allows it. */
+    public volatile boolean publicLike;
+    /** "Share my location with public and cloud groups" (Prefs.shareLocationPublic), off by default. */
+    public static volatile boolean shareLocationPublic;
+    /** Positions or map points held back from Public / the cloud group since the app started (for a notice). */
+    public static volatile int locationHeldBack;
+
+    /**
+     * True for what reveals where someone is: a position (manual, timer, distance or check-in sends all
+     * come through sendLocation) and a map point (which may be dropped at the sender's position).
+     */
+    static boolean isLocation(int type) {
+        return type == Packet.TYPE_LOCATION || type == Packet.TYPE_MARK;
+    }
+
     private void send(int type, byte[] payload, int len) {
+        // The one gate for location on Public and the cloud group: every path ends here.
+        if (publicLike && !shareLocationPublic && isLocation(type)) {
+            locationHeldBack++;
+            return;
+        }
         UdpLink l = link;
         // Dual watch: the listen-only engine still confirms what it heard, through the socket of the
         // engine on air, so a talker on the other channel is not told nobody heard them. Acks only.

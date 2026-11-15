@@ -34,7 +34,7 @@ public final class AdsbFeed {
     static final String[] NAMES = {"Off",
             "Receiver on the MANET (aircraft.json address)",
             "Online: adsb.lol (free, needs internet)",
-            "Online: airplanes.live (free, needs internet)"};
+            "Online: airplanes.live (now refuses unapproved apps: use adsb.lol)"};
 
     public static final class Aircraft {
         public String hex = "", flight = "", type = "";
@@ -149,6 +149,8 @@ public final class AdsbFeed {
     }
 
     private Runnable mine;
+    /** The last feed object that started the fetcher, so restart() can start it again. */
+    private static AdsbFeed owner;
 
     /** Starts (or joins) the fetcher; onUpdate runs on its thread after each check. */
     public void start(final Runnable onUpdate) {
@@ -161,15 +163,27 @@ public final class AdsbFeed {
         synchronized (listeners) {
             listeners.add(mine);
         }
+        launch();
+    }
+
+    private void launch() {
         synchronized (AdsbFeed.class) {
+            owner = this;
             if (source() == OFF || thread != null || !org.communitycomms.app.PowerMode.feedsOn()) return;
             thread = new Thread(new Runnable() {
                 @Override
                 public void run() {
+                    try {
+                        Thread.sleep(300); // a quick restart (settings, then the map) needs only one fetch
+                    } catch (InterruptedException e) {
+                        return;
+                    }
                     while (!Thread.currentThread().isInterrupted() && source() != OFF) {
                         long wait = gapMs();
                         try {
-                            latest = fetch();
+                            List<Aircraft> got = fetch();
+                            if (Thread.currentThread().isInterrupted()) break; // replaced while fetching
+                            latest = got;
                             for (Aircraft a : latest) a.heardAt = System.currentTimeMillis();
                             problem = "";
                             Sharer s = sharer;
@@ -178,6 +192,7 @@ public final class AdsbFeed {
                             break;
                         } catch (Exception e) {
                             problem = "Aircraft feed: " + (e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName());
+                            android.util.Log.w("AdsbFeed", problem);
                             if (problem.contains("429")) wait = Math.max(wait, 60000);
                         }
                         notifyListeners();
@@ -213,28 +228,50 @@ public final class AdsbFeed {
     }
 
     /** After the settings change: start again with the new source and speed. */
-    public static synchronized void restart() {
-        if (thread != null) {
-            thread.interrupt();
-            thread = null;
+    public static void restart() {
+        AdsbFeed o;
+        boolean wanted;
+        synchronized (AdsbFeed.class) {
+            if (thread != null) {
+                thread.interrupt();
+                thread = null;
+            }
+            o = owner;
         }
+        synchronized (listeners) {
+            wanted = !listeners.isEmpty();
+        }
+        // Someone (map, TV or sharing) still wants aircraft: start again now. Before, the fetcher
+        // stayed stopped after a power mode change until the map was opened again.
+        if (wanted && o != null) o.launch();
     }
+
     private List<Aircraft> fetch() throws Exception {
-        int s = source();
-        String url;
-        if (s == LOCAL) {
-            url = localUrl();
-        } else {
-            String base = s == ADSB_LOL ? "https://api.adsb.lol/v2/point/" : "https://api.airplanes.live/v2/point/";
-            url = base + String.format(Locale.US, "%.4f/%.4f/100", centreLat, centreLon);
-        }
+        return fetch(source(), localUrl(), centreLat, centreLon);
+    }
+
+    static String urlFor(int s, String local, double lat, double lon) {
+        if (s == LOCAL) return local;
+        String base = s == ADSB_LOL ? "https://api.adsb.lol/v2/point/" : "https://api.airplanes.live/v2/point/";
+        return base + String.format(Locale.US, "%.4f/%.4f/100", lat, lon);
+    }
+
+    static List<Aircraft> fetch(int s, String local, double lat, double lon) throws Exception {
+        String url = urlFor(s, local, lat, lon);
         HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
-        c.setConnectTimeout(4000);
-        c.setReadTimeout(8000);
+        Tls12SocketFactory.apply(c); // Android 4.1-4.4: these servers refuse TLS 1.0
+        c.setConnectTimeout(8000);
+        c.setReadTimeout(15000);
         c.setRequestProperty("User-Agent", "YourCommunityCommunications");
         try {
-            int code = c.getResponseCode();
-            if (code >= 400) throw new Exception("the server answered " + code + (code == 429 ? " (too many requests, slowing down)" : ""));
+            int code;
+            try {
+                code = c.getResponseCode();
+            } catch (Exception e) {
+                throw Tls12SocketFactory.explain(e);
+            }
+            if (code >= 400) throw new Exception("the server answered " + code + (code == 429 ? " (too many requests, slowing down)"
+                    : code == 403 && s == AIRPLANES_LIVE ? " (airplanes.live now refuses apps it has not approved: choose adsb.lol)" : ""));
             InputStream in = c.getInputStream();
             ByteArrayOutputStream out = new ByteArrayOutputStream();
             byte[] buf = new byte[8192];
@@ -298,6 +335,56 @@ public final class AdsbFeed {
         return s.toString();
     }
 
+    /** Test button: one fetch from the chosen source round the map centre, then a plain result. */
+    void test(final Activity a, final int s, final String local) {
+        final double lat = centreLat, lon = centreLon;
+        final android.app.ProgressDialog wait = android.app.ProgressDialog.show(a, "Aircraft test", "Asking…", true, false);
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                StringBuilder b = new StringBuilder();
+                if (s == OFF) {
+                    b.append("Off is chosen: pick a source first.");
+                } else {
+                    b.append("Source: ").append(NAMES[s]).append("\nAddress: ").append(urlFor(s, local, lat, lon));
+                    try {
+                        List<Aircraft> got = fetch(s, local, lat, lon);
+                        b.append("\n\nResult: OK (HTTP 200)\nAircraft found: ").append(got.size());
+                        Aircraft near = null;
+                        double best = Double.MAX_VALUE;
+                        for (Aircraft x : got) {
+                            double m = Geo.distanceM(lat, lon, x.lat, x.lon);
+                            if (m < best) {
+                                best = m;
+                                near = x;
+                            }
+                        }
+                        if (near != null) {
+                            b.append("\nNearest: ").append(label(near)).append(", ").append(Geo.distance(best)).append(' ')
+                                    .append(Geo.compass(Geo.bearing(lat, lon, near.lat, near.lon)));
+                        }
+                    } catch (Exception e) {
+                        b.append("\n\nResult: FAILED\n").append(e.getMessage() != null ? e.getMessage() : e.toString());
+                    }
+                }
+                b.append(String.format(Locale.US, "\n\nMap centre used: %.4f, %.4f", lat, lon));
+                final String msg = b.toString();
+                a.runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            wait.dismiss();
+                        } catch (Exception ignored) {
+                        }
+                        if (a.isFinishing()) return;
+                        new AlertDialog.Builder(a).setTitle("Aircraft test").setMessage(msg)
+                                .setPositiveButton(android.R.string.ok, null).show();
+                    }
+                });
+            }
+        }, "adsb-test").start();
+    }
+
     /** Settings for the aircraft layer: off, a receiver on the MANET, or a free online feed. */
     public void choose(final Activity a, final Runnable done) {
         float d = a.getResources().getDisplayMetrics().density;
@@ -311,7 +398,10 @@ public final class AdsbFeed {
             r.setId(0x7a00 + i);
             g.addView(r);
         }
-        g.check(0x7a00 + source());
+        // Never set up (opened by ticking the layer): start on the free online feed, so OK turns it on.
+        // Before, Off was ticked here and OK left the layer off with nothing on the map.
+        boolean fresh = source() == OFF && sp.getInt("lastSource", OFF) == OFF;
+        g.check(0x7a00 + (fresh ? ADSB_LOL : source()));
         TextView heard = new TextView(a);
         heard.setText("Off still shows aircraft another phone shares on the channel.");
         box.addView(heard);
@@ -320,6 +410,15 @@ public final class AdsbFeed {
         url.setSingleLine(true);
         url.setText(localUrl());
         box.addView(url);
+        android.widget.Button test = new android.widget.Button(a);
+        test.setText("Test");
+        test.setOnClickListener(new android.view.View.OnClickListener() {
+            @Override
+            public void onClick(android.view.View v) {
+                test(a, Math.max(0, g.getCheckedRadioButtonId() - 0x7a00), url.getText().toString().trim());
+            }
+        });
+        box.addView(test);
         final android.widget.CheckBox slow = new android.widget.CheckBox(a);
         slow.setText("Slow mode: check every 5 minutes (MANET receiver every 30 s) to save data");
         slow.setChecked(slow());
@@ -332,8 +431,7 @@ public final class AdsbFeed {
         note.setText("A receiver on the MANET (readsb, dump1090 or tar1090) works with no internet: give the address "
                 + "of its aircraft.json, often http://node:8080/data/aircraft.json or http://node/tar1090/data/aircraft.json.\n\n"
                 + "The online feeds are sent the map centre to find aircraft within 100 nautical miles. They may not work on "
-                + "Android 4.x (old secure connections).\n\nShips (AIS): there is no free keyless online source, so ships are "
-                + "not shown yet; an AIS receiver on the MANET could be added later.");
+                + "Android 4.x (old secure connections).\n\nTest fetches once round the map centre and shows what came back.");
         box.addView(note);
         android.widget.ScrollView sv = new android.widget.ScrollView(a);
         sv.addView(box);

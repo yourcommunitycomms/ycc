@@ -771,10 +771,36 @@ public final class RadioService extends Service implements RadioEngine.Listener 
                     "CRASH DETECTED: " + me + " may need help", 12 * 3600000L, me));
         }
         if (messages != null) messages.sendText("CRASH DETECTED: " + me + " did not answer \"are you OK\" and may need help"
-                + (l == null ? "" : String.format(java.util.Locale.US, " at %.5f, %.5f", l.getLatitude(), l.getLongitude())));
+                + (l == null || !locationAllowedOnAir() ? "" : String.format(java.util.Locale.US, " at %.5f, %.5f", l.getLatitude(), l.getLongitude())));
         RadioEngine e = engine;
         if (e != null) e.sendCall(null);
         if (hasLocationPermission()) setRapidShareUntilStopped();
+    }
+
+    /**
+     * Whether text with coordinates may go on the channel on air: always on a private channel; on Public or
+     * the cloud group only with "Share my location with public and cloud groups".
+     */
+    private long heldNoticeMs;
+
+    /** A position was just held back from Public / the cloud group: say so now and then (at most every 15 minutes). */
+    public void heldBackNotice(RadioEngine e) {
+        if (e == null || !e.publicLike || RadioEngine.shareLocationPublic) return;
+        long now = System.currentTimeMillis();
+        if (now - heldNoticeMs < 15 * 60000L) return;
+        heldNoticeMs = now;
+        main.post(new Runnable() {
+            @Override
+            public void run() {
+                android.widget.Toast.makeText(RadioService.this, "Your location was not sent: this is Public or a cloud group, and "
+                        + "\"Share my location with public and cloud groups\" is off (Cloud group screen).", android.widget.Toast.LENGTH_LONG).show();
+            }
+        });
+    }
+
+    private boolean locationAllowedOnAir() {
+        RadioEngine e = engine;
+        return e == null || !e.publicLike || RadioEngine.shareLocationPublic;
     }
 
     /** "TANGO is now Away" in Chat on this phone (status shows yellow / red in Contacts too). */
@@ -812,7 +838,7 @@ public final class RadioService extends Service implements RadioEngine.Listener 
         if (l == null || (known != null && known.getTime() > l.getTime())) l = known;
         if (org.communitycomms.app.geo.FakeGps.isFake(known)) l = known; // fake GPS wins over real fixes
         String me = new Prefs(this).callsign();
-        String where = l == null ? ", no GPS fix"
+        String where = l == null ? ", no GPS fix" : !locationAllowedOnAir() ? " (position not shared on this channel)"
                 : " at " + org.communitycomms.app.geo.Geo.latLon(l.getLatitude(), l.getLongitude())
                 + " (fix " + org.communitycomms.app.geo.Geo.age(System.currentTimeMillis() - l.getTime()) + ")";
         messages.sendText("POSSIBLE GUNSHOTS detected near " + me + where + ": " + bangs
@@ -904,8 +930,12 @@ public final class RadioService extends Service implements RadioEngine.Listener 
      * signing / listen key (slow to work out, so kept). Null for every other channel.
      */
     public org.communitycomms.app.crypto.ListenKey listenKeyIfPublic(String channel) {
-        String key = new Prefs(this).publicKey().trim();
-        if (!channel.trim().equals(key) || !org.communitycomms.app.crypto.ListenKey.signedPublic(key)) return null;
+        Prefs pr = new Prefs(this);
+        String key = pr.publicKey().trim();
+        // The cloud group is always a signed channel like a changed Public key: its full key can send,
+        // its receive-only code (a listen key) only listens and reads.
+        if (pr.cloudSet() && channel.trim().equals(pr.cloudKey().trim())) key = pr.cloudKey().trim();
+        else if (!channel.trim().equals(key) || !org.communitycomms.app.crypto.ListenKey.signedPublic(key)) return null;
         synchronized (listenKeys) {
             org.communitycomms.app.crypto.ListenKey lk = listenKeys.get(key);
             if (lk != null) return lk;
@@ -1300,7 +1330,7 @@ public final class RadioService extends Service implements RadioEngine.Listener 
                 .build();
         ((NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE)).notify(NOTIF_FENCE, n);
         if (mode == org.communitycomms.app.geo.Poi.FENCE_TELL_CHANNEL) {
-            sendAlertText("Geofence: " + text + " (at " + org.communitycomms.app.geo.Geo.latLon(lat, lon) + ")");
+            sendAlertText("Geofence: " + text + (locationAllowedOnAir() ? " (at " + org.communitycomms.app.geo.Geo.latLon(lat, lon) + ")" : ""));
         }
     }
 
@@ -1661,6 +1691,10 @@ public final class RadioService extends Service implements RadioEngine.Listener 
                     org.communitycomms.app.crypto.ListenKey lk = listenKeyIfPublic(channel);
                     RadioEngine e = lk != null ? new RadioEngine(channel, lk, callsign, RadioService.this)
                             : new RadioEngine(new Prefs(RadioService.this).effectiveChannel(channel), callsign, RadioService.this);
+                    // Public and the cloud group: no location unless "Share my location with public and cloud groups".
+                    Prefs jp = new Prefs(RadioService.this);
+                    e.publicLike = jp.isPublicLike(channel);
+                    RadioEngine.shareLocationPublic = jp.shareLocationPublic();
                     lastJoin = new Object[]{channel, callsign, netMode, port, extraPeers};
                     // Key derivation takes seconds on old phones. If Leave or another Join came
                     // meanwhile, this join is stale: going on air now would leave a second, hidden
@@ -1887,20 +1921,28 @@ public final class RadioService extends Service implements RadioEngine.Listener 
             }
         }
         String on2 = pr.channel(pr.activeSlot()).trim();
-        int extra = 0;
-        for (ChannelArray.Row r : ChannelArray.load(this)) {
-            if (r.listen && !r.priv.equals(on2)) extra += watchExtra(on, callsign, pr, r.priv, r.code, r.hear);
+        int teams = 0, people = 0;
+        // Channel array teams only while the Channel array menu is on: with it off, old rows (that cannot even
+        // be seen then) must not be listened to.
+        if (pr.menuOn("array")) {
+            for (ChannelArray.Row r : ChannelArray.load(this)) {
+                if (r.listen && r.priv.trim().length() > 0 && !r.priv.equals(on2)) teams += watchExtra(on, callsign, pr, r.priv, r.code, r.hear);
+            }
         }
         for (PrivateContacts.Person p : PrivateContacts.load(this)) {
-            if (!p.key.equals(on2)) extra += watchExtra(on, callsign, pr, p.key, p.name, true);
+            if (p.key.trim().length() > 0 && !p.key.equals(on2)) people += watchExtra(on, callsign, pr, p.key, p.name, true);
         }
+        String extraText = (teams == 0 ? "" : teams + (teams == 1 ? " team" : " teams"))
+                + (teams > 0 && people > 0 ? " and " : "")
+                + (people == 0 ? "" : people + (people == 1 ? " private contact" : " private contacts"));
+        int extra = teams + people;
         String letters = ok.toString();
-        if (slots.isEmpty()) return extra == 0 ? "" : " · also listening to " + extra + " teams and contacts";
+        if (slots.isEmpty()) return extra == 0 ? "" : " · also listening to " + extraText;
         return (letters.length() == 0 ? "" : " · also listening to " + letters
                 + (mainPan != 0 ? " (stereo: " + (mainPan < 0 ? "this channel left, " + letters + " right)"
                 : letters + " left, this channel right)") : "")
                 + (pr.dualWatchSave() ? " (saving voice)" : ""))
-                + (extra == 0 ? "" : " · and " + extra + " teams and contacts")
+                + (extra == 0 ? "" : " · and " + extraText)
                 + (failed.length() == 0 ? "" : " · could not listen to " + failed);
     }
 
@@ -1978,6 +2020,7 @@ public final class RadioService extends Service implements RadioEngine.Listener 
                     }
                 });
         m.setPan(-mainPan);
+        m.publicLike = pr.isPublicLike(key); // Public / cloud group: no location unless allowed
         m.startMonitor(play, rec);
         mc[0] = new org.communitycomms.app.msg.MessageCenter(this, new org.communitycomms.app.msg.MessageCenter.Air() {
             @Override
@@ -2067,6 +2110,8 @@ public final class RadioService extends Service implements RadioEngine.Listener 
         dropWatch.clear();
         org.communitycomms.app.net.Tunnel.Client.stopClient();
         org.communitycomms.app.net.Tunnel.Client.stopVps();
+        org.communitycomms.app.net.Tunnel.Client.stopCloud();
+        cloudConfig = "";
         org.communitycomms.app.net.Tunnel.Relay.stopRelay();
         main.removeCallbacks(vpsWatch);
         cancelLinkNotice();
@@ -2107,10 +2152,11 @@ public final class RadioService extends Service implements RadioEngine.Listener 
         Prefs pr = new Prefs(this);
         boolean all = pr.tunnelClientOn();
         List<Integer> tl = new ArrayList<Integer>();
-        if (all || pr.tunnelSlot(pr.activeSlot())) tl.add(e.channelTag());
+        // The cloud group goes only to its own relay (applyCloud), never through this phone's tunnel.
+        if ((all || pr.tunnelSlot(pr.activeSlot())) && !isCloud(pr, e)) tl.add(e.channelTag());
         for (RadioEngine m : e.monitors()) {
             int s = slotNamed(pr, m.channelName());
-            if (all || (s >= 0 && pr.tunnelSlot(s))) tl.add(m.channelTag());
+            if ((all || (s >= 0 && pr.tunnelSlot(s))) && !isCloud(pr, m)) tl.add(m.channelTag());
         }
         int[] t = new int[tl.size()];
         for (int i = 0; i < t.length; i++) t[i] = tl.get(i);
@@ -2132,6 +2178,47 @@ public final class RadioService extends Service implements RadioEngine.Listener 
             }
         }
         applyVps(e, restart);
+        applyCloud(e, restart);
+    }
+
+    // ---- cloud group: its own relay connection, carrying only the cloud channel ----
+
+    private String cloudConfig = "";
+
+    private static boolean isCloud(Prefs pr, RadioEngine e) {
+        return pr.cloudSet() && e != null && e.channelName() != null && e.channelName().trim().equals(pr.cloudKey().trim());
+    }
+
+    /** Cloud group settings changed: reconnect (no re-join). */
+    public void applyCloudNow() {
+        RadioEngine e = engine;
+        if (e != null) applyCloud(e, true);
+    }
+
+    /** Whether the cloud group's relay is connected now (null = not running). */
+    public static String cloudState() {
+        org.communitycomms.app.net.Tunnel.Client c = org.communitycomms.app.net.Tunnel.cloud;
+        return c == null ? null : c.describe();
+    }
+
+    /**
+     * While the cloud channel is on air or listened to, keeps a connection to the group's own relay
+     * with only that channel's tag; otherwise none. restart = connect afresh.
+     */
+    private void applyCloud(RadioEngine e, boolean restart) {
+        Prefs pr = new Prefs(this);
+        RadioEngine c = isCloud(pr, e) ? e : null;
+        if (c == null) for (RadioEngine m : e.monitors()) if (isCloud(pr, m)) c = m;
+        if (c == null || !pr.cloudRelaySet() || PowerMode.offline()) {
+            org.communitycomms.app.net.Tunnel.Client.stopCloud();
+            cloudConfig = "";
+            return;
+        }
+        String cfg = pr.cloudRelay() + "|" + pr.cloudRelayKey().hashCode() + "|" + c.channelTag();
+        if (restart || org.communitycomms.app.net.Tunnel.cloud == null || !cfg.equals(cloudConfig)) {
+            cloudConfig = cfg;
+            org.communitycomms.app.net.Tunnel.Client.startCloud(pr.cloudRelay(), pr.cloudRelayKey(), c.channelTag());
+        }
     }
 
     // ---- internet relay (VPS): gateway on the MANET, or a remote off it ----
@@ -2161,10 +2248,10 @@ public final class RadioService extends Service implements RadioEngine.Listener 
         boolean onManet = onManet(pr);
         vpsOnManet = onManet;
         List<Integer> tl = new ArrayList<Integer>();
-        if (!onManet || pr.shareSlot(pr.activeSlot())) tl.add(e.channelTag());
+        if ((!onManet || pr.shareSlot(pr.activeSlot())) && !isCloud(pr, e)) tl.add(e.channelTag());
         for (RadioEngine m : e.monitors()) {
             int s = slotNamed(pr, m.channelName());
-            if (!onManet || (s >= 0 && pr.shareSlot(s))) tl.add(m.channelTag());
+            if ((!onManet || (s >= 0 && pr.shareSlot(s))) && !isCloud(pr, m)) tl.add(m.channelTag());
         }
         int[] t = new int[tl.size()];
         for (int i = 0; i < t.length; i++) t[i] = tl.get(i);
@@ -3642,7 +3729,7 @@ public final class RadioService extends Service implements RadioEngine.Listener 
         if (gpsResting && l != null) {
             // GPS resting because the phone has not moved: the same place, confirmed now ("still here").
             Log.i(TAG, "auto location sent (still)");
-            e.sendLocation(l.getLatitude(), l.getLongitude(), l.getAccuracy(), System.currentTimeMillis(), "");
+            e.sendLocation(l.getLatitude(), l.getLongitude(), l.getAccuracy(), System.currentTimeMillis(), ""); heldBackNotice(e);
             return;
         }
         if (l == null || System.currentTimeMillis() - l.getTime() > 10 * 60000L) {
@@ -3650,6 +3737,7 @@ public final class RadioService extends Service implements RadioEngine.Listener 
             return;
         }
         Log.i(TAG, "auto location sent, fix age " + (System.currentTimeMillis() - l.getTime()) / 1000 + " s");
+        heldBackNotice(e);
         e.sendLocation(l.getLatitude(), l.getLongitude(), l.getAccuracy(), l.getTime(), "");
     }
 

@@ -213,7 +213,7 @@ public final class DryadActivity extends Activity {
         String name = new String(current.sheet.rowAt(idx));
         if (slot == Prefs.SLOT_PUBLIC) p.setPublicKey(name); // a group's own "public" channel
         else p.setChannel(slot, name);
-        if (slot >= Prefs.SLOT_C) p.setExtrasOn(true); // so C–H shows on the Channels page
+        if (Prefs.isExtra(slot)) p.setExtrasOn(true); // so C–H shows on the Channels page
         Toast.makeText(this, MainActivity.label(slot) + " set from " + current.sheet.name
                 + " row " + row + ". Join or listen to it on the Channels page.", Toast.LENGTH_LONG).show();
     }
@@ -225,7 +225,7 @@ public final class DryadActivity extends Activity {
         List<String> names = new ArrayList<String>();
         Prefs p = new Prefs(this);
         for (int s : Prefs.order()) {
-            if (s == Prefs.SLOT_OPENMANET) continue;
+            if (s == Prefs.SLOT_OPENMANET || s == Prefs.SLOT_CLOUD) continue; // the cloud group's key comes with its link
             slots.add(s);
             names.add(MainActivity.label(s) + (s == Prefs.SLOT_PUBLIC ? " (replaces the Public key)"
                     : p.channel(s).length() > 0 ? " (replaces its name)" : ""));

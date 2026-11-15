@@ -38,6 +38,8 @@ import java.util.regex.Pattern;
  */
 public final class NoteActivity extends Activity {
     static final String EXTRA_ID = "id";
+    /** The note is a protected one (ProtectedStore; only opens while unlocked). */
+    static final String EXTRA_PROT = "prot";
     private static final int REQ_PIC = 31;
     private static final Pattern IMG = Pattern.compile("\\[img:([A-Za-z0-9._-]+)\\]");
 
@@ -46,6 +48,10 @@ public final class NoteActivity extends Activity {
     private Button dateB;
     private final Calendar date = Calendar.getInstance();
     private boolean isNew;
+    private android.widget.CheckBox protTick;
+    private Button pic;
+    /** The picture chooser is open: leaving for it does not lock. */
+    private boolean picking;
 
     @Override
     protected void onCreate(Bundle b) {
@@ -53,7 +59,16 @@ public final class NoteActivity extends Activity {
         setTitle("Note");
         float d = getResources().getDisplayMetrics().density;
         String id = getIntent().getStringExtra(EXTRA_ID);
-        if (id != null) for (CalStore.Note n : CalStore.notes(this)) if (n.id.equals(id)) note = n;
+        boolean prot = getIntent().getBooleanExtra(EXTRA_PROT, false);
+        if (prot) {
+            note = id == null ? null : ProtectedStore.note(id);
+            if (note == null) { // locked meanwhile
+                Toast.makeText(this, "Protected entries are locked", Toast.LENGTH_SHORT).show();
+                finish();
+                return;
+            }
+            setTitle("Protected note");
+        } else if (id != null) for (CalStore.Note n : CalStore.notes(this)) if (n.id.equals(id)) note = n;
         if (note == null) {
             note = new CalStore.Note();
             note.id = CalStore.newId();
@@ -85,12 +100,13 @@ public final class NoteActivity extends Activity {
                 }, date.get(Calendar.YEAR), date.get(Calendar.MONTH), date.get(Calendar.DAY_OF_MONTH)).show();
             }
         });
-        Button pic = new Button(this);
+        pic = new Button(this);
         pic.setAllCaps(false);
         pic.setText("Insert picture / screenshot");
         pic.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+                picking = true;
                 Intent i = new Intent(Intent.ACTION_GET_CONTENT).setType("image/*").addCategory(Intent.CATEGORY_OPENABLE);
                 startActivityForResult(Intent.createChooser(i, "Choose a picture"), REQ_PIC);
             }
@@ -98,6 +114,23 @@ public final class NoteActivity extends Activity {
         row.addView(dateB, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
         row.addView(pic, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
         root.addView(row);
+        if (note.prot) pic.setVisibility(View.GONE); // pictures are kept unencrypted, so not in protected notes
+        if (isNew && ProtectedStore.unlocked()) {
+            protTick = new android.widget.CheckBox(this);
+            protTick.setText("Protected (this device only, no pictures)");
+            protTick.setOnCheckedChangeListener(new android.widget.CompoundButton.OnCheckedChangeListener() {
+                @Override
+                public void onCheckedChanged(android.widget.CompoundButton b, boolean on) {
+                    if (on && body.getText().toString().contains("[img:")) {
+                        Toast.makeText(NoteActivity.this, "Protected notes cannot hold pictures: remove them first", Toast.LENGTH_LONG).show();
+                        b.setChecked(false);
+                        return;
+                    }
+                    pic.setVisibility(on ? View.GONE : View.VISIBLE);
+                }
+            });
+            root.addView(protTick);
+        }
         body = new EditText(this);
         body.setGravity(Gravity.TOP);
         body.setMinLines(10);
@@ -126,8 +159,15 @@ public final class NoteActivity extends Activity {
                         .setPositiveButton("Delete", new DialogInterface.OnClickListener() {
                             @Override
                             public void onClick(DialogInterface di, int w) {
-                                for (String f : pictures(note.body)) new File(CalStore.noteImages(NoteActivity.this), f).delete();
-                                CalStore.saveNote(NoteActivity.this, note, true);
+                                if (note.prot) {
+                                    if (!ProtectedStore.saveNote(NoteActivity.this, note, true)) {
+                                        Toast.makeText(NoteActivity.this, "Protected entries are locked: not deleted", Toast.LENGTH_LONG).show();
+                                        return;
+                                    }
+                                } else {
+                                    for (String f : pictures(note.body)) new File(CalStore.noteImages(NoteActivity.this), f).delete();
+                                    CalStore.saveNote(NoteActivity.this, note, true);
+                                }
                                 finish();
                             }
                         }).setNegativeButton(android.R.string.cancel, null).show();
@@ -158,8 +198,36 @@ public final class NoteActivity extends Activity {
         note.body = text;
         note.date = date.getTimeInMillis();
         note.edited = System.currentTimeMillis();
-        CalStore.saveNote(this, note, false);
+        if (isNew && protTick != null && protTick.isChecked() && ProtectedStore.unlocked()) note.prot = true;
+        if (note.prot) {
+            if (!ProtectedStore.saveNote(this, note, false)) {
+                Toast.makeText(this, "Protected entries are locked: not saved", Toast.LENGTH_LONG).show();
+                return;
+            }
+        } else CalStore.saveNote(this, note, false);
         isNew = false;
+        if (protTick != null) protTick.setEnabled(false); // saved: it stays what it is
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        picking = false;
+        if (note != null && note.prot && !ProtectedStore.unlocked()) finish(); // was saved when it locked
+        if (protTick != null && !ProtectedStore.unlocked() && isNew) {
+            protTick.setChecked(false);
+            protTick.setVisibility(View.GONE);
+        }
+    }
+
+    /** Leaving the app (Home, screen off) saves a protected note, then locks. */
+    @Override
+    protected void onPause() {
+        super.onPause();
+        if (isFinishing() || picking || note == null) return;
+        if (note.prot || (protTick != null && protTick.isChecked())) save();
+        ProtectedUi.paused();
+        ProtectedStore.lock();
     }
 
     private static java.util.List<String> pictures(String s) {

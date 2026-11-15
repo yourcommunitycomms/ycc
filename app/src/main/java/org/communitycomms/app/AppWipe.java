@@ -23,6 +23,7 @@ public final class AppWipe {
         org.communitycomms.app.msg.MessageLog.forget();
         org.communitycomms.app.msg.PrivateKeys.forget();
         Contacts.forget(); // contacts, their notes and last positions
+        ProtectedStore.forget(c); // protected notes and calendar entries, their salt and password check
         // Every preferences file, cleared in memory as well as on disk.
         File prefsDir = new File(c.getApplicationInfo().dataDir, "shared_prefs");
         String[] names = prefsDir.list();

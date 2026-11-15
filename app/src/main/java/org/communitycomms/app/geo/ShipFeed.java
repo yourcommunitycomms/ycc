@@ -130,6 +130,8 @@ public final class ShipFeed {
     }
 
     private Runnable mine;
+    /** The last feed object that started the fetcher, so restart() can start it again. */
+    private static ShipFeed owner;
 
     public void start(Runnable onUpdate) {
         stop();
@@ -141,11 +143,21 @@ public final class ShipFeed {
         synchronized (listeners) {
             listeners.add(mine);
         }
+        launch();
+    }
+
+    private void launch() {
         synchronized (ShipFeed.class) {
+            owner = this;
             if (!enabled() || thread != null || !org.communitycomms.app.PowerMode.feedsOn()) return;
             thread = new Thread(new Runnable() {
                 @Override
                 public void run() {
+                    try {
+                        Thread.sleep(300); // a quick restart (settings, then the map) needs only one fetch
+                    } catch (InterruptedException e) {
+                        return;
+                    }
                     boolean first = true;
                     while (!Thread.currentThread().isInterrupted() && enabled()) {
                         long wait = slow() ? 5 * 60000L : 60000L;
@@ -154,6 +166,7 @@ public final class ShipFeed {
                         } else {
                             try {
                                 List<Ship> got = fetch();
+                                if (Thread.currentThread().isInterrupted()) break; // replaced while fetching
                                 if (first && got.isEmpty()) {
                                     // Nothing at all near here (inland): stop using data on it.
                                     sp.edit().putBoolean("enabled", false).commit();
@@ -174,6 +187,7 @@ public final class ShipFeed {
                                 break;
                             } catch (Exception e) {
                                 problem = "Ships feed: " + (e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName());
+                                android.util.Log.w("ShipFeed", problem);
                                 if (problem.contains("429")) wait = Math.max(wait, 5 * 60000L);
                             }
                             notifyListeners();
@@ -208,27 +222,50 @@ public final class ShipFeed {
         }
     }
 
-    public static synchronized void restart() {
-        if (thread != null) {
-            thread.interrupt();
-            thread = null;
+    public static void restart() {
+        ShipFeed o;
+        boolean wanted;
+        synchronized (ShipFeed.class) {
+            if (thread != null) {
+                thread.interrupt();
+                thread = null;
+            }
+            o = owner;
         }
+        synchronized (listeners) {
+            wanted = !listeners.isEmpty();
+        }
+        // Someone (map, TV or sharing) still wants ships: start again now. Before, the fetcher
+        // stayed stopped after a power mode change until the map was opened again.
+        if (wanted && o != null) o.launch();
     }
 
     private List<Ship> fetch() throws Exception {
-        double lat = centreLat, lon = centreLon;
+        return fetch(centreLat, centreLon, key());
+    }
+
+    static String urlFor(double lat, double lon) {
         double dLat = RANGE_M / 111320.0;
         double dLon = Math.min(10, dLat / Math.max(0.1, Math.cos(Math.toRadians(lat))));
         String bbox = String.format(Locale.US, "%.3f,%.3f,%.3f,%.3f", Math.max(-90, lat - dLat), Math.max(-180, lon - dLon),
                 Math.min(90, lat + dLat), Math.min(180, lon + dLon));
-        HttpURLConnection c = (HttpURLConnection) new URL("https://ais.openwaters.io/v1/vessels?bbox=" + bbox
-                + "&max_age=30m").openConnection();
-        c.setConnectTimeout(5000);
+        return "https://ais.openwaters.io/v1/vessels?bbox=" + bbox + "&max_age=30m";
+    }
+
+    static List<Ship> fetch(double lat, double lon, String key) throws Exception {
+        HttpURLConnection c = (HttpURLConnection) new URL(urlFor(lat, lon)).openConnection();
+        Tls12SocketFactory.apply(c); // Android 4.1-4.4: this server refuses TLS 1.0
+        c.setConnectTimeout(8000);
         c.setReadTimeout(15000);
         c.setRequestProperty("User-Agent", "YourCommunityCommunications");
-        if (key().length() > 0) c.setRequestProperty("Authorization", "Bearer " + key());
+        if (key.length() > 0) c.setRequestProperty("Authorization", "Bearer " + key);
         try {
-            int code = c.getResponseCode();
+            int code;
+            try {
+                code = c.getResponseCode();
+            } catch (Exception e) {
+                throw Tls12SocketFactory.explain(e);
+            }
             if (code == 401 || code == 403) throw new Exception("the key was refused (" + code + ")");
             if (code >= 400) throw new Exception("the server answered " + code);
             InputStream in = c.getInputStream();
@@ -308,6 +345,57 @@ public final class ShipFeed {
         return "other";
     }
 
+    /** Test button: one fetch round the map centre, then a plain result. */
+    void test(final Activity a, final String key) {
+        final double lat = centreLat, lon = centreLon;
+        final android.app.ProgressDialog wait = android.app.ProgressDialog.show(a, "Ships test", "Asking…", true, false);
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                StringBuilder b = new StringBuilder();
+                if (Double.isNaN(lat)) {
+                    b.append("No map centre yet: open the map first.");
+                } else {
+                    b.append("Source: Open Waters AIS").append(key.length() > 0 ? " (personal key)" : " (anonymous)")
+                            .append("\nAddress: ").append(urlFor(lat, lon));
+                    try {
+                        List<Ship> got = fetch(lat, lon, key);
+                        b.append("\n\nResult: OK (HTTP 200)\nShips found within 100 km: ").append(got.size());
+                        Ship near = null;
+                        double best = Double.MAX_VALUE;
+                        for (Ship x : got) {
+                            double m = Geo.distanceM(lat, lon, x.lat, x.lon);
+                            if (m < best) {
+                                best = m;
+                                near = x;
+                            }
+                        }
+                        if (near != null) {
+                            b.append("\nNearest: ").append(label(near)).append(", ").append(Geo.distance(best)).append(' ')
+                                    .append(Geo.compass(Geo.bearing(lat, lon, near.lat, near.lon)));
+                        }
+                    } catch (Exception e) {
+                        b.append("\n\nResult: FAILED\n").append(e.getMessage() != null ? e.getMessage() : e.toString());
+                    }
+                    b.append(String.format(Locale.US, "\n\nMap centre used: %.4f, %.4f", lat, lon));
+                }
+                final String msg = b.toString();
+                a.runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            wait.dismiss();
+                        } catch (Exception ignored) {
+                        }
+                        if (a.isFinishing()) return;
+                        new AlertDialog.Builder(a).setTitle("Ships test").setMessage(msg)
+                                .setPositiveButton(android.R.string.ok, null).show();
+                    }
+                });
+            }
+        }, "ais-test").start();
+    }
+
     /** Map menu > Ships (AIS)…: on / off, optional key, slow mode, share. */
     public void choose(final Activity a, final Runnable done) {
         float d = a.getResources().getDisplayMetrics().density;
@@ -316,7 +404,9 @@ public final class ShipFeed {
         box.setPadding((int) (16 * d), (int) (8 * d), (int) (16 * d), 0);
         final CheckBox on = new CheckBox(a);
         on.setText("Show ships from Open Waters (needs internet, or another phone sharing)");
-        on.setChecked(enabled());
+        // Never set up (opened by ticking the layer): ticked, so OK turns it on. Before, it was
+        // unticked here and OK left the layer off with nothing on the map.
+        on.setChecked(enabled() || !sp.contains("key"));
         box.addView(on);
         TextView kl = new TextView(a);
         kl.setText("Personal key (optional; leave empty to use anonymous access)");
@@ -325,6 +415,15 @@ public final class ShipFeed {
         key.setSingleLine(true);
         key.setText(key());
         box.addView(key);
+        android.widget.Button test = new android.widget.Button(a);
+        test.setText("Test");
+        test.setOnClickListener(new android.view.View.OnClickListener() {
+            @Override
+            public void onClick(android.view.View v) {
+                test(a, key.getText().toString().trim());
+            }
+        });
+        box.addView(test);
         final CheckBox slow = new CheckBox(a);
         slow.setText("Slow mode: check every 5 minutes (otherwise every minute) to save data");
         slow.setChecked(slow());

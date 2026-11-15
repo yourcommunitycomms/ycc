@@ -104,6 +104,7 @@ MAPS AND LOCATION
 - Offline routes: plan first, close roads at the +, go via points (convoys), share the route to the channel, a person or another app; automatic rerouting off by default.
 - The app can open into the full map or TV mode, and the screen can be locked to portrait or landscape, or turned upside down.
 - Calendar and notes: my calendar, a team calendar shared on the channel, both together in two colours, reminders with an optional buzz, and notes with pictures in the text.
+- Protected notes and calendar entries: a padlock and a password (no recovery) keep chosen notes and entries encrypted on this phone only; they are hidden every time the screen opens until unlocked, and never shared or synced.
 - Specialised menus (channel array, reports to leaders, tasks, Project NOMAD, VicEmergency, Melbourne trains preset, station names, ARTC rail, ATAK map menu items, Cast screen to TV, Calendar and notes, Relay admin, Battery power, T.REX Arms Topo Map) are off until ticked in Settings > Home screen and menus, or turned on by a setup QR code.
 - ARTC rail network overlay (Australian interstate and freight track), kept for offline use once seen.
 - Live trains on the map with their next stops (GTFS Realtime: Melbourne tick with a free key, or your own home town's feed - recommended).
@@ -182,6 +183,13 @@ NETWORKS
   marked with the globe are shared, one gateway per MANET with automatic standby, relay mode Direct,
   Internet relay or Both, link down notices and a site status list. Every site and remote has its
   own key and all share one port.
+- Cloud group: a community channel like Public with its own relay server (a cloud group user on an
+  internet relay, one key that many phones share), separate from your own relay settings. It shows as
+  Cloud beside the other channels, and a share link or QR code carries only that group and its
+  settings. Show receive-only code gives a second link and QR code whose holders can listen and read
+  the group but not send on it (like Public's listen key).
+- Share my location with public and cloud groups: off by default, with a big warning when turned on.
+  While off, no position, check-in or map point goes to Public or a cloud group.
 - Relay admin screen: with the relay's admin key, list the relay's sites and remotes (online, last
   seen), add one (the relay makes its key, the phone shows its one-scan setup QR code), rename,
   remove (cut off within seconds), and change the admin key.

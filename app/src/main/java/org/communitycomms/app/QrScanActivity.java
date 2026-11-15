@@ -330,6 +330,10 @@ public final class QrScanActivity extends Activity implements SurfaceHolder.Call
             } catch (IllegalArgumentException e) {
                 status.setText(e.getMessage());
             }
+        } else if (CloudGroupActivity.isCode(text)) { // a cloud group's own QR code or link
+            paused = true;
+            startActivity(new android.content.Intent(this, CloudGroupActivity.class).putExtra(CloudGroupActivity.EXTRA_CODE, text));
+            finish();
         } else if (text.startsWith(PrivateContacts.PREFIX)) {
             paused = true;
             PrivateContacts.offer(this, text, new Runnable() {

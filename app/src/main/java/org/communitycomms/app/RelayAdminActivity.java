@@ -72,6 +72,12 @@ public final class RelayAdminActivity extends Activity {
                 add("remote");
             }
         })));
+        root.addView(row(button("Add cloud group (many phones, one key)", new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                add("community");
+            }
+        })));
         root.addView(row(button("Scan admin QR", new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -342,6 +348,10 @@ public final class RelayAdminActivity extends Activity {
             @Override
             public void ok(String[] r) {
                 if (r.length < 2) return;
+                if ("community".equals(kind)) { // a cloud group: set it up here, then share its own link
+                    CloudGroupActivity.openForRelay(RelayAdminActivity.this, name, addr(), r[1]);
+                    return;
+                }
                 // A site's key goes on the MANET's gateway phones; a remote's on one phone away from it.
                 String code = SetupQr.makeRelayUser(name, addr(), r[1], "site".equals(kind) ? "on" : "off");
                 qr(code, "Setup for " + name + ("site".equals(kind) ? " (site gateway)" : " (remote)"));
@@ -364,9 +374,9 @@ public final class RelayAdminActivity extends Activity {
         }
         final EditText name = new EditText(this);
         name.setSingleLine(true);
-        name.setHint("site".equals(kind) ? "Site name, e.g. HQ" : "Name, e.g. ALPHA1");
+        name.setHint("site".equals(kind) ? "Site name, e.g. HQ" : "community".equals(kind) ? "Cloud group name, e.g. RIVERSIDE" : "Name, e.g. ALPHA1");
         name.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS);
-        new AlertDialog.Builder(this).setTitle("site".equals(kind) ? "Add a site (a MANET's gateway)" : "Add a remote (one phone off the MANET)")
+        new AlertDialog.Builder(this).setTitle("site".equals(kind) ? "Add a site (a MANET's gateway)" : "community".equals(kind) ? "Add a cloud group (one key that many phones share)" : "Add a remote (one phone off the MANET)")
                 .setView(name)
                 .setPositiveButton("Add", new DialogInterface.OnClickListener() {
                     @Override
@@ -378,6 +388,10 @@ public final class RelayAdminActivity extends Activity {
                             public void ok(String[] r) {
                                 refresh();
                                 if (r.length < 3) return;
+                                if ("community".equals(kind)) {
+                                    CloudGroupActivity.openForRelay(RelayAdminActivity.this, n, addr(), r[2]);
+                                    return;
+                                }
                                 String code = SetupQr.makeRelayUser(n, addr(), r[2], "site".equals(kind) ? "on" : "off");
                                 qr(code, "Setup for " + n + ("site".equals(kind) ? " (site gateway)" : " (remote)"));
                             }

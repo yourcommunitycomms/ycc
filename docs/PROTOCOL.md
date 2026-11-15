@@ -390,6 +390,21 @@ forwarding by channel tag between everyone connected. Frames and rules are the o
   user's session and TCP link.
 - Unknown frame types are ignored by older ends, so the direct relay and the LAN bridge are
   unaffected.
+- **Cloud group users** (kind `community`): one relay key that many phones share. Frames carry the key
+  ID as usual; once a frame passes that key's HMAC, the relay gives each tunnel session (header bytes
+  4-11) its own replay window and channel list (up to 500 phones; a session not heard for 2 minutes is
+  dropped), so phones never fight over one session. SITES is not sent to them, and they are left out
+  of the site list. A phone connects to its cloud group's relay as an ordinary internet relay client
+  whose HELLO lists only the cloud channel's tag, alongside (not instead of) its own tunnel and relay.
+
+### 11.1.1 Cloud group link and QR code
+
+QR text `YCCCLOUD1|` + JSON; link `ycc://cloud/` + base64url (no padding) of the same JSON:
+`{"v":1,"n":group name,"k":group key (the channel name),"r":"host:port","rk":relay key}` ("r" and "rk"
+may be absent: then the group works only on the local network). The cloud channel is keyed from "k"
+exactly like any channel (section 1), never rotated, and treated as public: no TYPE_LOCATION (11) or
+TYPE_MARK (12) is sent on it, or on Public, unless "Share my location with public and cloud groups" is on.
+ cloud channel is a signed channel exactly like a changed Public key (section on Public listen keys): the full group key signs every packet, and a **receive-only** link or QR code has "ro":1 and a listen key (YCCL1-...) as "k" instead of the group key. A phone holding the listen key derives the same channel and checks signatures but cannot sign, so it sends nothing on that channel. Links without "ro" work as before. Cloud groups from 0.1.458089 were unsigned, so phones on that version cannot talk with newer ones on the same group.
 
 ### 11.2 Internet relay admin
 
@@ -405,7 +420,7 @@ Admin QR code text: `YCCADMIN1|host:port|KEY`. Admin packets use the relay's own
   nonce(16), then UTF-8 lines: `ok` or `err` (with a reason) or `clock` (with the relay's time),
   then the result.
 - **Commands:** `ping`; `list` (one line per user: key ID in hex, kind, name, online 0/1, seconds
-  since last seen or -1, old port); `add` kind name (answer: key ID, the new key); `key` keyID
+  since last seen or -1, old port); `add` kind name (kind `site`, `remote` or `community`; answer: key ID, the new key); `key` keyID
   (answer: that user's key, for its setup code); `remove` keyID (cut off at once with a BYE);
   `rename` keyID name; `rotate` (answer: a new admin key; the old one keeps working until the new
   one is first used, which then replaces it).

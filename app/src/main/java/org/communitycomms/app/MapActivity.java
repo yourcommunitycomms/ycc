@@ -448,6 +448,7 @@ public final class MapActivity extends Activity {
 
     private void setUpShips() {
         if (ships == null) ships = new org.communitycomms.app.geo.ShipFeed(this);
+        ships.setCentre(map.centerLat(), map.centerLon()); // for its Test button
         ships.choose(this, new Runnable() {
             @Override
             public void run() {
@@ -458,6 +459,7 @@ public final class MapActivity extends Activity {
 
     private void setUpAdsb() {
         if (adsb == null) adsb = new org.communitycomms.app.geo.AdsbFeed(this);
+        adsb.setCentre(map.centerLat(), map.centerLon()); // for its Test button
         adsb.choose(this, new Runnable() {
             @Override
             public void run() {
@@ -1125,6 +1127,7 @@ public final class MapActivity extends Activity {
         handler.post(tick);
         handler.post(crossTick);
         RadioService.poiUi = poiRefresh;
+        PowerMode.screenOn = true; // the map is on screen, whatever a missed screen broadcast said
         startAdsb();
         startShips();
         startAlerts();
@@ -1631,6 +1634,8 @@ public final class MapActivity extends Activity {
         if (trains != null && trains.enabled()) {
             s += trains.problem().length() > 0 ? "\n" + trains.problem() : " · trains: " + trains.trains().size();
         }
+        // Say why live layers show nothing, instead of plain zero counts.
+        if (s.length() > 0 && !PowerMode.feedsOn()) s += "\nLive layers are paused by the power mode (screen off in a saving mode)";
         return s;
     }
 

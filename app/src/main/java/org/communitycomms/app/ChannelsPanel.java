@@ -132,7 +132,7 @@ final class ChannelsPanel {
             box.addView(t);
         }
         for (int slot : Prefs.order()) {
-            if (slot >= Prefs.SLOT_C && !prefs.extrasOn()) continue;
+            if (Prefs.isExtra(slot) && !prefs.extrasOn()) continue;
             box.addView(channelRow(slot, air, hear));
         }
 
@@ -213,7 +213,9 @@ final class ChannelsPanel {
         String state = talking ? "On air (talk here)" : listening ? "Listening" : willListen && air >= 0 ? "Will listen"
                 : set ? "Not joined" : "No name set";
         if ((listening || willListen) && prefs.channelMuted(slot)) state += ", muted";
-        String extra = slot == Prefs.SLOT_PUBLIC ? "\nKey: " + prefs.publicKey() : "";
+        String extra = slot == Prefs.SLOT_PUBLIC ? "\nKey: " + prefs.publicKey()
+                : slot == Prefs.SLOT_CLOUD ? (prefs.cloudSet() ? "\nCloud group: " + (prefs.cloudName().length() > 0 ? prefs.cloudName() : "(no name)")
+                + (prefs.cloudRelaySet() ? ", own relay" : ", no relay set") : "\nNot set up: Cloud group… to create or join one") : "";
         String n = prefs.channelNote(slot);
         if (n.length() > 0) extra += "\nNote: " + (n.length() > 60 ? n.substring(0, 60) + "…" : n);
         t.setText(MainActivity.label(slot) + "\n" + state + extra);
@@ -262,7 +264,7 @@ final class ChannelsPanel {
                 editNote(slot);
             }
         }));
-        if (prefs.tunnelSetUp() && !prefs.tunnelClientOn() && slot != Prefs.SLOT_OPENMANET) {
+        if (prefs.tunnelSetUp() && !prefs.tunnelClientOn() && slot != Prefs.SLOT_OPENMANET && slot != Prefs.SLOT_CLOUD) {
             final boolean tun = prefs.tunnelSlot(slot);
             top.addView(icon(tun ? R.drawable.ic_tunnel : R.drawable.ic_tunnel_off,
                     tun ? "Tunnel on for this channel" : "Tunnel off for this channel", new Runnable() {
@@ -277,7 +279,7 @@ final class ChannelsPanel {
                         }
                     }));
         }
-        if (prefs.vpsSetUp() && slot != Prefs.SLOT_OPENMANET) {
+        if (prefs.vpsSetUp() && slot != Prefs.SLOT_OPENMANET && slot != Prefs.SLOT_CLOUD) {
             final boolean sh = prefs.shareSlot(slot);
             top.addView(icon(sh ? R.drawable.ic_share_net : R.drawable.ic_share_net_off,
                     sh ? "Shared to the internet relay" : "Not shared to the internet relay", new Runnable() {
@@ -324,6 +326,14 @@ final class ChannelsPanel {
         });
         if (talking) jl.getBackground().mutate().setColorFilter(0xffc62828, android.graphics.PorterDuff.Mode.SRC_ATOP);
         jl.setEnabled(set);
+        if (slot == Prefs.SLOT_CLOUD) { // its own settings: name, key, relay, share link
+            buttons.addView(button("Cloud group…", new Runnable() {
+                @Override
+                public void run() {
+                    a.startActivity(new Intent(a, CloudGroupActivity.class));
+                }
+            }), new LinearLayout.LayoutParams(dp(150), dp(48)));
+        }
         buttons.addView(jl, new LinearLayout.LayoutParams(dp(130), dp(48)));
         if (slot != Prefs.SLOT_OPENMANET) {
             // Ask the others for what was missed on this channel (Public off by default).
@@ -378,7 +388,7 @@ final class ChannelsPanel {
                 }
             });
         }
-        if (slot >= Prefs.SLOT_C) {
+        if (Prefs.isExtra(slot)) {
             for (final int target : new int[]{Prefs.SLOT_A, Prefs.SLOT_B}) {
                 items.add("Swap with " + Prefs.letter(target) + " (name, note and listening move together)");
                 runs.add(new Runnable() {

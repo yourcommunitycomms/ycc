@@ -361,6 +361,10 @@ public final class FilesActivity extends Activity {
             here.setText("Left the channel; not sent");
             return;
         }
+        if (e.publicLike && !RadioEngine.shareLocationPublic) { // Public / cloud group: only with the user's OK
+            here.setText("Not sent: this is Public or a cloud group, and \"Share my location with public and cloud groups\" is off");
+            return;
+        }
         e.sendLocation(l.getLatitude(), l.getLongitude(), l.getAccuracy(), l.getTime(), "");
         here.setText("Sent: " + org.communitycomms.app.geo.Geo.latLon(l.getLatitude(), l.getLongitude())
                 + "  ±" + org.communitycomms.app.geo.Geo.distance(l.getAccuracy()));

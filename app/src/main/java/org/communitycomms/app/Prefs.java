@@ -87,13 +87,14 @@ public final class Prefs {
     public String channel(int slot) {
         if (slot == SLOT_PUBLIC) return publicKey();
         if (slot == SLOT_OPENMANET) return openManetGroup();
+        if (slot == SLOT_CLOUD) return cloudKey();
         // "channel" was the single channel before A/B existed; it becomes A.
         if (slot == SLOT_A) return sp.getString("channelA", sp.getString("channel", ""));
         return sp.getString("channel" + letter(slot), "");
     }
 
     public void setChannel(int slot, String name) {
-        if (slot == SLOT_PUBLIC) return;
+        if (slot == SLOT_PUBLIC || slot == SLOT_CLOUD) return; // Cloud: set with its group settings
         if (slot == SLOT_OPENMANET) {
             setOpenManetGroup(name);
             return;
@@ -104,7 +105,68 @@ public final class Prefs {
     // ---- extra channels C–H, home-screen eyes, listening, channel notes ----
 
     /** Extra encrypted channels C–H, mostly for listening (commander use). */
-    public static final int SLOT_C = 4, SLOT_H = 9, SLOT_COUNT = 10;
+    public static final int SLOT_C = 4, SLOT_H = 9;
+    /** Cloud group: a public-like channel with its own relay (CloudGroupActivity). */
+    public static final int SLOT_CLOUD = 10, SLOT_COUNT = 11;
+
+    /** One of the extra encrypted channels C-H. */
+    public static boolean isExtra(int slot) {
+        return slot >= SLOT_C && slot <= SLOT_H;
+    }
+
+    // ---- cloud group: name, key (passcode), its own relay address and relay key ----
+
+    public String cloudName() {
+        return sp.getString("cloudName", "");
+    }
+
+    public String cloudKey() {
+        return sp.getString("cloudKey", "");
+    }
+
+    public String cloudRelay() {
+        return sp.getString("cloudRelay", "");
+    }
+
+    public String cloudRelayKey() {
+        return sp.getString("cloudRelayKey", "");
+    }
+
+    /** A cloud group is set (it has a key). */
+    public boolean cloudSet() {
+        return cloudKey().trim().length() > 0;
+    }
+
+    /** Its own relay is set (address and key). */
+    public boolean cloudRelaySet() {
+        return cloudRelay().trim().length() > 0 && cloudRelayKey().trim().length() > 0;
+    }
+
+    public void setCloud(String name, String key, String relay, String relayKey) {
+        sp.edit().putString("cloudName", name == null ? "" : name.trim()).putString("cloudKey", key == null ? "" : key.trim())
+                .putString("cloudRelay", relay == null ? "" : relay.trim()).putString("cloudRelayKey", relayKey == null ? "" : relayKey.trim())
+                .commit();
+    }
+
+    /** A channel treated as public for privacy: Public, or the cloud group (by channel name). */
+    public boolean isPublicLike(String channelName) {
+        String n = channelName == null ? "" : channelName.trim();
+        if (n.length() == 0) return false;
+        return n.equals(publicKey().trim()) || (cloudSet() && n.equals(cloudKey().trim()));
+    }
+
+    /**
+     * "Share my location with public and cloud groups": off by default. While off, no position
+     * (manual, timer, distance, check-ins or map points) goes to Public or a cloud group.
+     */
+    public boolean shareLocationPublic() {
+        return sp.getBoolean("shareLocPublic", false);
+    }
+
+    public void setShareLocationPublic(boolean on) {
+        sp.edit().putBoolean("shareLocPublic", on).commit();
+        RadioEngine.shareLocationPublic = on;
+    }
     /** Home screen room: at most this many channel buttons. */
     public static final int HOME_MAX = 4;
 
@@ -112,16 +174,17 @@ public final class Prefs {
     public static String letter(int slot) {
         if (slot == SLOT_PUBLIC) return "Public";
         if (slot == SLOT_OPENMANET) return "OpenMANET";
+        if (slot == SLOT_CLOUD) return "Cloud";
         return slot <= SLOT_B ? (slot == SLOT_A ? "A" : "B") : String.valueOf((char) ('C' + slot - SLOT_C));
     }
 
     /** Order on the Channels page and the home screen: A, B, C … H, Public, OpenMANET*. */
     public static int[] order() {
-        return new int[]{SLOT_A, SLOT_B, 4, 5, 6, 7, 8, 9, SLOT_PUBLIC, SLOT_OPENMANET};
+        return new int[]{SLOT_A, SLOT_B, 4, 5, 6, 7, 8, 9, SLOT_PUBLIC, SLOT_CLOUD, SLOT_OPENMANET};
     }
 
     public static boolean isEncrypted(int slot) {
-        return slot != SLOT_PUBLIC && slot != SLOT_OPENMANET;
+        return slot != SLOT_PUBLIC && slot != SLOT_OPENMANET && slot != SLOT_CLOUD;
     }
 
     /** Channels page shows C–H (off by default). */
@@ -137,7 +200,8 @@ public final class Prefs {
     public boolean shown(int slot) {
         if (slot == SLOT_PUBLIC) return showPublic();
         if (slot == SLOT_OPENMANET) return showOpenManet();
-        if (slot >= SLOT_C && !extrasOn()) return false;
+        if (slot == SLOT_CLOUD) return cloudSet() && sp.getBoolean("shownCloud", true);
+        if (isExtra(slot) && !extrasOn()) return false;
         return sp.getBoolean("shown" + letter(slot), slot <= SLOT_B);
     }
 
@@ -221,7 +285,7 @@ public final class Prefs {
      * minutes on air, and on coming back to the app), listen-only ones too. On by default, Public off.
      */
     public boolean channelCatchUp(int slot) {
-        return sp.getBoolean("catchUp" + letter(slot), slot != SLOT_PUBLIC && slot != SLOT_OPENMANET);
+        return sp.getBoolean("catchUp" + letter(slot), slot != SLOT_PUBLIC && slot != SLOT_OPENMANET && slot != SLOT_CLOUD);
     }
 
     public void setChannelCatchUp(int slot, boolean on) {
@@ -366,7 +430,7 @@ public final class Prefs {
         if (!dualWatch() || main == SLOT_OPENMANET) return out;
         boolean any = false;
         for (int s : order()) {
-            if (s == SLOT_OPENMANET || !listening(s) || (s >= SLOT_C && !extrasOn())) continue;
+            if (s == SLOT_OPENMANET || !listening(s) || (isExtra(s) && !extrasOn()) || (s == SLOT_CLOUD && !cloudSet())) continue;
             any = true;
             if (s != main && channel(s).length() > 0 && !channel(s).equals(channel(main))) out.add(s);
         }
@@ -898,6 +962,7 @@ public final class Prefs {
         if (name.startsWith(ChannelArray.TEAM_PREFIX)) return name; // team keys never rotate
         int m = keyRotation();
         if (m == ROTATE_OFF || name.length() == 0 || name.trim().equals(publicKey().trim())) return name;
+        if (cloudSet() && name.trim().equals(cloudKey().trim())) return name; // the cloud group key never rotates
         return name + "|" + (m == ROTATE_HOURLY ? "h" : "d") + rotationPeriod(m, System.currentTimeMillis());
     }
 

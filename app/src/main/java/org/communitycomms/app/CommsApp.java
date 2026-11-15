@@ -31,6 +31,7 @@ public final class CommsApp extends Application {
         org.communitycomms.app.audio.BurstVoice.waitTone = p.burstWaitTone();
         org.communitycomms.app.audio.BurstCleanup.enabled = p.burstCleanup();
         RadioEngine.myIcon = p.myIcon();
+        RadioEngine.shareLocationPublic = p.shareLocationPublic(); // off by default: no location to Public / cloud groups
         registerActivityLifecycleCallbacks(new IntercomReturn());
         registerActivityLifecycleCallbacks(new FocusCatchUp());
     }

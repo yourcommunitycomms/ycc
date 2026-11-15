@@ -46,6 +46,10 @@ public final class CalendarActivity extends Activity {
     private Button[] tabButtons;
     private LinearLayout monthRow;
     private Button add;
+    private LockView lock;
+    /** True while one of my notes is open from here: coming back does not relock. */
+    private boolean keepUnlocked;
+    private AlertDialog open;
 
     @Override
     protected void onCreate(Bundle b) {
@@ -76,6 +80,21 @@ public final class CalendarActivity extends Activity {
             tabButtons[i] = bt;
             tabs.addView(bt, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
         }
+        lock = new LockView(this);
+        int ls = (int) (40 * d);
+        lock.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                ProtectedUi.toggle(CalendarActivity.this, new Runnable() {
+                    @Override
+                    public void run() {
+                        render();
+                    }
+                });
+            }
+        });
+        tabs.setGravity(Gravity.CENTER_VERTICAL);
+        tabs.addView(lock, new LinearLayout.LayoutParams(ls, ls));
         root.addView(tabs);
         monthRow = new LinearLayout(this);
         monthRow.setGravity(Gravity.CENTER_VERTICAL);
@@ -108,7 +127,10 @@ public final class CalendarActivity extends Activity {
         add.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                if (tab == NOTES) startActivity(new Intent(CalendarActivity.this, NoteActivity.class));
+                if (tab == NOTES) {
+                    keepUnlocked = ProtectedStore.unlocked();
+                    startActivity(new Intent(CalendarActivity.this, NoteActivity.class));
+                }
                 else edit(null);
             }
         });
@@ -124,26 +146,78 @@ public final class CalendarActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        if (!keepUnlocked) ProtectedStore.lock(); // every visit starts locked
+        keepUnlocked = false;
         render();
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        if (open != null && open.isShowing()) open.dismiss();
+        open = null;
+        if (!keepUnlocked) {
+            ProtectedUi.paused();
+            ProtectedStore.lock();
+        }
+    }
+
+    @Override
+    public boolean onCreateOptionsMenu(android.view.Menu m) {
+        m.add(0, 1, 0, "Change protected password");
+        m.add(0, 2, 0, "Erase all protected entries");
+        return true;
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(android.view.MenuItem item) {
+        Runnable changed = new Runnable() {
+            @Override
+            public void run() {
+                render();
+            }
+        };
+        if (item.getItemId() == 1) ProtectedUi.changePassword(this, changed);
+        else if (item.getItemId() == 2) ProtectedUi.erase(this, changed);
+        else return super.onOptionsItemSelected(item);
+        return true;
     }
 
     private void render() {
         for (int i = 0; i < tabButtons.length; i++) tabButtons[i].setTextColor(i == tab ? 0xfff0c75e : 0xffffffff);
         list.removeAllViews();
         float d = getResources().getDisplayMetrics().density;
+        final boolean unlocked = ProtectedStore.unlocked();
+        lock.setOpen(unlocked);
+        int badge = (int) (16 * d);
         if (tab == NOTES) {
             monthRow.setVisibility(View.GONE);
             add.setText("New note");
             List<CalStore.Note> notes = CalStore.notes(this);
+            if (unlocked) {
+                notes.addAll(ProtectedStore.notes());
+                java.util.Collections.sort(notes, new java.util.Comparator<CalStore.Note>() {
+                    @Override
+                    public int compare(CalStore.Note a, CalStore.Note b) {
+                        return a.date > b.date ? -1 : a.date < b.date ? 1 : 0;
+                    }
+                });
+            }
             if (notes.isEmpty()) line("No notes yet.", 0xffbdbdbd, 15);
             SimpleDateFormat f = new SimpleDateFormat("EEE d MMM yyyy", Locale.getDefault());
             for (final CalStore.Note n : notes) {
                 TextView t = line((n.name.length() > 0 ? n.name : "(no name)") + "\n" + f.format(new java.util.Date(n.date))
-                        + "  ·  " + preview(n.body), 0xffffffff, 16);
+                        + "  ·  " + preview(n.body), n.prot ? 0xff90caf9 : 0xffffffff, 16);
+                if (n.prot) {
+                    t.setCompoundDrawables(LockView.badge(this, badge), null, null, null);
+                    t.setCompoundDrawablePadding((int) (6 * d));
+                }
                 t.setOnClickListener(new View.OnClickListener() {
                     @Override
                     public void onClick(View v) {
-                        startActivity(new Intent(CalendarActivity.this, NoteActivity.class).putExtra(NoteActivity.EXTRA_ID, n.id));
+                        keepUnlocked = n.prot;
+                        startActivity(new Intent(CalendarActivity.this, NoteActivity.class).putExtra(NoteActivity.EXTRA_ID, n.id)
+                                .putExtra(NoteActivity.EXTRA_PROT, n.prot));
                     }
                 });
             }
@@ -177,7 +251,11 @@ public final class CalendarActivity extends Activity {
             }
             String time = e.allDay ? "All day" : hm.format(new java.util.Date(e.start)) + "–" + hm.format(new java.util.Date(e.start + e.durMin * 60000L));
             TextView t = line(time + "  " + e.title + (e.remind ? "  ⏰" : "") + (e.team ? "  (team" + (e.by.length() > 0 ? ", " + e.by : "") + ")" : "")
-                    + (e.note.length() > 0 ? "\n" + e.note : ""), e.team ? TEAM_COLOUR : MINE_COLOUR, 16);
+                    + (e.note.length() > 0 ? "\n" + e.note : ""), e.team ? TEAM_COLOUR : e.prot ? 0xff90caf9 : MINE_COLOUR, 16);
+            if (e.prot) {
+                t.setCompoundDrawables(LockView.badge(this, badge), null, null, null);
+                t.setCompoundDrawablePadding((int) (6 * d));
+            }
             t.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
@@ -231,7 +309,9 @@ public final class CalendarActivity extends Activity {
         final Button dateB = new Button(this), timeB = new Button(this);
         dateB.setAllCaps(false);
         timeB.setAllCaps(false);
-        final CheckBox allDay = new CheckBox(this), teamTick = new CheckBox(this), remind = new CheckBox(this), vibrate = new CheckBox(this);
+        final CheckBox allDay = new CheckBox(this), teamTick = new CheckBox(this), remind = new CheckBox(this), vibrate = new CheckBox(this),
+                protTick = new CheckBox(this);
+        protTick.setText("Protected (this device only)");
         allDay.setText("All day");
         teamTick.setText("Team entry: share it on the channel (everyone on it sees it)");
         remind.setText("Remind me");
@@ -290,10 +370,19 @@ public final class CalendarActivity extends Activity {
             vibrate.setChecked(old.vibrate);
             teamTick.setChecked(old.team);
             teamTick.setEnabled(false); // a team entry stays a team entry (and a private one private)
+            protTick.setChecked(old.prot);
+            protTick.setEnabled(false);
             for (int i = 0; i < REMIND_MIN.length; i++) if (REMIND_MIN[i] == old.remindMin) before.setSelection(i);
         } else {
             dur.setText("60");
             teamTick.setChecked(tab == TEAM);
+            protTick.setOnCheckedChangeListener(new android.widget.CompoundButton.OnCheckedChangeListener() {
+                @Override
+                public void onCheckedChanged(android.widget.CompoundButton b, boolean on) {
+                    if (on) teamTick.setChecked(false);
+                    teamTick.setEnabled(!on); // a protected entry is never shared
+                }
+            });
             vibrate.setChecked(true);
             before.setSelection(3);
         }
@@ -306,6 +395,8 @@ public final class CalendarActivity extends Activity {
         box.addView(before);
         box.addView(vibrate);
         box.addView(teamTick);
+        // Only while unlocked can a protected entry be made (or a protected one be open at all).
+        if (ProtectedStore.unlocked() || (old != null && old.prot)) box.addView(protTick);
         box.addView(note);
         showWhen.run();
         ScrollView sv = new ScrollView(this);
@@ -334,7 +425,8 @@ public final class CalendarActivity extends Activity {
                         e.remind = remind.isChecked();
                         e.remindMin = REMIND_MIN[before.getSelectedItemPosition()];
                         e.vibrate = vibrate.isChecked();
-                        e.team = teamTick.isChecked();
+                        e.prot = old != null ? old.prot : protTick.isChecked() && ProtectedStore.unlocked();
+                        e.team = !e.prot && teamTick.isChecked();
                         store(e);
                     }
                 })
@@ -348,11 +440,16 @@ public final class CalendarActivity extends Activity {
                 }
             });
         }
-        b.show();
+        open = b.show();
     }
 
     private void store(CalStore.Entry e) {
-        if (e.team) {
+        if (e.prot) {
+            if (!ProtectedStore.saveEntry(this, e)) {
+                Toast.makeText(this, "Protected entries are locked: not saved. Unlock and try again.", Toast.LENGTH_LONG).show();
+                return;
+            }
+        } else if (e.team) {
             e.by = new Prefs(this).callsign();
             if (!CalStore.sendTeam(this, e)) {
                 Toast.makeText(this, "Join a channel first: team entries are shared on it", Toast.LENGTH_LONG).show();

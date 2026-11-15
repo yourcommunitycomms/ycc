@@ -214,10 +214,13 @@ public final class PowerMode {
         return m == ULTRA ? sleepMs() : m == SAVER ? Math.max(normal, SAVER_MS) : normal;
     }
 
-    /** Aircraft, ships and alerts: with the screen on, except in Ultra low. */
+    /**
+     * Aircraft, ships, trains and alerts: always in Normal, and in every other mode while the screen is on.
+     * Before, Ultra low (and the Away status, which works like Ultra low) stopped them even with the map
+     * open, so ticked layers showed "aircraft: 0 · ships: 0 · alerts: 0 · trains: 0" and no reason.
+     */
     public static boolean feedsOn() {
-        int m = now();
-        return m == NORMAL || (m != ULTRA && screenOn);
+        return now() == NORMAL || screenOn;
     }
 
     /** How long nobody may be heard before warning: this phone hears less in a saving mode. */

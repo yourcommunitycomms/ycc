@@ -39,6 +39,15 @@ public final class Tls12SocketFactory extends SSLSocketFactory {
         }
     }
 
+    /** A plain reason for a failed secure connection: Android 4.x lacks the ciphers many servers now need. */
+    public static Exception explain(Exception e) {
+        if (e instanceof javax.net.ssl.SSLException && android.os.Build.VERSION.SDK_INT < 20) {
+            return new Exception("Android 4.x cannot make the secure connection this server now needs ("
+                    + e.getMessage() + "). Use a newer phone with Share turned on, so it sends the data over the radio.");
+        }
+        return e;
+    }
+
     /** Wraps any factory (e.g. one that accepts a LAN camera's own certificate) so 1.1 and 1.2 are on. */
     public static SSLSocketFactory wrap(SSLSocketFactory base) {
         return android.os.Build.VERSION.SDK_INT >= 20 ? base : new Tls12SocketFactory(base);
