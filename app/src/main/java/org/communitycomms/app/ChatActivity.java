@@ -203,6 +203,7 @@ public final class ChatActivity extends Activity {
     }
 
     private void render() {
+        learnSources();
         int tag = channelOnAir();
         RadioService rs = RadioService.instance();
         watchTags = tag == 0 || rs == null ? new int[0] : rs.watchTags();
@@ -276,8 +277,27 @@ public final class ChatActivity extends Activity {
     }
 
     private static final String[] CHANNEL_NAMES = {"Channel on air (and the ones you listen to)", "All channels",
-            "A (Private)", "B", "Public"};
-    private static final int[] CHANNEL_VALUES = {-2, -1, Prefs.SLOT_A, Prefs.SLOT_B, Prefs.SLOT_PUBLIC};
+            "A (Private)", "B", "Public", "Cloud group"};
+    private static final int[] CHANNEL_VALUES = {-2, -1, Prefs.SLOT_A, Prefs.SLOT_B, Prefs.SLOT_PUBLIC, Prefs.SLOT_CLOUD};
+
+    /** Where each message came from: its channel tag -> "A", "B", "PUBLIC" or "CLOUD" (filled in as tags are worked out). */
+    private final java.util.Map<Integer, String> sources = new java.util.HashMap<Integer, String>();
+
+    private void learnSources() {
+        Prefs pr = new Prefs(this);
+        int[] slots = {Prefs.SLOT_A, Prefs.SLOT_B, Prefs.SLOT_PUBLIC, Prefs.SLOT_CLOUD};
+        String[] names = {"A", "B", "PUBLIC", "CLOUD"};
+        boolean waiting = false;
+        for (int i = 0; i < slots.length; i++) {
+            if (slots[i] == Prefs.SLOT_CLOUD && !pr.cloudSet()) continue;
+            Integer t = org.communitycomms.app.geo.PoiFilter.tag(this, slots[i]);
+            if (t == null) waiting = true;
+            else if (t != 0 && !sources.containsKey(t)) sources.put(t, names[i]);
+        }
+        if (waiting) list.postDelayed(refresh, 1500); // a tag is being worked out: show the sources once it is known
+    }
+
+    private android.graphics.drawable.Drawable cloudIcon;
 
     private void chooseFilter() {
         float d = getResources().getDisplayMetrics().density;
@@ -648,7 +668,14 @@ public final class ChatActivity extends Activity {
             if (m.privateTo.length() > 0) kind = m.mine ? "  PRIVATE to " + m.privateTo : "  PRIVATE to me";
             if (m.mime.startsWith("audio/")) kind = "  VOICE (tap to play)";
             if (watched(m.channelTag)) kind += "  · LISTEN ONLY";
-            top.setText((m.mine ? "Me" : m.creator) + "  " + when(m.time) + kind);
+            String src = sources.get(m.channelTag);
+            String line = (m.mine ? "Me" : m.creator) + "  " + when(m.time) + kind + (src != null ? "  · " + src : "");
+            if ("CLOUD".equals(src)) { // the cloud group: its little cloud right after "CLOUD"
+                if (cloudIcon == null) cloudIcon = CloudIcon.drawable(ChatActivity.this, (int) (top.getTextSize() * 1.1f), 0xffcfd8dc);
+                android.text.SpannableString ss = new android.text.SpannableString(line + "  ");
+                ss.setSpan(new android.text.style.ImageSpan(cloudIcon), ss.length() - 1, ss.length(), android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                top.setText(ss);
+            } else top.setText(line);
             row.addView(top);
             TextView body = new TextView(ChatActivity.this);
             body.setTextSize(16);

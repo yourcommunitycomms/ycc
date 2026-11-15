@@ -54,7 +54,11 @@ public final class PoiFilter {
     /** The channel tag of a slot's current name, or null while it is being worked out. */
     public static Integer tag(Context c, int slot) {
         Prefs pr = new Prefs(c);
-        final String name = slot == Prefs.SLOT_PUBLIC ? pr.publicKey() : pr.effectiveChannel(pr.channel(slot)).trim();
+        final String name = slot == Prefs.SLOT_PUBLIC ? pr.publicKey().trim() : slot == Prefs.SLOT_CLOUD ? pr.cloudKey().trim()
+                : pr.effectiveChannel(pr.channel(slot)).trim();
+        // Signed channels (the cloud group, a changed Public key) take their tag from the listen secret.
+        final boolean signed = slot == Prefs.SLOT_CLOUD
+                || (slot == Prefs.SLOT_PUBLIC && org.communitycomms.app.crypto.ListenKey.signedPublic(name));
         if (name.length() == 0) return 0;
         synchronized (TAGS) {
             Integer t = TAGS.get(name);
@@ -65,7 +69,10 @@ public final class PoiFilter {
             public void run() {
                 int t = 0;
                 try {
-                    t = new ChannelCrypto(name).channelTag;
+                    String cn = name;
+                    if (signed) cn = (org.communitycomms.app.crypto.ListenKey.isListenKey(name) ? org.communitycomms.app.crypto.ListenKey.parse(name)
+                            : org.communitycomms.app.crypto.ListenKey.fromFull(name)).channelName();
+                    t = new ChannelCrypto(cn).channelTag;
                 } catch (Exception ignored) {
                 }
                 synchronized (TAGS) {

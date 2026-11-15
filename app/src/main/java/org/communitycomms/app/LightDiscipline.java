@@ -130,6 +130,10 @@ public final class LightDiscipline implements Application.ActivityLifecycleCallb
         // No immersive/hide-navigation flags: they make Android flash a bright "Viewing full
         // screen" banner the first time. Low profile + fullscreen hides the status bar quietly.
         decor.setSystemUiVisibility(View.SYSTEM_UI_FLAG_LOW_PROFILE | View.SYSTEM_UI_FLAG_FULLSCREEN);
+        // No turning while black: a rotation would rebuild the screen and lift the cover. The way it faces now is
+        // kept until the double tap, then the screen's own setting comes back.
+        final int oldOrientation = a.getRequestedOrientation();
+        a.setRequestedOrientation(currentOrientation(a));
         // Power button or unlock: always comes back to the normal screen, whatever the double tap does.
         final BroadcastReceiver screen = new BroadcastReceiver() {
             @Override
@@ -150,6 +154,7 @@ public final class LightDiscipline implements Application.ActivityLifecycleCallb
                 lp.screenBrightness = oldBrightness;
                 a.getWindow().setAttributes(lp);
                 decor.setSystemUiVisibility(oldUi);
+                a.setRequestedOrientation(oldOrientation);
             }
         });
         // Our own double tap, from the touch times: GestureDetector's timer misses taps when a slow
@@ -175,6 +180,21 @@ public final class LightDiscipline implements Application.ActivityLifecycleCallb
         decor.addView(cover, new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
     }
 
+    /** The way the screen faces now, as a fixed orientation (Android 4.1 has no SCREEN_ORIENTATION_LOCKED). */
+    @SuppressWarnings("deprecation")
+    static int currentOrientation(Activity a) {
+        if (Build.VERSION.SDK_INT >= 18) return android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LOCKED;
+        int rot = a.getWindowManager().getDefaultDisplay().getRotation();
+        boolean upright = rot == android.view.Surface.ROTATION_0 || rot == android.view.Surface.ROTATION_90;
+        if (a.getResources().getConfiguration().orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT) {
+            return upright ? android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT : android.content.pm.ActivityInfo.SCREEN_ORIENTATION_REVERSE_PORTRAIT;
+        }
+        return upright ? android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE : android.content.pm.ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE;
+    }
+
+    /** A black screen being rebuilt (a configuration change): it goes black again when it comes back. */
+    private static String reblack;
+
     /** Any screen is black now. */
     public static volatile boolean covered;
 
@@ -199,14 +219,26 @@ public final class LightDiscipline implements Application.ActivityLifecycleCallb
     }
 
     @Override
-    public void onActivityResumed(Activity a) {
+    public void onActivityResumed(final Activity a) {
         checkRedSchedule(a);
         apply(a);
+        if (a.getClass().getName().equals(reblack)) {
+            reblack = null;
+            a.getWindow().getDecorView().post(new Runnable() {
+                @Override
+                public void run() {
+                    if (!a.isFinishing()) blackout(a);
+                }
+            });
+        }
     }
 
     @Override
     public void onActivityPaused(Activity a) {
-        endBlackout(a); // power button, lock screen or another screen: never come back to a black screen
+        // Rebuilt for a configuration change (not left): stays black. Otherwise (power button, lock screen or
+        // another screen) never come back to a black screen.
+        reblack = blackedOut(a) && a.isChangingConfigurations() ? a.getClass().getName() : null;
+        endBlackout(a);
     }
 
     @Override
