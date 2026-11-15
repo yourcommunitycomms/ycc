@@ -119,12 +119,14 @@ public final class FilesActivity extends Activity {
                 mapOptions();
             }
         })));
-        root.addView(row(button("Data import and layers (T.REX Arms Topo Map)", new Runnable() {
-            @Override
-            public void run() {
-                startActivity(new Intent(FilesActivity.this, TrexMapsActivity.class));
-            }
-        })));
+        if (org.communitycomms.app.geo.TrexMaps.menuOn(this)) { // Specialised menu, off by default
+            root.addView(row(button("Data import and layers (T.REX Arms Topo Map)", new Runnable() {
+                @Override
+                public void run() {
+                    startActivity(new Intent(FilesActivity.this, TrexMapsActivity.class));
+                }
+            })));
+        }
 
         root.addView(label("Files"));
         root.addView(row(button("Send file", new Runnable() {

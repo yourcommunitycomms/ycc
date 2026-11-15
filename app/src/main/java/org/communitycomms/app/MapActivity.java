@@ -114,11 +114,13 @@ public final class MapActivity extends Activity {
         // T.REX Arms Topo Map: one of the map choices (imported, or on the cache server). Outside its
         // area the last other choice still shows.
         final int trexId = LAYER_PRESETS.length + 1;
-        android.widget.RadioButton tr = new android.widget.RadioButton(this);
-        tr.setId(trexId);
-        tr.setText(org.communitycomms.app.geo.TrexMaps.NAME);
-        types.addView(tr);
-        if (trexOn) types.check(trexId);
+        if (org.communitycomms.app.geo.TrexMaps.menuOn(this)) { // Specialised menu, off by default
+            android.widget.RadioButton tr = new android.widget.RadioButton(this);
+            tr.setId(trexId);
+            tr.setText(org.communitycomms.app.geo.TrexMaps.NAME);
+            types.addView(tr);
+            if (trexOn) types.check(trexId);
+        }
         types.setOnCheckedChangeListener(new android.widget.RadioGroup.OnCheckedChangeListener() {
             @Override
             public void onCheckedChanged(android.widget.RadioGroup g, int id) {
@@ -1474,7 +1476,7 @@ public final class MapActivity extends Activity {
     public boolean onCreateOptionsMenu(android.view.Menu m) {
         m.add(0, 2, 0, "Online map tiles…");
         m.add(0, 10, 0, "Data Tile Management…");
-        m.add(0, 13, 0, "Data import and layers…");
+        if (org.communitycomms.app.geo.TrexMaps.menuOn(this)) m.add(0, 13, 0, "Data import and layers…");
         m.add(0, 1, 0, "Aircraft (ADS-B)…");
         m.add(0, 3, 0, "Ships (AIS)…");
         Prefs menus = new Prefs(this);

@@ -104,7 +104,7 @@ MAPS AND LOCATION
 - Offline routes: plan first, close roads at the +, go via points (convoys), share the route to the channel, a person or another app; automatic rerouting off by default.
 - The app can open into the full map or TV mode, and the screen can be locked to portrait or landscape, or turned upside down.
 - Calendar and notes: my calendar, a team calendar shared on the channel, both together in two colours, reminders with an optional buzz, and notes with pictures in the text.
-- Specialised menus (channel array, reports to leaders, tasks, Project NOMAD, VicEmergency, Melbourne trains preset, station names, ARTC rail, ATAK map menu items, Cast screen to TV, Calendar and notes, Relay admin) are off until ticked in Settings > Home screen and menus, or turned on by a setup QR code.
+- Specialised menus (channel array, reports to leaders, tasks, Project NOMAD, VicEmergency, Melbourne trains preset, station names, ARTC rail, ATAK map menu items, Cast screen to TV, Calendar and notes, Relay admin, Battery power, T.REX Arms Topo Map) are off until ticked in Settings > Home screen and menus, or turned on by a setup QR code.
 - ARTC rail network overlay (Australian interstate and freight track), kept for offline use once seen.
 - Live trains on the map with their next stops (GTFS Realtime: Melbourne tick with a free key, or your own home town's feed - recommended).
 - Download detailed map tiles along a route (about 300 m either side, zoom levels and map types ticked).
@@ -151,7 +151,7 @@ MAPS AND LOCATION
   shareable to the channel.
 - ATAK: import and export map files, an ATAK map source for the LAN tiles, and an ATAK compatible
   switch (positions and All Chat Rooms; never private channels or voice).
-- T.REX Arms Topo Map (map menu, Data import and layers): steps to bake an offline topo .mbtiles file
+- T.REX Arms Topo Map (a specialised menu, off by default; then map menu, Data import and layers): steps to bake an offline topo .mbtiles file
   on the T.REX Arms Maps site, import it into the app's own folder (size and bounds shown), remove it,
   and choose it under Layer as a map type, with the OpenStreetMap credit shown on the map. Imported
   files go to the cache server's own T.REX folder; other phones view the map from there as they pan,

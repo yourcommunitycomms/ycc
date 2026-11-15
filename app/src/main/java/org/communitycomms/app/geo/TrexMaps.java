@@ -76,8 +76,14 @@ public final class TrexMaps {
         return d;
     }
 
+    /** The Specialised menu (Settings > Home screen and menus, off by default): with it off, nothing T.REX shows or runs. */
+    public static boolean menuOn(Context c) {
+        return new org.communitycomms.app.Prefs(c).menuOn("trex");
+    }
+
+    /** Chosen under Layer, and the Specialised menu is on. */
     public static boolean enabled(Context c) {
-        return c.getSharedPreferences("map", Context.MODE_PRIVATE).getBoolean("trexOn", false);
+        return menuOn(c) && c.getSharedPreferences("map", Context.MODE_PRIVATE).getBoolean("trexOn", false);
     }
 
     public static void setEnabled(Context c, boolean on) {

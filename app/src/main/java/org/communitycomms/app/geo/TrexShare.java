@@ -156,6 +156,7 @@ public final class TrexShare {
 
     /** Refreshes the list in the background when it is old; done runs on that thread afterwards (if it changed). */
     public static void refreshIfStale(final Context c, final Runnable done) {
+        if (!TrexMaps.enabled(c)) return; // only while T.REX is the chosen layer
         if (System.currentTimeMillis() - sp(c).getLong("trexRemoteAt", 0) < STALE_MS) return;
         if (!new LanTiles(c).configured()) return;
         sp(c).edit().putLong("trexRemoteAt", System.currentTimeMillis()).commit(); // one try at a time
@@ -187,7 +188,7 @@ public final class TrexShare {
      * if something is already being sent or downloaded. Progress and the result are in {@link #status()}.
      */
     public static synchronized boolean startUpload(Context c, final TrexMaps.Entry e) {
-        if (busy) return false;
+        if (busy || !TrexMaps.menuOn(c)) return false;
         busy = true;
         final Context app = c.getApplicationContext();
         status = "Sending " + e.title() + " to the cache server…";
@@ -297,7 +298,7 @@ public final class TrexShare {
 
     /** Downloads a file from the cache server into the phone's T.REX folder and imports it. */
     public static synchronized boolean startDownload(Context c, final Remote r) {
-        if (busy) return false;
+        if (busy || !TrexMaps.menuOn(c)) return false;
         busy = true;
         final Context app = c.getApplicationContext();
         status = "Downloading " + r.title + "…";
