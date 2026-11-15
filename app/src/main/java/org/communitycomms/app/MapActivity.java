@@ -607,8 +607,9 @@ public final class MapActivity extends Activity {
         @Override
         public void run() {
             double lat = map.centerLat(), lon = map.centerLon();
-            String s = "+ " + org.communitycomms.app.geo.Geo.latLon(lat, lon) + "   "
-                    + org.communitycomms.app.geo.Mgrs.of(lat, lon);
+            // Lat / lon on the first line, the whole grid reference on the second (never split across lines).
+            String s = "+ " + org.communitycomms.app.geo.Geo.latLon(lat, lon) + "\n"
+                    + org.communitycomms.app.geo.Mgrs.of(lat, lon).replace(' ', '\u00a0');
             if (!s.equals(shownCross)) {
                 shownCross = s;
                 crossLabel.setText(s);
