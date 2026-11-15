@@ -81,6 +81,10 @@ public final class QrScanActivity extends Activity implements SurfaceHolder.Call
         Button done = new Button(this);
         done.setText("Import scanned sheets");
         root.addView(done);
+        if (getIntent().getBooleanExtra(EXTRA_ANY_TEXT, false)) {
+            status.setText("Point the camera at any QR code");
+            done.setText(android.R.string.cancel);
+        }
         setContentView(root);
         done.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -259,8 +263,17 @@ public final class QrScanActivity extends Activity implements SurfaceHolder.Call
     /** Started by the setup wizard: only phone setup codes are taken. */
     public static final String EXTRA_SETUP_ONLY = "setupOnly";
 
+    /** Started for a result by Settings > Tools: hand back any QR text at all, read as plain text. */
+    public static final String EXTRA_ANY_TEXT = "anyText";
+
     private void onScanned(String text) {
         if (paused) return;
+        if (getIntent().getBooleanExtra(EXTRA_ANY_TEXT, false)) {
+            paused = true;
+            setResult(RESULT_OK, new android.content.Intent().putExtra(EXTRA_RESULT, text));
+            finish();
+            return;
+        }
         if (SetupQr.is(text)) { // from Settings, or the setup wizard (started for a result)
             paused = true;
             SetupQr.offer(this, text, new Runnable() {

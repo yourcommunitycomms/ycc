@@ -25,6 +25,7 @@
             <Button android:id="@+id/link_network" style="@style/SmallButton" android:text="@string/page_network" android:layout_width="match_parent" android:layout_weight="0" />
             <Button android:id="@+id/link_security" style="@style/SmallButton" android:text="@string/page_security" android:layout_width="match_parent" android:layout_weight="0" />
             <Button android:id="@+id/link_data" style="@style/SmallButton" android:text="@string/page_data" android:layout_width="match_parent" android:layout_weight="0" />
+            <Button android:id="@+id/link_tools" style="@style/SmallButton" android:text="@string/page_tools" android:layout_width="match_parent" android:layout_weight="0" />
         </LinearLayout>
         <LinearLayout android:id="@+id/sec_channels" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical">
             <TextView style="@style/Label" android:text="@string/channel_names" />

@@ -164,6 +164,7 @@
     <string name="page_network">Network and sync (WiFi, tunnel, LAN storage, ATAK)…</string>
     <string name="page_security">Security (PIN, wipe, radio silent)…</string>
     <string name="page_data">Mission and data (mission, fake GPS, clearing data)…</string>
+    <string name="page_tools">Tools (make a QR, scan a QR, open in browser)…</string>
     <string name="black_screen">Black screen</string>
     <string name="black_screen_button">Show a Black screen button on the home screen</string>
     <string name="black_legacy">Legacy support, non zero brightness</string>

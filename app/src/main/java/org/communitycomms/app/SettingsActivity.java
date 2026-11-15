@@ -1199,6 +1199,14 @@ public final class SettingsActivity extends Activity {
             });
         }
         if (section >= 0) setTitle(getString(TITLES[section]).replace("…", ""));
+        View tools = findViewById(R.id.link_tools);
+        if (tools != null) tools.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                save();
+                startActivity(new android.content.Intent(SettingsActivity.this, ToolsActivity.class));
+            }
+        });
     }
 
     /** Opens one settings page directly (e.g. Mission and data from the Data screen). */

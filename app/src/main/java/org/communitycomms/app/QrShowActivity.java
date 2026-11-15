@@ -53,6 +53,22 @@ public final class QrShowActivity extends Activity {
         }
     };
 
+    private static final String EXTRA_SAVE = "save";
+    private static final int REQ_WRITE = 7;
+
+    /** One QR made from any text (Settings > Tools), with Save and Share buttons. */
+    public static void startWithSave(Context c, String payload, String title) {
+        ArrayList<String> p = new ArrayList<String>();
+        p.add(payload);
+        ArrayList<String> t = new ArrayList<String>();
+        t.add(title);
+        Intent i = new Intent(c, QrShowActivity.class);
+        i.putStringArrayListExtra(EXTRA_PAYLOADS, p);
+        i.putStringArrayListExtra(EXTRA_TITLES, t);
+        i.putExtra(EXTRA_SAVE, true);
+        c.startActivity(i);
+    }
+
     public static void start(Context c, ArrayList<String> payloads, ArrayList<String> titles, int[] colours) {
         Intent i = new Intent(c, QrShowActivity.class);
         i.putStringArrayListExtra(EXTRA_PAYLOADS, payloads);
@@ -103,6 +119,29 @@ public final class QrShowActivity extends Activity {
         nav.addView(auto);
         nav.addView(next, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
         if (payloads.size() > 1) root.addView(nav);
+        if (getIntent().getBooleanExtra(EXTRA_SAVE, false)) {
+            setTitle("QR code");
+            LinearLayout row = new LinearLayout(this);
+            Button save = new Button(this);
+            save.setText("Save image");
+            Button share = new Button(this);
+            share.setText("Share image");
+            row.addView(save, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+            row.addView(share, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+            root.addView(row);
+            save.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    saveImage();
+                }
+            });
+            share.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    shareImage();
+                }
+            });
+        }
         setContentView(root);
 
         prev.setOnClickListener(new View.OnClickListener() {
@@ -146,6 +185,116 @@ public final class QrShowActivity extends Activity {
         } catch (WriterException e) {
             title.setText("Too big for a QR code: " + titles.get(i));
         }
+    }
+
+    // ---- Save / Share (Tools QR only) ----
+
+    private String fileName() {
+        return "qr-" + new java.text.SimpleDateFormat("yyyyMMdd-HHmmss", java.util.Locale.US).format(new java.util.Date()) + ".png";
+    }
+
+    private Bitmap current() {
+        try {
+            return render(payloads.get(index));
+        } catch (WriterException e) {
+            android.widget.Toast.makeText(this, "Too big for a QR code", android.widget.Toast.LENGTH_LONG).show();
+            return null;
+        }
+    }
+
+    private void shareImage() {
+        Bitmap b = current();
+        if (b == null) return;
+        try {
+            java.io.File f = new java.io.File(FilesProvider.exportDir(this), fileName());
+            java.io.FileOutputStream out = new java.io.FileOutputStream(f);
+            try {
+                b.compress(Bitmap.CompressFormat.PNG, 100, out);
+            } finally {
+                out.close();
+            }
+            android.net.Uri u = FilesProvider.export(f);
+            Intent send = new Intent(Intent.ACTION_SEND);
+            send.setType("image/png");
+            send.putExtra(Intent.EXTRA_STREAM, u);
+            send.setClipData(android.content.ClipData.newRawUri("QR code", u));
+            send.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            startActivity(Intent.createChooser(send, "Share QR code"));
+        } catch (Exception e) {
+            android.widget.Toast.makeText(this, "Could not share: " + e.getMessage(), android.widget.Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void saveImage() {
+        if (android.os.Build.VERSION.SDK_INT >= 23 && android.os.Build.VERSION.SDK_INT < 29 && !canWrite()) {
+            askWrite();
+            return;
+        }
+        Bitmap b = current();
+        if (b == null) return;
+        String name = fileName();
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= 29) {
+                saveQ(b, name);
+            } else {
+                if (!android.os.Environment.MEDIA_MOUNTED.equals(android.os.Environment.getExternalStorageState())) {
+                    android.widget.Toast.makeText(this, "No storage to save to on this phone. Use Share image instead.",
+                            android.widget.Toast.LENGTH_LONG).show();
+                    return;
+                }
+                java.io.File dir = new java.io.File(android.os.Environment.getExternalStoragePublicDirectory(
+                        android.os.Environment.DIRECTORY_PICTURES), "YCC");
+                dir.mkdirs();
+                java.io.File f = new java.io.File(dir, name);
+                java.io.FileOutputStream out = new java.io.FileOutputStream(f);
+                try {
+                    b.compress(Bitmap.CompressFormat.PNG, 100, out);
+                } finally {
+                    out.close();
+                }
+                android.media.MediaScannerConnection.scanFile(this, new String[]{f.getAbsolutePath()},
+                        new String[]{"image/png"}, null);
+            }
+            android.widget.Toast.makeText(this, "Saved to Pictures/YCC/" + name, android.widget.Toast.LENGTH_LONG).show();
+        } catch (Exception e) {
+            android.widget.Toast.makeText(this, "Could not save: " + e.getMessage(), android.widget.Toast.LENGTH_LONG).show();
+        }
+    }
+
+    @android.annotation.TargetApi(29)
+    private void saveQ(Bitmap b, String name) throws java.io.IOException {
+        android.content.ContentValues v = new android.content.ContentValues();
+        v.put(android.provider.MediaStore.Images.Media.DISPLAY_NAME, name);
+        v.put(android.provider.MediaStore.Images.Media.MIME_TYPE, "image/png");
+        v.put(android.provider.MediaStore.Images.Media.RELATIVE_PATH, android.os.Environment.DIRECTORY_PICTURES + "/YCC");
+        android.net.Uri u = getContentResolver().insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, v);
+        if (u == null) throw new java.io.IOException("no media store");
+        java.io.OutputStream out = getContentResolver().openOutputStream(u);
+        if (out == null) throw new java.io.IOException("no stream");
+        try {
+            b.compress(Bitmap.CompressFormat.PNG, 100, out);
+        } finally {
+            out.close();
+        }
+    }
+
+    @android.annotation.TargetApi(23)
+    private boolean canWrite() {
+        return checkSelfPermission(android.Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                == android.content.pm.PackageManager.PERMISSION_GRANTED;
+    }
+
+    @android.annotation.TargetApi(23)
+    private void askWrite() {
+        requestPermissions(new String[]{android.Manifest.permission.WRITE_EXTERNAL_STORAGE}, REQ_WRITE);
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int code, String[] p, int[] r) {
+        if (code != REQ_WRITE) return;
+        if (r.length > 0 && r[0] == android.content.pm.PackageManager.PERMISSION_GRANTED) saveImage();
+        else android.widget.Toast.makeText(this, "Storage permission is needed to save the picture. Share image still works.",
+                android.widget.Toast.LENGTH_LONG).show();
     }
 
     static Bitmap render(String payload) throws WriterException {

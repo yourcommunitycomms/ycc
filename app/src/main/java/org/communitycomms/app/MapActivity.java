@@ -119,10 +119,27 @@ public final class MapActivity extends Activity {
             }
         });
         box.addView(types);
+        // T.REX Arms Topo Map: an imported offline map, switched on and off like the other sources.
+        final boolean haveTrex = !org.communitycomms.app.geo.TrexMaps.list(this).isEmpty();
+        final android.app.AlertDialog[] dlg = new android.app.AlertDialog[1];
+        layerTick(box, org.communitycomms.app.geo.TrexMaps.NAME + (haveTrex ? " (offline)" : " (import first)"),
+                haveTrex && org.communitycomms.app.geo.TrexMaps.enabled(this), dlg, new LayerFeed() {
+                    @Override
+                    public boolean set(boolean on) {
+                        if (!haveTrex) return false;
+                        org.communitycomms.app.geo.TrexMaps.setEnabled(MapActivity.this, on);
+                        tilePrompt.apply();
+                        return true;
+                    }
+
+                    @Override
+                    public void setUp() {
+                        startActivity(new android.content.Intent(MapActivity.this, TrexMapsActivity.class));
+                    }
+                });
         TextView over = new TextView(this);
         over.setText("\nOver the map:");
         box.addView(over);
-        final android.app.AlertDialog[] dlg = new android.app.AlertDialog[1];
         layerTick(box, "Ships and boats (AIS)", ships.enabled(), dlg, new LayerFeed() {
             @Override
             public boolean set(boolean on) {
@@ -1454,6 +1471,7 @@ public final class MapActivity extends Activity {
     public boolean onCreateOptionsMenu(android.view.Menu m) {
         m.add(0, 2, 0, "Online map tiles…");
         m.add(0, 10, 0, "Data Tile Management…");
+        m.add(0, 13, 0, "Data import and layers…");
         m.add(0, 1, 0, "Aircraft (ADS-B)…");
         m.add(0, 3, 0, "Ships (AIS)…");
         Prefs menus = new Prefs(this);
@@ -1514,6 +1532,10 @@ public final class MapActivity extends Activity {
             });
             return true;
         }
+        if (item.getItemId() == 13) {
+            startActivity(new android.content.Intent(this, TrexMapsActivity.class));
+            return true;
+        }
         if (item.getItemId() == 12) {
             setUpTrains();
             return true;
@@ -1552,7 +1574,9 @@ public final class MapActivity extends Activity {
         boolean online = map.hasOnline();
         String off = mp.offlineSetName();
         int mins = tilePrompt == null ? 0 : tilePrompt.minutesLeft();
-        sourceLabel.setText("Tiles: " + (off.length() > 0 ? "offline \"" + off + "\"" : "no offline set")
+        sourceLabel.setText("Tiles: " + (org.communitycomms.app.geo.TrexMaps.active(this) != null
+                ? org.communitycomms.app.geo.TrexMaps.NAME + " + " : "")
+                + (off.length() > 0 ? "offline \"" + off + "\"" : "no offline set")
                 + (online ? " + online (" + MapPrefs.ONLINE_NAMES[mp.onlinePreset()].split(" \\(")[0] + ")"
                 + (mp.onlineEnabled() ? " always" : mins >= 120 ? " for " + (mins + 59) / 60 + " h" : mins > 0 ? " for " + mins + " min" : "")
                 : ", online off") + " (tap to change)"
@@ -1564,7 +1588,9 @@ public final class MapActivity extends Activity {
                 + ", so Google's road map is used instead." : "")
                 + (online && android.os.Build.VERSION.SDK_INT < 20 && (mp.overlay().equals("web:3") || mp.overlay().equals("web:5"))
                 ? "\nThe OpenTopoMap / Esri overlay needs Android 5 or newer." : "")
-                + adsbStatus());
+                + adsbStatus()
+                + (org.communitycomms.app.geo.TrexMaps.active(this) != null
+                ? "\nMap data: " + org.communitycomms.app.geo.TrexMaps.attribution(org.communitycomms.app.geo.TrexMaps.active(this)) : ""));
     }
 
     /** The shared maps cache at work: tiles read from the LAN storage and given to it since the app started. */

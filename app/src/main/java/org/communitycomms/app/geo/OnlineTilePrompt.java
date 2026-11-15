@@ -74,6 +74,7 @@ public final class OnlineTilePrompt {
     public void apply() {
         boolean online = mp.onlineActive();
         map.setSources(mp.offlineFolder(), online ? mp.onlineUrl() : null, mp.onlineCache());
+        map.setTrex(TrexMaps.active(activity));
         mp.applyOverlay(map);
         map.setLan(new LanTiles(activity), mp.chosenUrl(), mp.overlayUrl());
         handler.removeCallbacks(expire);

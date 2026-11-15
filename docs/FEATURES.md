@@ -286,6 +286,18 @@ checksum-verified.
   Public key).
 - **Pigpen**: write with a classic or DRYAD-row key; decode on a tap pad.
 
+## Tools (Settings > Tools)
+Everyday helpers that are not radio features, on the main Settings page (not the home screen).
+- **Create QR from text**: type or paste any text and tap Make QR. The code fills a bright screen;
+  **Save image** puts a PNG in Pictures/YCC (Android 6 to 9 ask for storage permission the first
+  time), **Share image** hands it to any app.
+- **Scan QR code**: reads any QR code with the camera (permission asked on Android 6+) and shows its
+  text. Nothing opens by itself: **Copy**, **Open in browser** (only for http:// or https://),
+  **Use as QR text**, **Put in browser field**.
+- **Open in browser**: type, paste or take the QR text, then Open. Addresses that start with http://
+  or https:// open in the phone's browser straight away; anything else shows a warning first
+  (with **Add https:// and open** when there is no scheme at all).
+
 ## Protection and clearing up
 PIN for DRYAD, pigpen, channel names/QR and Settings. Lost-device protection: 2 wrong PINs erase
 all of the app's own data (including contacts and notes) and close it, sending nothing. Triple-tap
@@ -485,6 +497,16 @@ type ERASE). Destructive buttons ask first.
   source** for the LAN tiles. Settings > **Enable ATAK compatible** (off; plain text, warned): your
   position as CoT every 30 s, ATAK positions and All Chat Rooms shown, Public messages sent to ATAK.
   Private channels, voice and DRYAD never go to ATAK.
+- **T.REX Arms Topo Map** (map menu > **Data import and layers**, or the Data screen's button): an offline
+  topographic map (OpenStreetMap with hill shading, usually zoom 12 to 15) baked as an ATAK .mbtiles file
+  on the T.REX Arms Maps site. **How to make the file** gives the steps and opens maps.trex-arms.com in the
+  browser; **Import .mbtiles file** picks the file, copies it into the app's own folder (delete the download
+  afterwards) and shows its size, tiles, zooms and bounds; **Remove** deletes the copy. A file that is not
+  SQLite or has no tiles table is refused and nothing is kept. Switch it on or off with the tick on that
+  screen or under **Layer** on the map. It is read straight from the file, drawn first wherever it covers
+  (past its top zoom the deepest tile is enlarged; elsewhere the usual map shows), and the map shows its
+  credit line (© OpenStreetMap contributors plus the file's own attribution). These files are kept in their
+  own list: not part of the ATAK imports, offline sets, Send map tiles or sync.
 - **Commander view** extras: ▶ slides the side buttons away, leaving a small PTT and + POI on the map.
 - **Commander view:** someone back after more than 2 minutes offline who missed messages brings up a 10 s
   pop-up, "X has been offline for Y min and missed N messages on B. Send?" (Settings can switch it off).

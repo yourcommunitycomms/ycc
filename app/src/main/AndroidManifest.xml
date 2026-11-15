@@ -39,10 +39,11 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-    <!-- Only Android 4.1–4.3 need this to write the app's own folder on external storage. -->
+    <!-- Android 4.1–4.3 need this to write the app's own folder on external storage; up to Android 9
+         it is also asked for (only then) when Settings > Tools saves a QR picture to Pictures/YCC. -->
     <uses-permission
         android:name="android.permission.WRITE_EXTERNAL_STORAGE"
-        android:maxSdkVersion="18" />
+        android:maxSdkVersion="28" />
 
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
@@ -97,7 +98,9 @@
         <activity android:name=".DryadGenerateActivity" android:exported="false" />
         <activity android:name=".DryadShareActivity" android:exported="false" />
         <activity android:name=".QrShowActivity" android:exported="false" />
+        <activity android:name=".ToolsActivity" android:exported="false" android:windowSoftInputMode="stateHidden|adjustResize" />
         <activity android:name=".MapActivity" android:exported="false" />
+        <activity android:name=".TrexMapsActivity" android:exported="false" />
         <activity android:name=".StreamsActivity" android:exported="false" />
         <activity android:name=".KeysActivity" android:exported="false" />
         <service android:name=".TilePrefetchService" android:exported="false" android:foregroundServiceType="dataSync" />

@@ -151,12 +151,18 @@ MAPS AND LOCATION
   shareable to the channel.
 - ATAK: import and export map files, an ATAK map source for the LAN tiles, and an ATAK compatible
   switch (positions and All Chat Rooms; never private channels or voice).
+- T.REX Arms Topo Map (map menu, Data import and layers): steps to bake an offline topo .mbtiles file
+  on the T.REX Arms Maps site, import it into the app's own folder (size and bounds shown), remove it,
+  and switch it on or off as a map layer, with the OpenStreetMap credit shown on the map.
 
 CODES AND SECURITY
 - Modern DRYAD sheets: batches, validity times, names, colours, 5-letter IDs, random row order, huge
   AA to ZZ sheets, share by text, QR or radio, and a row can become a channel key.
 - DRYAD Enigma (encode and decode with QR), challenge and response, and a how-it-works page.
 - Pigpen cipher: write with a classic or DRYAD-row key, and decode by tapping symbols.
+- Tools (Settings > Tools): make a QR code from any text (full screen, save or share the picture),
+  scan any QR code and see its text (copy it, or open it if it is a web address), and open a web
+  address in the browser (anything not starting with http:// or https:// gets a warning first).
 - Automatic key rotation hourly or daily, and a read-only Public listen key.
 - PIN for codes, channels and settings; two wrong PINs (or a triple-tap on the callsign) erase all
   of the app's data.

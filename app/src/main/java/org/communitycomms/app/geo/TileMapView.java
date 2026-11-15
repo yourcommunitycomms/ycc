@@ -170,20 +170,20 @@ public final class TileMapView extends View {
     private void drawMe(Canvas c, float d) {
         if (Double.isNaN(meLat)) {
             if (meProblem != null) {
-                c.drawText(meProblem, 8 * d, getHeight() - 10 * d, haloPaint);
-                c.drawText(meProblem, 8 * d, getHeight() - 10 * d, textPaint);
+                c.drawText(meProblem, 8 * d, getHeight() - 10 * d - creditH, haloPaint);
+                c.drawText(meProblem, 8 * d, getHeight() - 10 * d - creditH, textPaint);
             }
             return;
         }
-        drawCrossBearing(c, d, getHeight() - 10 * d);
+        drawCrossBearing(c, d, getHeight() - 10 * d - creditH);
         if (speedText != null) {
             float wt = textPaint.measureText(speedText), tx = getWidth() - 12 * d - wt;
             c.drawText(speedText, tx, 86 * d, haloPaint);
             c.drawText(speedText, tx, 86 * d, textPaint);
         }
         if (meFake && !movedByHand) {
-            c.drawText("Me: (Fake) GPS position", 8 * d, getHeight() - 10 * d, haloPaint);
-            c.drawText("Me: (Fake) GPS position", 8 * d, getHeight() - 10 * d, textPaint);
+            c.drawText("Me: (Fake) GPS position", 8 * d, getHeight() - 10 * d - creditH, haloPaint);
+            c.drawText("Me: (Fake) GPS position", 8 * d, getHeight() - 10 * d - creditH, textPaint);
         }
         float mx = sx(Geo.lonToX(meLon, z)), my = sy(Geo.latToY(meLat, z));
         int blue = meStale ? 0xff90a4ae : 0xff2196f3;
@@ -551,11 +551,14 @@ public final class TileMapView extends View {
             c.drawText(m.label, mx + r * 1.4f, my + r * 0.5f, textPaint);
         }
         float d = getResources().getDisplayMetrics().density;
+        List<TrexMaps.Entry> tx = trex;
+        creditH = trexCredit != null && tx != null && TrexMaps.overlaps(tx, bounds()) ? 13 * d : 0;
         drawMe(c, d);
         drawCompass(c, d);
         drawCentreMe(c, d);
         if (scaleY > 0) drawScale(c, d);
         if (rulerOn) drawRuler(c, d);
+        drawTrexCredit(c, d);
     }
 
     // ---- scale bar and ruler (full map) ----
@@ -921,7 +924,8 @@ public final class TileMapView extends View {
                 boolean base = t[3] == 0;
                 String url = base ? onlineUrl : ovUrl;
                 File cacheDir = base ? onlineCache : ovCache;
-                b = fromFolder(base ? offline : ovOffline, t);
+                if (base && trex != null) b = fromTrex(trex, t); // T.REX Arms Topo Map first, where it has the area
+                if (b == null) b = fromFolder(base ? offline : ovOffline, t);
                 if (b == null) b = fromFolder(cacheDir, t);
                 // The LAN storage location (shared maps cache) before going online.
                 String lu = base ? lanBaseUrl : lanOvUrl;
@@ -952,6 +956,69 @@ public final class TileMapView extends View {
                 });
             }
         }
+    }
+
+    // ---- T.REX Arms Topo Map (.mbtiles read from SQLite, read-only) ----
+
+    private volatile List<TrexMaps.Entry> trex;
+    private volatile String trexCredit;
+    private final Paint creditPaint = new Paint(Paint.ANTI_ALIAS_FLAG), creditBg = new Paint();
+
+    /** The imported T.REX files to draw from first (null = off). */
+    public void setTrex(List<TrexMaps.Entry> files) {
+        List<TrexMaps.Entry> old = trex;
+        trex = files == null || files.isEmpty() ? null : files;
+        trexCredit = trex == null ? null : TrexMaps.attribution(trex);
+        if (old == null && trex == null) return;
+        cache.evictAll();
+        synchronized (missing) {
+            missing.clear();
+        }
+        invalidate();
+    }
+
+    /** The tile, or past the file's top zoom a scaled-up piece of its deepest tile (up to 6 levels). */
+    private static Bitmap fromTrex(List<TrexMaps.Entry> files, int[] t) {
+        int top = TrexMaps.maxZoom(files);
+        for (int up = 0; up <= 6 && t[0] - up >= 0; up++) {
+            int pz = t[0] - up;
+            if (up > 0 && pz > top) continue;
+            byte[] data = TrexMaps.tile(files, pz, t[1] >> up, t[2] >> up);
+            if (data == null) {
+                if (up == 0 && t[0] <= top) return null; // inside its zooms: missing here, use the other sources
+                continue;
+            }
+            Bitmap b = BitmapFactory.decodeByteArray(data, 0, data.length);
+            if (b == null || up == 0) return b;
+            int part = 1 << up, w = Math.max(1, b.getWidth() / part), h = Math.max(1, b.getHeight() / part);
+            int ox = (t[1] - ((t[1] >> up) << up)) * w, oy = (t[2] - ((t[2] >> up) << up)) * h;
+            Bitmap piece = Bitmap.createBitmap(b, ox, oy, w, h);
+            Bitmap out = Bitmap.createScaledBitmap(piece, 256, 256, true);
+            if (piece != b && piece != out) piece.recycle();
+            if (b != out) b.recycle();
+            return out;
+        }
+        return null;
+    }
+
+    /** "© OpenStreetMap contributors · …" along the bottom while the T.REX map is on screen. */
+    /** Height of the credit strip along the bottom this frame (0 = none); texts drawn there move up. */
+    private float creditH;
+
+    private void drawTrexCredit(Canvas c, float d) {
+        String s = trexCredit;
+        if (s == null || creditH <= 0) return;
+        creditPaint.setColor(0xff202020);
+        creditPaint.setTextSize(10 * d);
+        float pad = 3 * d, maxW = getWidth() - 2 * pad;
+        String line = s;
+        while (line.length() > 8 && creditPaint.measureText(line) > maxW - 2 * pad) line = line.substring(0, line.length() - 2);
+        if (!line.equals(s)) line = line.substring(0, line.length() - 1) + "…";
+        float w = creditPaint.measureText(line), h = 13 * d;
+        float x = getWidth() - w - 2 * pad, y = getHeight() - h;
+        creditBg.setColor(0xc0ffffff);
+        c.drawRect(x - pad, y, getWidth(), getHeight(), creditBg);
+        c.drawText(line, x, getHeight() - 3.5f * d, creditPaint);
     }
 
     private static Bitmap fromFolder(File root, int[] t) {
