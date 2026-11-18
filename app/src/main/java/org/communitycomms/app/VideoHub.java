@@ -40,7 +40,7 @@ public final class VideoHub {
     private static final Map<String, Long> pendingAt = new HashMap<String, Long>();
     public static volatile Runnable ui;
 
-    /** Plays camera audio; set only while the Tactical videos screen is open (nobody else hears it). */
+    /** Plays camera audio; set only while the Video feed screen is open (nobody else hears it). */
     public interface AudioOut {
         /** Whether this person's audio should be heard (shown, and in focus if one is). */
         boolean wants(String name);
@@ -117,16 +117,20 @@ public final class VideoHub {
         }
         Bitmap bm = BitmapFactory.decodeByteArray(jpeg, 0, jpeg.length);
         if (bm == null) return;
+        boolean started;
         synchronized (feeds) {
             Feed f = feeds.get(name);
+            long now = System.currentTimeMillis();
+            started = f == null || now - f.atMs > VideoNotice.GAP_MS; // first picture, or the first after a break
             if (f == null) {
                 f = new Feed(name);
                 feeds.put(name, f);
             }
             f.picture = bm;
-            f.atMs = System.currentTimeMillis();
+            f.atMs = now;
             f.frames++;
         }
+        if (started) VideoNotice.started(name);
         Runnable r = ui;
         if (r != null) r.run();
     }

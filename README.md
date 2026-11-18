@@ -2,7 +2,7 @@
 
 Download YCC.apk from the newest release: https://github.com/yourcommunitycomms/ycc/releases/latest/download/YCC.apk
 
-*For MANET and offline messaging.* Release 1 (2026-10-28).
+*For MANET and offline messaging.* Release 2 (2026-11-16; Release 1 was 2026-10-28).
 
 An Android app that turns phones and tablets into encrypted, full-duplex, many-to-many push-to-talk
 radios, with chat, maps, reports and field codes (DRYAD, pigpen), over an OpenMANET mesh or any
@@ -19,16 +19,19 @@ the prompt in `docs/RECREATE-PROMPT.md`, which anyone can use to build their own
 |---|---|
 | `app/` | The Android app (plain Java, no AndroidX, minSdk 16, targetSdk 34) |
 | `server/` | The LAN storage server: Python 3, no add-ons, Dockerfile, `/webadmin` page |
-| `relay/` | `UdpRelay.java`, a tiny UDP relay to join emulators or separate networks |
+| `relay/` | `UdpRelay.java`, a tiny UDP relay to join emulators or separate networks; `relay/server`, the internet relay (`ycc-relay.jar`) for a small cloud server |
 | `docs/` | User guide, all-features list, server and desktop setup, protocol, rebuild prompt, getting-started guide |
 | `website/` | A static website for the project, with downloads (APK, docs, the Pi expansion board) |
 | `logo/` | The app icon (SVG) |
-| `tools/` | `publish-github-release.ps1`: publish the APK as a GitHub release |
+| `tools/` | `push-to-github.ps1` (push the project) and `publish-github-release.ps1` (publish the APK and relay as a GitHub release) |
 
 Start with `docs/YourCommunityCommunications-GettingStarted.docx`, then `docs/FEATURES.md`
 (user guide), `docs/ALL-FEATURES.txt` (every feature in one list) and `docs/NOMAD-SETUP.md` (the
 server, and the commander view on an Ubuntu desktop). `docs/PROTOCOL.md` is the exact wire format
-and encryption, with test vectors.
+and encryption, with test vectors. `docs/PI-SETUP.md` sets up a Raspberry Pi cache server,
+`docs/REQUIREMENTS.md` lists what was asked for (and what is still open), `docs/BUILD-IT-YOURSELF.md`
+gives the requests that built it, step by step, `docs/known-issues.md` the bugs to watch for, and
+`docs/UPDATES.md` the changes (full dated history in `docs/archive/`).
 
 ## Building the app
 

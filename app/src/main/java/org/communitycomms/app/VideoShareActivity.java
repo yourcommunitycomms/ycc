@@ -25,7 +25,7 @@ import android.widget.Toast;
 
 /**
  * Share my camera: small, low-rate pictures (1 to 5 a second, or up to 15 when Tiny) to everyone on
- * the channel, for the Tactical videos screen, with optional audio (off by default) and a telemetry
+ * the channel, for the Video feed screen, with optional audio (off by default) and a telemetry
  * overlay. The source is this phone's back or front camera, or a network camera on the MANET (a
  * "float cam", dash cam or IP camera) that gives a still JPEG at a web address.
  * <p>
@@ -73,7 +73,7 @@ public final class VideoShareActivity extends Activity {
         size = spinner(root, "Picture size", SIZES, sp.getInt("size", 1));
         rate = spinner(root, "Pictures", RATES, sp.getInt("rate", 2));
         audio = new android.widget.CheckBox(this);
-        audio.setText("Send audio too (only heard by people on the Tactical videos screen)");
+        audio.setText("Send audio too (only heard by people on the Video feed screen)");
         audio.setChecked(sp.getBoolean("audio", false));
         root.addView(audio);
         overlay = new android.widget.CheckBox(this);
@@ -257,7 +257,7 @@ public final class VideoShareActivity extends Activity {
         torch.setText(CameraShareService.torchOn() ? "Torch off" : "Torch");
         String s = CameraShareService.statusLine;
         status.setText(on ? (s == null || s.length() == 0 ? "Sharing" : s)
-                : "Pictures go to everyone on your current channel. Others see them under Tactical videos. "
+                : "Pictures go to everyone on your current channel. Others see them under Video feed. "
                 + "Sharing keeps going after Home or Blackout (a red dot notification shows it).");
         Bitmap bm = CameraShareService.lastPicture;
         if (on && bm != null && !bm.isRecycled()) preview.setImageBitmap(bm);

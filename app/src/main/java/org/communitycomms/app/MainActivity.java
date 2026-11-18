@@ -514,6 +514,8 @@ public final class MainActivity extends Activity implements RadioService.Ui {
     @Override
     protected void onResume() {
         super.onResume();
+        anchorWatch = AnchorButton.watch(this);
+        invalidateOptionsMenu();
         RadioService.locationAsk = homeLocationAsk;
         if (homePad != null) homePad.setVisibility(org.communitycomms.app.geo.MapPad.shown(this) ? View.VISIBLE : View.GONE);
         askBlackScreenOnce();
@@ -961,8 +963,12 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         apply.run();
     }
 
+    private android.content.BroadcastReceiver anchorWatch;
+
     @Override
     protected void onPause() {
+        AnchorButton.unwatch(this, anchorWatch);
+        anchorWatch = null;
         if (RadioService.locationAsk == homeLocationAsk) RadioService.locationAsk = null;
         if (RadioService.missedListener == missedOffer) RadioService.missedListener = null;
         blackTimer.removeCallbacks(goBlack);
@@ -1583,7 +1589,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
                 .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS);
         menu.add(0, MENU_TOP_BLACK, 0, "Blackout (double-tap to wake)").setIcon(android.R.drawable.ic_lock_power_off)
                 .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS);
-        menu.add(0, MENU_VIDEOS, 5, "Tactical videos"); // TV mode is in Settings (and in the title bar on a TV)
+        menu.add(0, MENU_VIDEOS, 5, "Video feed"); // TV mode is in Settings (and in the title bar on a TV)
         if (TvActivity.isTv(this)) {
             menu.add(0, MENU_TV, 0, "TV mode").setIcon(android.R.drawable.ic_menu_slideshow)
                     .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS | MenuItem.SHOW_AS_ACTION_WITH_TEXT);
@@ -1598,6 +1604,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         menu.add(0, MENU_BLUETTI, 2, "Battery power");
         menu.add(0, MENU_GATEWAY, 6, "OpenMANET internet gateway");
         menu.add(0, MENU_EXIT, 10, "Exit (go off air and close)");
+        AnchorButton.add(this, menu); // shows while plugged in (or anchored): one tap sets or clears Anchored
         return true;
     }
 
@@ -1671,6 +1678,9 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         }
         MenuItem ic = menu.findItem(MENU_INTERCOM);
         if (ic != null) ic.setVisible(prefs.appMode() == Prefs.MODE_INTERCOM);
+        AnchorButton.update(this, menu);
+        MenuItem anc = menu.findItem(AnchorButton.MENU_ID);
+        if (anc != null && prefs.appMode() == Prefs.MODE_INTERCOM) anc.setVisible(false);
         return super.onPrepareOptionsMenu(menu);
     }
 
@@ -1982,6 +1992,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
 
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
+        if (AnchorButton.onSelected(this, item)) return true;
         int id = item.getItemId();
         if ((id == MENU_SETTINGS || id == MENU_DRYAD || id == MENU_CHANNEL_QR || id == MENU_SCAN || id == MENU_OPENMANET)
                 && blockedByLock()) {

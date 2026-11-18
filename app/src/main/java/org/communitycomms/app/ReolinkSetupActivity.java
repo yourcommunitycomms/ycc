@@ -21,9 +21,9 @@ import org.communitycomms.app.camera.ReolinkCam;
 import java.util.List;
 
 /**
- * Reolink cameras: the one list shared by Tactical videos and the Intercom. Add with the wizard,
+ * Reolink cameras: the one list shared by Video feed and the Intercom. Add with the wizard,
  * tap a camera to change its options, test or remove it; Settings holds the default sign-in, the
- * floodlight time, the quiet time and what counts as a trigger. Opened from Tactical videos, and
+ * floodlight time, the quiet time and what counts as a trigger. Opened from Video feed, and
  * from the Intercom behind the PIN.
  */
 public final class ReolinkSetupActivity extends Activity {
@@ -84,7 +84,7 @@ public final class ReolinkSetupActivity extends Activity {
         if (cams.isEmpty()) {
             TextView t = new TextView(this);
             t.setText("No cameras yet. Find and add cameras scans this network for Reolink cameras (no internet needed). "
-                    + "They then show on the Tactical videos screen with the shared phone cameras, and on the Intercom.");
+                    + "They then show on the Video feed screen with the shared phone cameras, and on the Intercom.");
             t.setPadding(0, (int) (12 * d), 0, 0);
             list.addView(t);
             return;

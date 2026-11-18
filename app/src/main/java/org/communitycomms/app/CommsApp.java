@@ -17,6 +17,7 @@ public final class CommsApp extends Application {
         Cw.restore(this); // CW mode survives a restart or a crash
         org.communitycomms.app.geo.Geo.loadUnits(this);
         registerActivityLifecycleCallbacks(new LightDiscipline());
+        registerActivityLifecycleCallbacks(new VideoNotice()); // "X has started their video feed"
         PowerMode.load(this);
         registerActivityLifecycleCallbacks(new HomeButton());
         registerActivityLifecycleCallbacks(new Orientation());

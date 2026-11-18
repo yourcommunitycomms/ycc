@@ -429,7 +429,7 @@ public final class CameraShareService extends Service implements Camera.PreviewC
         }
     }
 
-    // ---- audio (optional): 80 ms of IMA ADPCM per packet, played only on the Tactical videos screen ----
+    // ---- audio (optional): 80 ms of IMA ADPCM per packet, played only on the Video feed screen ----
 
     private void startMic() {
         final int frame = RadioEngine.FRAME_SAMPLES, per = org.communitycomms.app.audio.ImaAdpcm.encodedSize(frame);

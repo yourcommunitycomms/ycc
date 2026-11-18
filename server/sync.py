@@ -13,7 +13,17 @@ import threading
 import time
 from urllib.parse import quote, urlsplit
 
-FOLDERS = ("Configs", "DRYAD", "Data", "Logs", "Maps cache", "Missions", "Updates")
+FOLDERS = ("Configs", "DRYAD", "Data", "Logs", "Maps cache", "Missions", "T.REX Arms Topo Map", "Updates")
+# The folders there were before a destination remembered which ones it had been offered: a folder added
+# later (T.REX Arms Topo Map) is copied to destinations saved before it existed, unless unticked since.
+_OLD_FOLDERS = ("Configs", "DRYAD", "Data", "Logs", "Maps cache", "Missions", "Updates")
+
+
+def chosen(d):
+    """The folders this destination gets: the ones ticked, plus any added to the server since it was saved."""
+    picked = d.get("folders") or FOLDERS
+    offered = d.get("offered") or _OLD_FOLDERS
+    return [f for f in FOLDERS if f in picked or f not in offered]
 CHUNK = 64 * 1024
 
 _root = _ycc = _file = _state_dir = None
@@ -248,7 +258,7 @@ def run(d):
     t0 = time.time()
     result = None
     try:
-        for i, (rel, p) in enumerate(_files(d.get("folders") or FOLDERS)):
+        for i, (rel, p) in enumerate(_files(chosen(d))):
             if did in _stop:
                 result = "Stopped"
                 break
@@ -306,7 +316,7 @@ def _form_dest(d, e, hidden, confirm, new):
                       "size=12 autocomplete=off placeholder='%s'>" % (e(d.get("user", "")),
                                                                      "unchanged" if d.get("pass") else "")))
     boxes = " ".join("<label><input type=checkbox name='f|%s'%s> %s</label>"
-                     % (e(f), " checked" if f in (d.get("folders") or FOLDERS) else "", e(f)) for f in FOLDERS)
+                     % (e(f), " checked" if f in chosen(d) else "", e(f)) for f in FOLDERS)
     out.append(row % ("Folders", boxes))
     out.append(row % ("Schedule", "every <input type=number name=every min=5 value=%d> minutes, between "
                       "<input type=number name=from_h min=0 max=23 value=%d> and <input type=number name=to_h min=0 "
@@ -366,7 +376,7 @@ def act(form):
             dests.append(d)
         folders = [f for f in FOLDERS if ("f|" + f) in form]
         d.update(name=form.get("name", "").strip() or url, url=url, user=form.get("user", "").strip(),
-                 folders=folders or list(FOLDERS), every=every, from_h=from_h, to_h=to_h, kbps=kbps, on="on" in form)
+                 folders=folders or list(FOLDERS), offered=list(FOLDERS), every=every, from_h=from_h, to_h=to_h, kbps=kbps, on="on" in form)
         if form.get("pass"):
             d["pass"] = form["pass"]
         if d.get("url_was") != url:  # a new address starts over: check every file again

@@ -19,7 +19,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * Watches the saved Reolink cameras while a video screen is open (Tactical videos, TV, Intercom,
+ * Watches the saved Reolink cameras while a video screen is open (Video feed, TV, Intercom,
  * a camera full screen), or in the background for the linked floodlights if that is switched on.
  * Each lens gets its own thread: about once a second it asks GetMdState + GetAiState, and while a
  * screen is open it fetches a Snap picture for the tiles (every second for the lens in front,

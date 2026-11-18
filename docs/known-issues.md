@@ -148,7 +148,21 @@ Each of these happened in the original build. Check for them in yours.
   stream for each part), Snap = cmd 109 (the picture follows in more messages with the same number, ending
   with an empty one), events = cmd 31 subscribe then cmd 33 pushes, keepalive cmd 93, answer heartbeat cmd 234.
   Never copy AGPL code for this; keep the MIT notice of the description used (NOTICE).
+**Found in Release 2 (2026-11-15)**
+- **Turning the phone lifts the black screen.** A rotation rebuilds the activity and the cover is gone. Lock the
+  orientation while black (SCREEN_ORIENTATION_LOCKED on 4.3+, the current fixed orientation on 4.1/4.2) and
+  restore it at the double tap; if a configuration change rebuilds it anyway, black it out again on resume.
+- **Signed channels have a different tag.** A changed Public key or a cloud group takes its tag from the listen
+  secret (ChannelCrypto("L:" + base32(S))), so filters that worked the tag out from the key itself found nothing.
+- **Do not count hidden lists.** The status line counted Channel array rows (listened to by default) even with the
+  Channel array menu off, so a phone said "and 25 teams" with nothing to see. Only listen to what the user can see.
+- **PowerShell alias trap when scripting tests:** `R` is Invoke-History, and `-eq` is case-insensitive.
+- **Testing on the Android 4.1 emulator:** with the backlight at exactly 0 (Blackout) adb shell calls hang until the
+  emulator is restarted; test blackout there with the legacy (lowest backlight) setting. `adb install -r` while the
+  app is open can log "Unable to instantiate application" once as Android restarts it mid-install; it is harmless.
+- **Typed grid references:** pick the 2000 km northing cycle from the band (or the map's +), place a short
+  reference in the middle of its square, and test that every reference the map shows parses back to itself.
 **Not yet tested on real equipment:** scanning a phone setup QR code with a real camera, Bluetooth PTT buttons (e.g. FalconClaw "BLU-PTT"; the signal it
 sends is unknown, so the app shows the last raw value in Settings), OpenMANET / ATAK Vx voice, USB,
 network and intercom cameras, the possible-gunshots alert, crash detection, tunnel comms over a real
-router and the internet, internet radio streams, Reolink live video, sound and multi-camera alerts (tested against tools/fake-reolink only).
+router and the internet, internet radio streams, Reolink live video, sound and multi-camera alerts (tested against tools/fake-reolink only); cloud groups and the internet relay on a real server; Tesla Powerwall 2, Anker SOLIX and EcoFlow readers on real units; a real baked T.REX Arms map file; scanning QR codes with a real phone camera (Tools, cloud group Scan QR); spoken route stop announcements and protected meeting reminders going off on a real phone.

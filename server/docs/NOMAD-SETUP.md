@@ -1,4 +1,4 @@
-# Server and desktop setup (release 1)
+# Server and desktop setup (release 2)
 
 Two optional extras for a group using Your Community Communications:
 

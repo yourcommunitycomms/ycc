@@ -1123,6 +1123,8 @@ public final class MapActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        anchorWatch = AnchorButton.watch(this);
+        invalidateOptionsMenu();
         tilePrompt.resume();
         myPos.start();
         handler.post(tick);
@@ -1494,11 +1496,21 @@ public final class MapActivity extends Activity {
             m.add(0, 5, 0, "Export this area for ATAK…");
             m.add(0, 6, 0, "ATAK map source for the LAN tiles…");
         }
+        AnchorButton.add(this, m);
         return true;
     }
 
     @Override
+    public boolean onPrepareOptionsMenu(android.view.Menu m) {
+        AnchorButton.update(this, m);
+        return super.onPrepareOptionsMenu(m);
+    }
+
+    private android.content.BroadcastReceiver anchorWatch;
+
+    @Override
     public boolean onOptionsItemSelected(android.view.MenuItem item) {
+        if (AnchorButton.onSelected(this, item)) return true;
         if (item.getItemId() == 2) {
             tilePrompt.choose();
             return true;
@@ -1647,6 +1659,8 @@ public final class MapActivity extends Activity {
 
     @Override
     protected void onPause() {
+        AnchorButton.unwatch(this, anchorWatch);
+        anchorWatch = null;
         tilePrompt.pause();
         myPos.stop();
         adsb.stop();

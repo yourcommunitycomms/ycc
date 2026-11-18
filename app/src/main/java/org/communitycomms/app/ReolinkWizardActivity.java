@@ -591,7 +591,7 @@ public final class ReolinkWizardActivity extends Activity {
 
     private void showOptions() {
         text("Bring to front: when this camera sees motion or a person / vehicle / animal, its picture fills the "
-                + "Tactical videos and Intercom screens until it has been quiet for a while.\n"
+                + "Video feed and Intercom screens until it has been quiet for a while.\n"
                 + "Linked floodlight: when any linked camera is triggered, every linked camera with a floodlight turns it on, "
                 + "then off again after the set time (Settings on the camera list).");
         for (final Lens l : lenses) {
@@ -643,7 +643,7 @@ public final class ReolinkWizardActivity extends Activity {
 
     private void showSave() {
         int n = 0;
-        StringBuilder s = new StringBuilder("These will be added (shared by Tactical videos and the Intercom):\n");
+        StringBuilder s = new StringBuilder("These will be added (shared by Video feed and the Intercom):\n");
         for (Lens l : lenses) {
             if (!l.picked) continue;
             n++;

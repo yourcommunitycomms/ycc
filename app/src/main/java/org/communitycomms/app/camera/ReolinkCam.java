@@ -11,7 +11,7 @@ import java.util.List;
 
 /**
  * One Reolink camera lens (a dual-lens camera or an NVR channel is saved as one entry per lens),
- * and the shared list used by both the Tactical videos and the Intercom screens. Kept only in
+ * and the shared list used by both the Video feed and the Intercom screens. Kept only in
  * this phone's own "reolink" preferences file: never in the setup QR, settings share, LAN sync
  * or logs (ConfigShare only copies the settings/map/quickProfiles/dryad files).
  */

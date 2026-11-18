@@ -1,4 +1,4 @@
-# Your Community Communications user guide (release 1, 2026-10-28)
+# Your Community Communications user guide (release 2, 2026-11-16)
 
 Push-to-talk radio, chat, maps and field tools for OpenMANET meshes or any WiFi network. Sideloaded
 APK, no accounts, works fully offline, runs on Android 4.1 (2012) to Android 14. An optional **LAN
@@ -209,7 +209,7 @@ phone call volume (radio audio) and media volume, an in-app hearing boost and mi
 - **Lock**: blocks channel changes, Channels and setup; PTT, map points, chat
   and reports still work. Hold the button to unlock.
 - **Red light mode** and **Blackout** (black screen, app keeps running,
-  double-tap to wake; the power button or leaving the app also ends it) in the menu. Blackout gives no light at all. On an older device where double-tap does not wake it, tick **Legacy support, non zero brightness** in Settings > Power and sleep.
+  double-tap to wake; the power button or leaving the app also ends it) in the menu. Blackout gives no light at all. On an older device where double-tap does not wake it, tick **Legacy support, non zero brightness** in Settings > Power and sleep. While black, turning the phone does not turn the screen or bring it back: it keeps the way it faced until the double tap, then turns as usual.
 - **Black screen button** on the home screen (Settings, off by default, with how to get out:
   double-tap) and **black screen after N seconds** without a touch (0 = never; Settings warns when
   the phone's own screen timeout is shorter).
@@ -317,6 +317,7 @@ the callsign for the same wipe.
   **Deep sleep** (experimental, off by default): with the screen off and nothing said for 2 minutes, the phone lets go of its CPU lock and sleeps between packets, checking in every minute. Saves the most battery; some phones miss the start of a call while asleep, so test it on yours first.
   **Away** (the status button): with the screen off the phone sleeps like Ultra low and checks in by itself. Others see "Away, auto check-in in about 6 min": that is the phone checking in automatically, not the person coming back. Voice and messages missed while asleep come back with the catch-up at each check-in. Mission mode on the channel keeps an Away phone awake.
   **I'm on mains power (anchor):** set by hand (a power bank is not mains). The phone stays fully awake and keeps a copy of everything said, so sleeping phones catch up from it. With an anchor heard in the last 10 minutes, sleepers use the full max sleep time; without one, sleeps are kept to 10 minutes at most. If an anchor is unplugged for 10 minutes it tells the channel "Anchor NAME lost mains power" (handy if a generator or base power fails) and asks its owner whether it is still an anchor; plugging back in says so. Contacts show "(anchor)".
+  - **Anchored button** (title bar of the radio home, map home and full map): while plugged in it shows a grey crossed anchor (not anchored) or a gold anchor (anchored); tap to set or clear Anchored, with a question first. An anchored device on battery shows a red dot on the anchor (power lost). Plugging in never anchors a device by itself.
   **Burst sleep windows** (on by default): when everyone heard on the channel is in burst mode and the screen is off, the phones wake together for 5 seconds in every 30 (lined up to the clock) and sleep in between; bursts recorded meanwhile go out at the next window. Live voice, the screen or a mission brings full listening back.
   **Radio silence check-in windows** (off by default; every phone on the channel must use the same setting): about every 15 minutes to 4 hours, open for 3, 5 or 10 minutes. The windows are worked out from the channel key and the clock, so the phones agree but a listener cannot predict them (an hourly window lands anywhere from 50 to 70 minutes). Outside a window the app sends nothing at all: no check-ins, acks or positions; texts wait in Chat and reach the others through the catch-up at the next window, and PTT records a message that goes out then. The channel line says "RADIO SILENCE, next check-in window about HH:MM". At the overdue mark (4 minutes in, or sooner for short windows) anyone heard in the last window but not this one is named overdue by one phone, and everyone stays awake 5 more minutes; missing two windows alerts with their last position. Mission mode breaks the silence. Wi-Fi itself still sends small housekeeping frames and mesh nodes keep broadcasting: true silence needs flight mode.
   **Max sleep time** (1 to 60 minutes, 5 to start) is how long Ultra low and Away sleep between check-ins. Others are told, so they do not count the phone as lost. On Android 6 to 11 a still phone may stretch sleeps under about 9 minutes.
@@ -443,7 +444,7 @@ type ERASE). Destructive buttons ask first.
 - **Online map tiles…** (map menu, or tap the Tiles line): online for 5 min, 1 hour, 1 day,
   permanently, or offline now. Android 4.x uses Google's road map in place of OSM/Topo/Esri (their
   servers need newer TLS).
-- The + position as lat/lon and **MGRS**; ▼/▲ folds the buttons and list away; **+ POI** adds a point In the point's box the position line ("at …" with the grid reference) can be tapped to **type a position**: GPS latitude / longitude (decimal or degrees minutes seconds) or a grid reference (full, square + figures, or 6 / 8 / 10 figures in the map's square); it then reads "GPS: …" or "mil: …".
+- The + position as lat/lon and **MGRS** (lat/lon on one line, the whole grid reference on the next, never split); ▼/▲ folds the buttons and list away; **+ POI** adds a point In the point's box the position line ("at …" with the grid reference) can be tapped to **type a position**: GPS latitude / longitude (decimal or degrees minutes seconds) or a grid reference (full, square + figures, or 6 / 8 / 10 figures in the map's square); it then reads "GPS: …" or "mil: …".
   at the +; the home map centres on you when opened.
 - **Map point shapes** (rectangle, circle, oval, line, arrow, text box) with colours; **Also share on
   Public**. Photo points keep the photo's direction and field of view (a cone). Icon picker with all
@@ -551,15 +552,15 @@ type ERASE). Destructive buttons ask first.
 - **Burst voice** (Audio page): record while PTT is held, sent as one file on release, plays by
   itself on arrival (quality from AMR 4.75k to AAC 48k). For weak links. A burst that arrives while the channel is busy
   waits (up to 1 min by default, set on the Audio page) and plays once it clears, with an optional call-waiting beep.
-- **Share my camera** (phone or network camera, small pictures 1–5 per second, or 10–15 when Tiny; optional audio, off by default, heard only on the Tactical videos screen) and **Tactical
+- **Share my camera** (phone or network camera, small pictures 1–5 per second, or 10–15 when Tiny; optional audio, off by default, heard only on the Video feed screen) and **Tactical
   **Telemetry overlay** (ticked to start): each picture carries this phone's position (with accuracy), the compass heading the camera points (with a small north arrow), tilt and roll, speed when the GPS knows it, and the time, drawn onto the picture before it is sent, so every viewer sees it. With a network camera the figures are this phone's, so keep the phone with the camera.
-  Sharing keeps running after Home, another app or **Blackout** (it runs as its own service): a red-dot notification says the camera is live and has a **Stop** button. The Share my camera screen shows the pictures as they go out, and has **Torch** (the back camera's flash at full power) and **Blackout**; Tactical videos has **Blackout** in its top row and shows a dot on My camera while it is shared.
+  Sharing keeps running after Home, another app or **Blackout** (it runs as its own service): a red-dot notification says the camera is live and has a **Stop** button. The Share my camera screen shows the pictures as they go out, and has **Torch** (the back camera's flash at full power) and **Blackout**; Video feed has **Blackout** in its top row and shows a dot on My camera while it is shared.
   videos** (a grid of chosen people's cameras, tap to enlarge).
-  Tactical videos goes to **Blackout by itself** after 60 s with no touch and no camera trigger (the **timer icon** beside
+  Video feed goes to **Blackout by itself** after 60 s with no touch and no camera trigger (the **timer icon** beside
   Blackout shows it on, or crossed out when off, and one tap switches it; menu > Auto blackout:
   on or off and the time). A triggered Reolink camera wakes it and shows that camera; it goes back to Blackout once
   the cameras have been quiet for the hold time.
-- **Reolink cameras** (Tactical videos menu > Reolink cameras, or on the Intercom the **Camera** button or the
+- **Reolink cameras** (Video feed menu > Reolink cameras, or on the Intercom the **Camera** button or the
   menu dots > Reolink cameras, which ask for the PIN if one is set). One list, shared by both screens, kept only
   on this phone: user names and passwords are never in the setup QR, shared settings, LAN sync or logs.
   - **Find and add cameras** (a wizard, no internet needed): scans this network (an ONVIF discovery call, then
@@ -574,15 +575,15 @@ type ERASE). Destructive buttons ask first.
     and says so. Turn on HTTP (or HTTPS) and RTSP in the Reolink app (camera Settings > Network > Advanced > Port
     Settings) and scan again.
   - **Tiles**: small still pictures (asked for at 640x360, about 30 KB) from each lens every 2 s, shown with the
-    shared phone cameras on Tactical videos and TV, and in a strip above the rooms on the Intercom. They work on
+    shared phone cameras on Video feed and TV, and in a strip above the rooms on the Intercom. They work on
     every Android version. A tile says "offline" and why if the camera stops answering.
   - **Full screen** (tap a camera tile): pictures at about 2 a second, **Live video** (the RTSP stream; if this
     phone cannot play it, or it does not start in 15 s, it goes back to pictures), **Listen** (the camera's
     microphone through the stream; live video always starts muted), **Light on/off** (cameras with a floodlight)
     and **Close**. Live video did not play on the phones tried so far (see below), so expect pictures.
   - **Triggers**: about once a second the app asks each lens for motion and AI detection (person, vehicle,
-    animal) while Tactical videos, TV, the Intercom or a camera is open. Triggered cameras with Bring to front
-    fill the Tactical videos wall together (one fills it, two split it...; tap to go back to the grid) and take
+    animal) while Video feed, TV, the Intercom or a camera is open. Triggered cameras with Bring to front
+    fill the Video feed wall together (one fills it, two split it...; tap to go back to the grid) and take
     the TV's video corner. On the Intercom they open on a full-screen camera page (also out of Blackout, but
     not while the intercom is talking); tap one there for its own full screen. Each stays up for the **hold
     time** after its own movement ends (60 s by default). When all have gone quiet the camera page closes, and an
@@ -661,7 +662,7 @@ type ERASE). Destructive buttons ask first.
     goes to the channel until the unit is down to **10%** (Settings: "Send status and alerts ... at or below %"; 100 =
     always). From then it **shares a short status** ("Power station EL30V2: 9%, in 0 W, out 45 W, about 35 min left")
     every 5 minutes when it has changed (the minutes are a setting) and at once on a 5% change. The **On the channel**
-    part of the Bluetti power screen lists the latest status from each phone (no Bluetooth needed there), and the
+    part of the Battery power screen lists the latest status from each phone (no Bluetooth needed there), and the
     **commander view** (and Contacts) shows a small power station icon with the unit's % next to that phone's own
     battery %; More details shows the whole latest message.
   - **Alerts** to the channel, like the Reolink ones (text, optionally read aloud on the other phones): **low battery**

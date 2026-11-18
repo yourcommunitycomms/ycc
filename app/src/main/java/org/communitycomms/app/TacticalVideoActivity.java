@@ -26,10 +26,12 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Tactical videos: everyone's shared camera in a grid, like a control-room wall. Choose who to
+ * Video feed: everyone's shared camera in a grid, like a control-room wall. Choose who to
  * show (others are hidden), tap a picture to fill the screen with it, tap again to go back.
  */
 public final class TacticalVideoActivity extends Activity {
+    /** Open on this person's feed (the video feed notice). */
+    static final String EXTRA_FOCUS = "focus";
     private static final int MENU_PEOPLE = 1, MENU_SHARE = 2, MENU_BLACKOUT = 3, MENU_CAMS = 4, MENU_AUTOBLACK = 5, MENU_ABTOGGLE = 6;
     private Wall wall;
     private SharedPreferences sp;
@@ -126,7 +128,7 @@ public final class TacticalVideoActivity extends Activity {
     @Override
     protected void onCreate(Bundle b) {
         super.onCreate(b);
-        setTitle("Tactical videos");
+        setTitle("Video feed");
         sp = getSharedPreferences("video", MODE_PRIVATE);
         wall = new Wall(this);
         wall.hidden = hidden(sp);
@@ -138,6 +140,11 @@ public final class TacticalVideoActivity extends Activity {
             }
         };
         setContentView(wall);
+        String focusOn = getIntent().getStringExtra(EXTRA_FOCUS); // from "X has started their video feed"
+        if (focusOn != null) {
+            wall.hidden.remove(focusOn);
+            wall.focus = focusOn;
+        }
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
     }
 

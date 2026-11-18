@@ -1,4 +1,4 @@
-YOUR COMMUNITY COMMUNICATIONS - ALL THE FEATURES (release 1, 28 October 2026)
+YOUR COMMUNITY COMMUNICATIONS - ALL THE FEATURES (release 2, 16 November 2026)
 For MANET and offline messaging.
 
 Plain text, one feature per line, grouped by area, written to be read straight through or read
@@ -96,7 +96,8 @@ MAPS AND LOCATION
   photo points with their direction cone, move, edit, remove, announce, and sync with everyone.
 - Share my location for 30 minutes or until stopped; it carries on after a restart.
 - Send my location when I transmit (optional).
-- Bearing and distance to the map cross, lat/lon and MGRS of the cross.
+- Bearing and distance to the map cross, lat/lon and MGRS of the cross (lat/lon on one line, the whole grid reference on the next).
+- Type a map point's position: GPS latitude / longitude (decimal or degrees minutes seconds) or a grid reference (full, square and figures, or 6, 8 or 10 figures in the map's square); it shows as "GPS: ..." or "mil: ...".
 - Full-screen baseplate compass with bearings to points and people, true or magnetic north.
 - Navigate to a point online (Google Maps or another map app) or offline on the app's own map, driving or walking, with turn prompts; missing street routing data is offered for download.
 - Copy the + position (for pasting into Google Maps); Share asks clipboard or team.
@@ -106,6 +107,7 @@ MAPS AND LOCATION
 - The app can open into the full map or TV mode, and the screen can be locked to portrait or landscape, or turned upside down.
 - Calendar and notes: my calendar, a team calendar shared on the channel, both together in two colours, reminders with an optional buzz, and notes with pictures in the text.
 - Protected notes and calendar entries: a padlock and a password (no recovery) keep chosen notes and entries encrypted on this phone only; they are hidden every time the screen opens until unlocked, and never shared or synced.
+- Protected entries: 3 wrong passwords in a row erase them; Change protected password and Erase all protected entries; a protected calendar entry starts with no reminder, and "Add a Protected Meeting reminder" shows no details.
 - Specialised menus (channel array, reports to leaders, tasks, Project NOMAD, VicEmergency, Melbourne trains preset, station names, ARTC rail, ATAK map menu items, Cast screen to TV, Calendar and notes, Relay admin, Battery power, T.REX Arms Topo Map) are off until ticked in Settings > Home screen and menus, or turned on by a setup QR code.
 - ARTC rail network overlay (Australian interstate and freight track), kept for offline use once seen.
 - Live trains on the map with their next stops (GTFS Realtime: Melbourne tick with a free key, or your own home town's feed - recommended).
@@ -116,12 +118,12 @@ MAPS AND LOCATION
 - Fake GPS for training: a random spot near a chosen centre, marked "Fake" for everyone.
 - Obscure location: others get a spot up to 0-10 km (2 km default) from your real position; turning Fake GPS off asks whether to keep obscuring.
 - Units: metric (default) or imperial, chosen in the wizard or Settings.
-- Share my camera: up to 15 pictures a second when Tiny; optional audio (off by default) heard only on the Tactical videos screen; telemetry overlay (position, heading with north arrow, tilt and roll, speed, time) burned into each picture; keeps sharing in the background with a red-dot notification; torch and blackout buttons.
-- Reolink cameras on the LAN (no internet): find them with a network scan, sign in, pick the lens of dual-lens models; picture tiles on Tactical videos, TV and the Intercom; full screen with live video where the phone can play it, listen, and the floodlight; motion or a person, vehicle or animal brings that camera to the front (several share the screen; each stays up 60 s after its movement ends; the Intercom returns to Blackout afterwards); linked floodlights turn on together and off after a set time; optional motion alerts and camera offline / back online alerts to the channel (chat, read aloud, one small picture), also over the internet relay. Cameras with only Reolink's own port 9000 (such as the E1) work too, pictures and motion only. Talking to the camera is not supported.
+- Share my camera: up to 15 pictures a second when Tiny; optional audio (off by default) heard only on the Video feed screen; telemetry overlay (position, heading with north arrow, tilt and roll, speed, time) burned into each picture; keeps sharing in the background with a red-dot notification; torch and blackout buttons.
+- Reolink cameras on the LAN (no internet): find them with a network scan, sign in, pick the lens of dual-lens models; picture tiles on Video feed, TV and the Intercom; full screen with live video where the phone can play it, listen, and the floodlight; motion or a person, vehicle or animal brings that camera to the front (several share the screen; each stays up 60 s after its movement ends; the Intercom returns to Blackout afterwards); linked floodlights turn on together and off after a set time; optional motion alerts and camera offline / back online alerts to the channel (chat, read aloud, one small picture), also over the internet relay. Cameras with only Reolink's own port 9000 (such as the E1) work too, pictures and motion only. Talking to the camera is not supported.
 - Battery power (a specialised menu, off by default, was Bluetti power): watches several batteries at once, read-only (it never switches outputs or changes settings; use the maker's app for that). Kinds: Bluetti power stations over Bluetooth, a Tesla Powerwall 2 through its gateway on the home network (no sign-in), and, untested so far, Anker SOLIX and EcoFlow power stations over Bluetooth. Battery percent, power in and out, time to full or time left; for a Powerwall also solar, home use, grid and an outage warning. The phone near the batteries can watch them in the background, share a short status on the channel (every phone sees it on its Battery power screen) and send alerts: low and critical battery, charging started or stopped, mains or grid lost or back, overload, and out of contact.
 - Emergency alerts (CAP) on the map: VicEmergency and NOAA presets or any CAP / GeoJSON feed, areas shaded by severity.
 - POI icons can be rotated, resized (50-1000%) and given a direction arrow; such edits sync quietly.
-- Full map Share and Ask-to-share (private channels) buttons; optional automatic accept. Chat filter by kind of item.
+- Full map Share and Ask-to-share (private channels) buttons; optional automatic accept. Chat filter by kind of item and by channel (including Cloud group); every message shows its source (A, B, PUBLIC or CLOUD with a little cloud).
 - Burst voice cleanup (optional): noise reduction and level evening before playing.
 - CW (Morse) on DRYAD Enigma: message format, generate / send / receive / decode, CW mode (stealth), join, split, upload and download CW files.
 - Bulk add / export map points (text, QR or file; Name, Icon, Lat, Lon, Notes), layers, repeat skipping.
@@ -146,7 +148,7 @@ MAPS AND LOCATION
 - Tasks and notes for a channel, team or person.
 - Private contacts shared by QR.
 - Text as voice: typed messages read aloud on every phone.
-- Blackout with no light at all, and a legacy setting (lowest backlight) for older devices.
+- Blackout with no light at all, and a legacy setting (lowest backlight) for older devices. Turning the phone while black does not turn the screen or bring it back; it stays as it was until the double tap.
 - Map layer button: street, satellite or topographic, with ticks for ships, aircraft and emergency alerts.
 - Map scale bar and a two-point ruler: distance, bearing and back bearing.
 - Aircraft (ADS-B) from a MANET receiver or online feeds, and ships (AIS) from Open Waters, each
@@ -227,7 +229,7 @@ NOT DONE YET
   hardware tests for the FalconClaw, cameras, gunshot alert, crash detection, the tunnel over a real
   router and the OpenMANET gateway switch.
 
-LATEST ADDITIONS (since release 1, 28 October 2026)
+ADDED SOON AFTER RELEASE 1 (everything since is in the lists above and in UPDATES.md)
 - Phone setup QR codes can carry only a tunnel (remote people); scanning keeps the phone's LAN login.
 - Catch-ups per channel ("Request catch-ups" on the Channels page, Public off), on coming back to the
   app too, reaching back to the last message received (up to a day); listen-only channels can ask.
