@@ -2,13 +2,11 @@
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:fillViewport="true">
     <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="12dp">
         <LinearLayout android:id="@+id/main_top" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical">
+            <TextView style="@style/Label" android:text="Me" />
             <TextView android:id="@+id/callsign_label" style="@style/Label" android:text="@string/callsign" />
             <EditText android:id="@+id/callsign" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="@string/callsign_hint" android:inputType="textCapCharacters|textNoSuggestions" android:maxLength="32" android:singleLine="true" />
         <EditText android:id="@+id/team_name" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Team or group name (optional)" android:inputType="text" android:singleLine="true" />
-            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
-                <Button android:id="@+id/update_from_url" style="@style/SmallButton" android:text="@string/update_from_url" />
-                <Button android:id="@+id/edit_update_url" style="@style/SmallButton" android:text="@string/edit_update_url" />
-            </LinearLayout>
+            
             <Button android:id="@+id/rerun_wizard" style="@style/SmallButton" android:layout_width="match_parent" android:layout_weight="0" android:text="@string/rerun_wizard" />
             <Button android:id="@+id/permissions" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/permissions_button" android:textAllCaps="false" />
             <Button android:id="@+id/app_mode" android:layout_width="match_parent" android:layout_height="wrap_content" android:textAllCaps="false" />
@@ -16,16 +14,28 @@
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Units:  " />
                 <RadioButton android:id="@+id/units_metric" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Metric (m, km)" />
                 <RadioButton android:id="@+id/units_imperial" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Imperial (ft, mi)" />
-            </RadioGroup>
+            </RadioGroup><Button android:id="@+id/qr_setup" style="@style/SmallButton" android:layout_width="match_parent" android:layout_weight="0" android:text="@string/qr_setup" />
             <TextView style="@style/Label" android:text="@string/settings_pages" />
             <Button android:id="@+id/link_channels" style="@style/SmallButton" android:text="@string/page_channels" android:layout_width="match_parent" android:layout_weight="0" />
             <Button android:id="@+id/link_audio" style="@style/SmallButton" android:text="@string/page_audio" android:layout_width="match_parent" android:layout_weight="0" />
+            <Button android:id="@+id/link_alerts" style="@style/SmallButton" android:text="@string/page_alerts" android:layout_width="match_parent" android:layout_weight="0" />
             <Button android:id="@+id/link_home" style="@style/SmallButton" android:text="@string/page_home" android:layout_width="match_parent" android:layout_weight="0" />
             <Button android:id="@+id/link_power" style="@style/SmallButton" android:text="@string/page_power" android:layout_width="match_parent" android:layout_weight="0" />
+            <Button android:id="@+id/link_location" style="@style/SmallButton" android:text="@string/page_location" android:layout_width="match_parent" android:layout_weight="0" />
             <Button android:id="@+id/link_network" style="@style/SmallButton" android:text="@string/page_network" android:layout_width="match_parent" android:layout_weight="0" />
             <Button android:id="@+id/link_security" style="@style/SmallButton" android:text="@string/page_security" android:layout_width="match_parent" android:layout_weight="0" />
             <Button android:id="@+id/link_data" style="@style/SmallButton" android:text="@string/page_data" android:layout_width="match_parent" android:layout_weight="0" />
+            <Button android:id="@+id/link_features" style="@style/SmallButton" android:text="@string/page_features" android:layout_width="match_parent" android:layout_weight="0" />
+            <Button android:id="@+id/link_about" style="@style/SmallButton" android:text="@string/page_about" android:layout_width="match_parent" android:layout_weight="0" />
             <Button android:id="@+id/link_tools" style="@style/SmallButton" android:text="@string/page_tools" android:layout_width="match_parent" android:layout_weight="0" />
+            
+            
+            
+            
+            
+            
+            
+            
         </LinearLayout>
         <LinearLayout android:id="@+id/sec_channels" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical">
             <TextView style="@style/Label" android:text="@string/channel_names" />
@@ -43,7 +53,7 @@
                 <Button android:id="@+id/qr_b" style="@style/SmallButton" android:text="@string/qr_b" />
                 <Button android:id="@+id/qr_scan" style="@style/SmallButton" android:text="@string/scan_qr" />
             </LinearLayout>
-            <Button android:id="@+id/qr_setup" style="@style/SmallButton" android:layout_width="match_parent" android:layout_weight="0" android:text="@string/qr_setup" />
+            
             <TextView style="@style/Label" android:text="@string/public_key_label" />
             <EditText android:id="@+id/public_key" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="@string/public_key_hint" android:inputType="text" android:singleLine="true" />
             <CheckBox android:id="@+id/show_public" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/show_public" />
@@ -74,6 +84,8 @@
             </LinearLayout>
             <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/catch_up_note" android:textSize="12sp" />
             <Button android:id="@+id/share_config" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/share_config" />
+        
+            <CheckBox android:id="@+id/offer_missed" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/offer_missed" />
         </LinearLayout>
         <LinearLayout android:id="@+id/sec_audio" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical">
             <TextView style="@style/Label" android:text="@string/talking" />
@@ -98,23 +110,7 @@
             <CheckBox android:id="@+id/record_all" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/record_all" />
             <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/record_all_note" android:textSize="12sp" />
             <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/request_missed" android:textSize="12sp" />
-            <TextView style="@style/Label" android:text="@string/alerts" />
-            <CheckBox android:id="@+id/call_enabled" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/call_enabled" />
-            <CheckBox android:id="@+id/call_reminder" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Remind me every 5 minutes about a call I have not acknowledged" />
-            <CheckBox android:id="@+id/nav_no_reroute" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Offline directions: don't work out a new route automatically when I leave it" />
-            <CheckBox android:id="@+id/off_route_alert" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Offline directions: sound a warning when more than 500 m off the route" />
-            <CheckBox android:id="@+id/off_route_channel" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Also tell the channel when I am more than 500 m off my route (otherwise only this phone)" />
-            <CheckBox android:id="@+id/announce_poi" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/announce_poi" />
-            <CheckBox android:id="@+id/auto_ack" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/auto_ack" />
-            <TextView style="@style/Label" android:text="@string/status_heading" />
-            <CheckBox android:id="@+id/auto_stealth" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/auto_stealth" />
-            <CheckBox android:id="@+id/stealth_vibrate" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/stealth_vibrate" />
-            <CheckBox android:id="@+id/call_wakes_volume" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/call_wakes_volume" />
-            <CheckBox android:id="@+id/gunshot_alert" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/gunshot_alert" />
-            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/gunshot_note" android:textColor="#ffb74d" android:textSize="12sp" />
-            <CheckBox android:id="@+id/streams_enabled" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/streams_enabled" />
-            <CheckBox android:id="@+id/drop_alert" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/drop_alert" />
-            <CheckBox android:id="@+id/crash_detect" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/crash_detect" />
+            
         </LinearLayout>
         <LinearLayout android:id="@+id/sec_home" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical">
             <TextView style="@style/Label" android:text="@string/home_screen" />
@@ -136,8 +132,27 @@
                 <Button android:id="@+id/quick_custom" style="@style/SmallButton" android:text="@string/quick_custom" />
             </LinearLayout>
             <Button android:id="@+id/my_icon" android:layout_width="match_parent" android:layout_height="wrap_content" android:textAllCaps="false" />
-            <CheckBox android:id="@+id/offer_missed" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/offer_missed" />
+            
             <Button android:id="@+id/tv_mode" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="16dp" android:text="TV mode (map and chat on a big screen)" />
+        
+            <TextView style="@style/Label" android:text="@string/black_screen" />
+            <CheckBox android:id="@+id/black_screen_button" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/black_screen_button" />
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/black_screen_note" android:textColor="#ffb74d" android:textSize="12sp" />
+            <CheckBox android:id="@+id/black_legacy" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/black_legacy" />
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/black_legacy_note" android:textSize="12sp" />
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical" android:orientation="horizontal">
+                <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="@string/black_after" />
+                <EditText android:id="@+id/black_after" android:layout_width="80dp" android:layout_height="wrap_content" android:inputType="number" android:maxLength="4" android:singleLine="true" />
+            </LinearLayout>
+            <TextView android:id="@+id/black_after_note" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="12sp" />
+            <CheckBox android:id="@+id/black_wake" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Screen on during radio calls: comes back on for a call or voice, then goes black again (never in Stealth)" />
+            <TextView style="@style/Label" android:text="Red light" />
+            <CheckBox android:id="@+id/red_mode" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Red light mode" />
+            <CheckBox android:id="@+id/red_auto" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Turn it on and off automatically at these times" />
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
+                <Button android:id="@+id/red_from" style="@style/SmallButton" android:textAllCaps="false" />
+                <Button android:id="@+id/red_to" style="@style/SmallButton" android:textAllCaps="false" />
+            </LinearLayout>
         </LinearLayout>
         <LinearLayout android:id="@+id/sec_power" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical">
             <TextView style="@style/Label" android:text="Power mode" />
@@ -158,24 +173,7 @@
                 <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Ask about Ultra low at (%, 0 = never)" />
                 <EditText android:id="@+id/power_ask_ultra" android:layout_width="80dp" android:layout_height="wrap_content" android:inputType="number" android:maxLength="3" android:singleLine="true" />
             </LinearLayout>
-            <TextView style="@style/Label" android:text="@string/black_screen" />
-            <CheckBox android:id="@+id/black_screen_button" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/black_screen_button" />
-            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/black_screen_note" android:textColor="#ffb74d" android:textSize="12sp" />
-            <CheckBox android:id="@+id/black_legacy" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/black_legacy" />
-            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/black_legacy_note" android:textSize="12sp" />
-            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical" android:orientation="horizontal">
-                <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="@string/black_after" />
-                <EditText android:id="@+id/black_after" android:layout_width="80dp" android:layout_height="wrap_content" android:inputType="number" android:maxLength="4" android:singleLine="true" />
-            </LinearLayout>
-            <TextView android:id="@+id/black_after_note" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="12sp" />
-            <CheckBox android:id="@+id/black_wake" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Screen on during radio calls: comes back on for a call or voice, then goes black again (never in Stealth)" />
-            <TextView style="@style/Label" android:text="Red light" />
-            <CheckBox android:id="@+id/red_mode" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Red light mode" />
-            <CheckBox android:id="@+id/red_auto" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Turn it on and off automatically at these times" />
-            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
-                <Button android:id="@+id/red_from" style="@style/SmallButton" android:textAllCaps="false" />
-                <Button android:id="@+id/red_to" style="@style/SmallButton" android:textAllCaps="false" />
-            </LinearLayout>
+            
         </LinearLayout>
         <LinearLayout android:id="@+id/sec_network" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical">
             <TextView style="@style/Label" android:text="@string/network" />
@@ -200,6 +198,26 @@
             <Button android:id="@+id/tunnel_vps" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/tunnel_vps" />
             <Button android:id="@+id/tunnel_sites" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/tunnel_sites" />
             <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/tunnel_note" android:textSize="12sp" />
+            
+        </LinearLayout>
+        <LinearLayout android:id="@+id/sec_security" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical">
+            <TextView style="@style/Label" android:text="@string/security" />
+            <Button android:id="@+id/pin" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/pin_manage" />
+            <CheckBox android:id="@+id/wipe_on_bad_pin" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/wipe_on_bad_pin" />
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/wipe_note" android:textSize="12sp" />
+            <CheckBox android:id="@+id/radio_silent_setting" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/radio_silent_setting" />
+            <CheckBox android:id="@+id/silent_listeners" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Radio silent support: others may be radio silent, so no &quot;transmission failed&quot; warnings and no red Contacts (0)" />
+            <Button android:id="@+id/clear_all_sec" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="@string/clear_all" />
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/clear_all_note" android:textSize="12sp" />
+        </LinearLayout>
+        <LinearLayout android:id="@+id/sec_data" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical">
+            <Button android:id="@+id/mission" android:layout_width="match_parent" android:layout_height="wrap_content" android:textAllCaps="false" />
+            
+            <Button android:id="@+id/clear_mission" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/clear_mission" />
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/clear_mission_note" android:textSize="12sp" />
+            <Button android:id="@+id/clear_all" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/clear_all" />
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/clear_all_note" android:textSize="12sp" />
+        
             <TextView style="@style/Label" android:text="LAN storage and config backups" />
             <Button android:id="@+id/lan_storage" android:layout_width="match_parent" android:layout_height="wrap_content" android:textAllCaps="false" />
             <Button android:id="@+id/lan_sync" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="LAN sync and updates (auto update, logs, data, DRYAD, config)…" android:textAllCaps="false" />
@@ -209,16 +227,27 @@
                 <Button android:id="@+id/cfg_read" style="@style/SmallButton" android:text="Read my config" />
             </LinearLayout>
         </LinearLayout>
-        <LinearLayout android:id="@+id/sec_security" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical">
-            <TextView style="@style/Label" android:text="@string/security" />
-            <Button android:id="@+id/pin" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/pin_manage" />
-            <CheckBox android:id="@+id/wipe_on_bad_pin" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/wipe_on_bad_pin" />
-            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/wipe_note" android:textSize="12sp" />
-            <CheckBox android:id="@+id/radio_silent_setting" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/radio_silent_setting" />
-            <CheckBox android:id="@+id/silent_listeners" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Radio silent support: others may be radio silent, so no &quot;transmission failed&quot; warnings and no red Contacts (0)" />
+        <LinearLayout android:id="@+id/sec_alerts" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical">
+            <TextView style="@style/Label" android:text="@string/alerts" />
+            <CheckBox android:id="@+id/call_enabled" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/call_enabled" />
+            <CheckBox android:id="@+id/call_reminder" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Remind me every 5 minutes about a call I have not acknowledged" />
+            <CheckBox android:id="@+id/nav_no_reroute" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Offline directions: don't work out a new route automatically when I leave it" />
+            <CheckBox android:id="@+id/off_route_alert" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Offline directions: sound a warning when more than 500 m off the route" />
+            <CheckBox android:id="@+id/off_route_channel" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Also tell the channel when I am more than 500 m off my route (otherwise only this phone)" />
+            <CheckBox android:id="@+id/announce_poi" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/announce_poi" />
+            <CheckBox android:id="@+id/auto_ack" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/auto_ack" />
+            <TextView style="@style/Label" android:text="@string/status_heading" />
+            <CheckBox android:id="@+id/auto_stealth" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/auto_stealth" />
+            <CheckBox android:id="@+id/stealth_vibrate" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/stealth_vibrate" />
+            <CheckBox android:id="@+id/call_wakes_volume" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/call_wakes_volume" />
+            <CheckBox android:id="@+id/gunshot_alert" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/gunshot_alert" />
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/gunshot_note" android:textColor="#ffb74d" android:textSize="12sp" />
+            <CheckBox android:id="@+id/streams_enabled" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/streams_enabled" android:visibility="gone" />
+            <CheckBox android:id="@+id/drop_alert" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/drop_alert" />
+            <CheckBox android:id="@+id/crash_detect" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/crash_detect" />
         </LinearLayout>
-        <LinearLayout android:id="@+id/sec_data" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical">
-            <Button android:id="@+id/mission" android:layout_width="match_parent" android:layout_height="wrap_content" android:textAllCaps="false" />
+        <LinearLayout android:id="@+id/sec_location" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical">
+            <TextView style="@style/Label" android:text="Location and privacy" />
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical" android:orientation="horizontal">
                 <CheckBox android:id="@+id/fake_gps" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Fake GPS near" />
                 <EditText android:id="@+id/fake_gps_centre" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:hint="lat, lon" android:inputType="text" android:singleLine="true" android:textSize="15sp" />
@@ -226,16 +255,21 @@
             <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Fake GPS: this phone uses and shares a random spot within the Obscure location range of these co-ordinates (maps show Me (Fake))." android:textSize="12sp" />
             <TextView android:id="@+id/obscure_label" style="@style/Label" android:text="Obscure location" />
             <SeekBar android:id="@+id/obscure_range" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="100" />
-            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Others get a spot up to this far from you (the same offset each time; a new one when the range changes), shown as approximate. Also the fake spot&apos;s distance from its centre. 0 km = your exact position." android:textSize="12sp" />
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Others get a spot up to this far from you (the same offset each time; a new one when the range changes), shown as approximate. Also the fake spot's distance from its centre. 0 km = your exact position." android:textSize="12sp" />
             <CheckBox android:id="@+id/auto_accept_location" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Automatically accept location sharing (when someone on a private channel asks, share for 30 minutes without asking)" />
-            <Button android:id="@+id/clear_mission" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/clear_mission" />
-            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/clear_mission_note" android:textSize="12sp" />
-            <Button android:id="@+id/clear_all" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/clear_all" />
-            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/clear_all_note" android:textSize="12sp" />
         </LinearLayout>
-        <LinearLayout android:id="@+id/main_bottom" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical">
+        <LinearLayout android:id="@+id/sec_features" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" />
+        <LinearLayout android:id="@+id/sec_about" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
+                <Button android:id="@+id/update_from_url" style="@style/SmallButton" android:text="@string/update_from_url" />
+                <Button android:id="@+id/edit_update_url" style="@style/SmallButton" android:text="@string/edit_update_url" />
+            </LinearLayout>
+        
             <Button android:id="@+id/about" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/about" android:textAllCaps="false" />
             <Button android:id="@+id/dryad_explained" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="How Modern DRYAD works" />
+        </LinearLayout>
+        <LinearLayout android:id="@+id/main_bottom" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical">
+            
         </LinearLayout>
     </LinearLayout>
 </ScrollView>

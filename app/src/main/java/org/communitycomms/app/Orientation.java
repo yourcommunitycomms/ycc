@@ -7,7 +7,7 @@ import android.content.pm.PackageManager;
 import android.os.Bundle;
 
 /**
- * Settings > Home screen and menus > Screen orientation: Auto (the phone decides), Portrait or
+ * Settings > Screen > Screen orientation: Auto (the phone decides), Portrait or
  * Landscape, for every screen (either way up), and Invert screen (upside down; on Auto, the way the
  * screen is held when it opens). Screens that fix their own orientation keep it.
  */

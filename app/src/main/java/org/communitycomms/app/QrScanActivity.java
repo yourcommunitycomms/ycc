@@ -85,6 +85,16 @@ public final class QrScanActivity extends Activity implements SurfaceHolder.Call
             status.setText("Point the camera at any QR code");
             done.setText(android.R.string.cancel);
         }
+        Button paste = new Button(this);
+        paste.setText("Paste a code instead (setup code, channel or cloud link)");
+        paste.setAllCaps(false);
+        paste.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                pasteCode();
+            }
+        });
+        root.addView(paste);
         setContentView(root);
         done.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -265,6 +275,34 @@ public final class QrScanActivity extends Activity implements SurfaceHolder.Call
 
     /** Started for a result by Settings > Tools: hand back any QR text at all, read as plain text. */
     public static final String EXTRA_ANY_TEXT = "anyText";
+
+    /** A code sent as text (message, email): the same as scanning it. */
+    private void pasteCode() {
+        final android.widget.EditText e = new android.widget.EditText(this);
+        e.setMinLines(3);
+        e.setHint("YCCSETUP1|… or another code from this app");
+        try {
+            android.content.ClipboardManager cm = (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+            if (cm != null && cm.hasPrimaryClip() && cm.getPrimaryClip().getItemCount() > 0) {
+                CharSequence c = cm.getPrimaryClip().getItemAt(0).coerceToText(this);
+                if (c != null) e.setText(c.toString().trim());
+            }
+        } catch (RuntimeException ignored) {
+        }
+        android.widget.FrameLayout box = new android.widget.FrameLayout(this);
+        int p = (int) (16 * getResources().getDisplayMetrics().density);
+        box.setPadding(p, p / 2, p, 0);
+        box.addView(e);
+        new android.app.AlertDialog.Builder(this).setTitle("Paste a code").setView(box)
+                .setPositiveButton("Use it", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface d, int w) {
+                        String t = e.getText().toString().trim();
+                        if (t.length() > 0) onScanned(t);
+                    }
+                })
+                .setNegativeButton(android.R.string.cancel, null).show();
+    }
 
     private void onScanned(String text) {
         if (paused) return;

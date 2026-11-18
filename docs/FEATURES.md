@@ -40,25 +40,40 @@ The setup QR code holds the LAN storage password (and channel A if included): sh
 own group.
 
 ## First start (the wizard)
-A new phone gets a random callsign such as TANGO38 and a short wizard: confirm or change the
-callsign; **Quick set from a QR code** (scan a phone setup QR code, or Skip quick set); **Advanced or simple** (a short note: Advanced modes use DRYAD sheets for encryption, messages and channel names, shared between trusted devices; Simple modes use fixed keys); then confirm
-the **public channel key** (default `publicchannelkey`); then either **Create
-sheet** (one never-expiring DRYAD sheet: row A becomes channel A, row B channel B, ready to share
-with your group) or **Join Public** and wait for someone to send their settings. Then the
-Permissions screen. The wizard also asks **what the group is for** (Friends and family,
-Security, Firefighting, Military), which picks the map-point buttons; Share settings passes it on.
+A new phone gets a random callsign such as TANGO38 and a short wizard:
+1. **Quick set from a QR code** first: scanning a phone setup QR code (or pasting one as text) sets
+   everything at once, applied straight away with a summary. If the code had no callsign, it then asks for one.
+2. **Your callsign** and units (greyed out when a setup QR code locked it).
+3. **What is this device for?** (the device role, in alternating colours): **Phone radio**, **Commander**
+   (base station), **Public intercom**, **TV / display**, **Camera and security monitor** or **Network
+   gateway**. The role only ever turns things on (a commander gets Record all voice, dual watch and the team,
+   battery and cast features; a TV opens in TV mode) and never sets Anchored.
+4. Phone radio only: **Advanced or simple** (what each looks like), then **Advanced or Simple** with a
+   **Profile** list (General, Friends and family, Security, Firefighting, Military, Emergency services,
+   Scouts, Staff, 4WDing, Friends convoy, Caravan / camping) and an **I lead a team** tick. Simple with a
+   Scouts, Staff, 4WD, convoy or camping profile picks that group type; any other profile is **General
+   (simple)**.
+5. **Voice** (burst, recommended, or live), **Power** (Normal with rest GPS, and an **Anchored** tick for a
+   device on stable power), **Location** (share automatically when someone on a private channel asks, how far
+   to obscure your position, sharing with Public and cloud groups, off) and **Maps** (ask before fetching
+   online tiles, or always online; Data Tile Management keeps an area offline).
+6. **Keys**: Advanced asks for the Public key and offers to **Create sheet** (a never-expiring DRYAD sheet:
+   row A becomes channel A, row B channel B) or **Join Public**; Simple and the intercom ask for the group's
+   **private key** ("Make one" picks a strong random key) and the Public key (the intercom also a Settings
+   PIN). Then the Permissions screen and an **All set** summary (callsign, role, group type, profile, voice,
+   Anchored, channel A, features) with **Setup QR for the next device**.
 
-After the quick-set step it asks **how the app will be used** (see Modes): **Advanced** carries on as
-above; the simple modes and the intercom instead ask for the group's **private key** ("Make one"
-picks a strong random key; it becomes channel A) and the public key, then join straight away.
-
-## Modes (first start, or Settings > Mode)
+A camera monitor or gateway is then offered its setup (the Reolink wizard, or the Cloud Server / tunnel).
+New installs open on the **map home** with the **General** quick buttons: I have arrived, On my way, Running
+late, I need help now (a map point at you), Delayed, All OK, Call me, Let's meet here, Let's eat here, Car park, Share location until stop.
+## Group types (first start, Settings > Me, or the top of the Channels page)
 - **Advanced:** everything in this guide.
 - **Simple modes: Scouts, Staff, 4WDing, Friends convoy, Caravan / camping.** One private key and the
   public key, no DRYAD, Pigpen or OpenMANET. The home screen shows **Private** (and Public, which can
-  be hidden) and eight quick buttons made for the activity. **Channels** opens a simple **Keys** page:
-  the private and public keys, hidden until Show, with Make one, Show QR and Scan QR, and "Show Public
-  on the home screen". Quick buttons either drop a map point (announced on everyone's phone), send a
+  be hidden) and four quick buttons made for the activity (all of them are on the Shortcuts page).
+  **Channels** opens the **Simple channels** page: the private and public keys, hidden until Show, with
+  Make one, Show QR and Scan QR, the Cloud group (when that feature is on or a group is set) and an
+  **eye** on each channel (shown on the home screen or hidden). Quick buttons either drop a map point (announced on everyone's phone), send a
   chat message, or share your location until tapped again:
   - Scouts: meeting point, evacuation point, first aid station, trail start / end, help needed, water,
     toilets, group here, all good.
@@ -106,17 +121,32 @@ channel, or a changed setting) stays on the old channel until the new one is rea
 **Rejoin on start** (Settings, on): the app goes back on the channel it was on; Leave turns it off.
 
 ## Channels page
-Every channel down the page: A, B, the extra **C–H** (switch at the bottom, off by default),
-Public (with its key) and OpenMANET\*. Each row: **eye** (button on the home screen; room for 4, so
-e.g. B, C, Public, OpenMANET\* or D, E, F, Public), **key** (DRYAD), **note** (kept on this phone,
-moves with the channel), **⋮** (set the name, **Swap with A / B**: name, note, listening and mute move
-together; **Mute**: listened to and saved, not played), **Listen** and **Talk here / Leave**.
-
-## Home screen styles (Settings > Home screen)
-- **Radio**: channel buttons and **Channels**, status,
+At the top: **Simple channels | Advanced channels**, the same setting as the group type (Simple asks which
+group type). **Advanced channels** lists every channel: A, B, the extra **C–H** (switch at the bottom,
+off by default), Public (with its key), the Cloud group and OpenMANET\* (when those features are on).
+Each row: **eye** (shown on the home screen, room for 4, or hidden: a hidden channel keeps its key and
+can still be listened to, but has no home button and no pinned PTT of its own; C–H keep their pins),
+**key** (DRYAD), **note** (kept on this phone, moves with the channel), **⋮** (set the name, **Swap with
+A / B**: name, note, listening and mute move together; **Mute**: listened to and saved, not played),
+**Listen** and **Talk here / Leave**. At the bottom: DRYAD sheets, Pigpen, Enigma / CW, the Channel array
+(when on), Cloud group… and Scan QR.
+## Home screen styles (Settings > Screen)
+The **map home is the default** for new installs; phones set up before keep the home they had (offered the
+map home once). The map / buttons icon in the title bar switches between them.
+- **Radio buttons**: channel buttons and **Channels**, status,
   **Contacts (n)** (red when nobody is online; "▶ NAME" while someone talks), **status button**, a
-  small **camera** button, quick map point buttons, Share my location 30 min (tap again while sharing: stop, 2 hours, until the app restarts, or always), Call, Silent, Chat,
-  Reports, Map, Lock and a big PTT. Landscape puts the PTT on the right half.
+  small **camera** button, four quick map point buttons (pick which on the Shortcuts page), **Shortcuts**
+  (shows "sharing location" while you share), Call, Silent, Chat, Map, Lock and a big PTT. Landscape puts
+  the PTT on the right half.
+- **Shortcuts** (the Shortcuts button, or the dots icon in the title bar on both homes): the current state
+  at the top, each tap to change it: power mode and Mission mode (opens Power and batteries), **Anchored**
+  and plugged in / battery %, status, location sharing, radio silent, Fake GPS and Obscure location. Below,
+  every shortcut whatever the mode: all the map point and message buttons of the profile, Share my location
+  (stop, 2 hours, until restart, always), Call everyone, My status, Text as voice, Mark…, Photo, Black
+  screen, Lock, Reports, Chat, Contacts, Full map, Channels, Change map point profile and "Pick the 4 on the
+  radio home".
+- **Menu**: Chat, **More…**, Settings and Exit. **More** groups everything else by job (Talk and chat, Map
+  and location, Team, Cameras and power, Codes, Network, Tools, Screen), showing only what is switched on.
 - **Map**: mostly map with map points, people and photo
   thumbnails, your "Me" arrow and compass; Contacts, status, camera; Chat, Mark…, Share loc, Full
   map, Lock; Call and Silent either side of a smaller PTT. Long-press the map to drop a point.
@@ -195,8 +225,31 @@ team has **Message team** and **Call team** (for channels you talk or listen on)
   10 s send "POSSIBLE GUNSHOTS detected near …" with your position. Keeps the mic open on air.
 
 ## Settings pages
-The main Settings page has the callsign, **Update from URL** / **Edit update URL** (download and install the app; by default the newest GitHub release, https://github.com/yourcommunitycomms/ycc/releases/latest/download/YCC.apk, or the LAN storage's Updates/YCC.apk; tested, then kept, and network defaults can set it), Run the setup wizard again, Permissions and Mode, then links to: **Channel settings** (names, QR codes, Public key, OpenMANET, key rotation, rejoin, dual watch, catch-up, Share settings), **Audio, PTT and alerts**, **Home screen** (style, map points, my icon, black screen, TV mode), **Network and sync** (WiFi, peers, ATAK, tunnel, LAN storage, config backups), **Security** (PIN, wipe, radio silent) and **Mission and data** (mission, fake GPS, clearing data; also from the Data / files screen). About and How Modern DRYAD works are at the bottom.
+The main Settings page is **Me**: callsign (locked when a setup QR code said so), team name, Run the setup
+wizard again, Permissions, **Device role** (a list of what it will turn on, to confirm), **I lead a team**,
+**Group type**, units and **Phone setup QR code**. The setup code can now carry the device role, group
+type, team lead tick, a callsign (optionally locked), Anchored and the Advanced and Region features, beside
+the LAN storage, channels, Public key and Cloud Server it always had; it is applied without asking, and a
+LAN storage server is optional. Then the pages:
+**Channels and listening** (names, QR codes, Public key, OpenMANET, key rotation, rejoin, dual watch,
+catch-up, offer missed messages, Share settings), **Voice and PTT**, **Alerts** (calls, map points,
+directions, status, gunshot, drop-out, crash), **Screen** (home screen, orientation, invert, map point
+buttons, my icon, TV mode, black screen, red light), **Power and batteries** (power modes, Anchored,
+Mission mode, sleep), **Location and privacy** (Fake GPS, Obscure location, automatic location sharing),
+**Network** (WiFi, peers, ATAK, tunnel, Cloud Server), **Security** (PIN, wipe, radio silent, Clear all data and exit), **Data and
+backups** (mission, LAN storage, sync, config backups, clearing data), **Advanced and Region features** and
+**About and updates** (**Update from URL** / **Edit update URL**: by default the newest GitHub release,
+https://github.com/yourcommunitycomms/ycc/releases/latest/download/YCC.apk, or the LAN storage's
+Updates/YCC.apk; About; How Modern DRYAD works), plus Tools.
 
+**Advanced and Region features** (once called Specialised menus): a checklist, all off by default and set
+by a setup QR code. Advanced: Channel array, Report to leaders, Tasks and notes, Calendar and notes,
+Battery power, Cast screen to TV, Relay admin, Cloud group, T.REX Arms Topo Map. Region: VicEmergency
+alerts, Melbourne trains preset, Load station names, ARTC rail. **More…**: Project NOMAD, ATAK items,
+OpenMANET, Internet audio. **Advanced setup** lists short guided setups (what it is, the steps, then the
+screen that does it): Cloud Server and Relay admin, Join the Cloud Server, Cloud group, Internet tunnel,
+LAN storage server, Cameras (Reolink), Batteries, ATAK and OpenMANET, Channel array. Ticking Relay admin,
+Cloud group, Battery power or Channel array offers its setup.
 ## Audio screen (menu > Audio)
 **Devices in use**, each with a cog: **Sound** (Automatic: loudspeaker unless a headset is in;
 Loudspeaker always; Earpiece or headset), **Microphone** (Automatic, or pick one: phone, headset, USB,
@@ -434,11 +487,40 @@ browsers cannot log in); everything else needs it. **/webadmin** (same login) ha
 sizes, delete files older than N days, delete missions or idle missions, delete tile sources),
 **Files** (browse, upload, rename, delete, new folder), **Defaults** (network defaults from a phone's
 backup or a file; edit settings and DRYAD sheets), **Phone setup** (the setup QR code, see the top of
-this guide), **Sync** (copy new files to other stores such as a Pi: chosen folders, every N minutes
+this guide, and the **ready-made APKs** below it),  **Sync** (copy new files to other stores such as a Pi: chosen folders, every N minutes
 between set hours, a KB/s limit, Test login, Run now / Stop; never deletes anything there),
 **Bridge** (the server's bridge: joins the WiFi to a Waydroid or emulator tablet on the same computer, and is the **tunnel relay** for remote people, each with a forwarded port, a DRYAD-row key and their own QR code; on/off and live status), **Updates** (publish an APK; the version is read from it), **Login**, **Docs** (Apache-2.0 licence,
 rebuilding with the AI prompt) and **Erase** (everything back to an empty store for a clean snapshot;
 type ERASE). Destructive buttons ask first.
+
+**Ready-made APKs (Phone setup page).** Stamped copies of the published app that already know this server, so a
+new phone needs no QR scan. The stamp sits in the APK's signing block, which the signatures do not cover, so
+the APK installs and updates like the plain one (Android 4.1 and newer).
+- **Site APK** (Updates/YCC-site.apk, no login, with a QR code to download it): on first start the app asks "Set
+  up from <site>?" and fetches the Phone setup code from here, without the store password and channel A unless
+  the admin ticks that (then the phone asks for the password later). Role, group type, profile and features
+  can be preset.
+- **Personal APKs**: one per person, with their callsign (optionally locked) stamped in and a long random code
+  (30 letters) in the file name and its own update address, e.g. Personal/ycc-<code>.apk, so it can't be
+  guessed; the folder is never listed. On first start the phone asks "Set up as CALLSIGN?" and fetches the rest
+  of that person's setup from Personal/<code>.setup. The app's Update from URL then uses that person's own
+  address. Per person: **Edit**, **Copy** (the same settings for someone else: just change the callsign),
+  **New code** (the old APK and address stop working), **Revoke** (the APK is deleted and the code refused) and
+  **Re-setup** on or off (off: the setup is given only once).
+- **Settings** for the site APK and each person: everything the setup wizard asks (device role, leads a team,
+  group type, profile, voice, Anchored, share location when asked, obscure range, location on Public / cloud,
+  online map tiles, channel A, the Advanced and Region features checklist, a cloud group), each "(the phone
+  chooses)" unless set, on top of the phone setup above it (store, Public key, tunnel, OpenMANET, home WiFi).
+- **On the phone**: a stamped app fetches its setup straight away on first start and shows what it will set
+  ("Set up as CALLSIGN?"); nothing is applied without that tap. If the fetch fails (not on the network, server
+  down, revoked, already used), it says why, with **Retry** and **Continue without it**; Settings > Me > **Set up
+  from this app's server** tries again later.
+- **Keys in the APK**: the Public channel key (ticked by default) and, if ticked, a cloud group can go in the APK
+  itself; private channel keys never do. Keys in the APK stay in the installed app after the app's own wipe.
+- When a new app is published (Updates tab, or put there by a phone), every stamped APK is made again from it
+  within a minute.
+- After **Clear all data and exit** on a stamped app, Android is asked to uninstall it too (the person
+  confirms), so no stamp is left. Setting up from a stamp is always asked, never silent.
 
 ## More map features
 - **Online map tiles…** (map menu, or tap the Tiles line): online for 5 min, 1 hour, 1 day,

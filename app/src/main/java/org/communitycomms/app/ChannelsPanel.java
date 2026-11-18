@@ -115,7 +115,7 @@ final class ChannelsPanel {
         // Who I am on air (tap to change).
         TextView me = new TextView(a);
         me.setTextSize(16);
-        me.setText("Callsign: " + (prefs.callsign().length() > 0 ? prefs.callsign() : "(not set)") + "  (tap to change)");
+        me.setText("Callsign: " + (prefs.callsign().length() > 0 ? prefs.callsign() : "(not set)") + (prefs.nameLocked() ? "  (locked)" : "  (tap to change)"));
         me.setPadding(0, dp(4), 0, dp(6));
         me.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -133,6 +133,8 @@ final class ChannelsPanel {
         }
         for (int slot : Prefs.order()) {
             if (Prefs.isExtra(slot) && !prefs.extrasOn()) continue;
+            if (slot == Prefs.SLOT_CLOUD && !prefs.cloudFeature()) continue; // Advanced and Region features: Cloud group
+            if (slot == Prefs.SLOT_OPENMANET && !prefs.showOpenManet() && prefs.activeSlot() != slot) continue; // ...and OpenMANET
             box.addView(channelRow(slot, air, hear));
         }
 
@@ -184,7 +186,7 @@ final class ChannelsPanel {
         note.setTextSize(12);
         note.setPadding(0, dp(12), 0, 0);
         note.setText("Eye: show that channel's button on the home screen (room for " + Prefs.HOME_MAX
-                + "). Key: DRYAD sheets. Note: kept on this phone; it moves with the channel when swapped. "
+                + "); a hidden channel stays set up and can still be listened to, but has no home button or PTT of its own. Key: DRYAD sheets. Note: kept on this phone; it moves with the channel when swapped. "
                 + (prefs.tunnelSetUp() && !prefs.tunnelClientOn() ? "Tunnel (arch): this channel also goes through the internet relay. " : "")
                 + (prefs.vpsSetUp() ? "Globe: share this channel to the internet relay (used when this phone is the MANET's gateway). " : "")
                 + "Three dots: name, swap with A or B, mute.");
@@ -443,6 +445,10 @@ final class ChannelsPanel {
     }
 
     private void editCallsign() {
+        if (prefs.nameLocked()) {
+            Toast.makeText(a, "Your callsign was set by a setup QR code and is locked", Toast.LENGTH_LONG).show();
+            return;
+        }
         final android.widget.EditText e = new android.widget.EditText(a);
         e.setSingleLine(true);
         e.setText(prefs.callsign());

@@ -77,7 +77,7 @@ final class ShareLocation {
         new AlertDialog.Builder(a)
                 .setTitle("Obscure your position?")
                 .setMessage("Share a spot up to " + Geo.range(keep) + " from you (the same offset each time, shown as "
-                        + "approximate), or your exact position? Change the range in Settings > Mission and data > "
+                        + "approximate), or your exact position? Change the range in Settings > Location and privacy > "
                         + "Obscure location.")
                 .setPositiveButton("Obscure (" + Geo.range(keep) + ")", new DialogInterface.OnClickListener() {
                     @Override
@@ -122,7 +122,7 @@ final class ShareLocation {
         new AlertDialog.Builder(a)
                 .setTitle("Location request")
                 .setMessage(from + " asks everyone on this channel to share their location for 30 minutes. Share yours?\n\n"
-                        + "(Settings > Mission and data > Automatically accept location sharing answers yes by itself.)")
+                        + "(Settings > Location and privacy > Automatically accept location sharing answers yes by itself.)")
                 .setPositiveButton("Share", new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface d, int w) {

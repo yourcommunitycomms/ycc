@@ -16,7 +16,7 @@ WHAT IT IS
   the included prompt.
 
 GETTING STARTED
-- Setup wizard: callsign, then "Quick set from a QR code" or "Skip quick set", then a short note on DRYAD sheets (Advanced) versus fixed keys (Simple), then the mode, the
+- Setup wizard: quick set from a QR code first (or paste the code; a code with a callsign skips that question), callsign, the device role (in alternating colours: Phone radio, Commander, Public intercom, TV / display, Camera and security monitor, Network gateway), for a phone radio an Advanced or simple explainer then Advanced / Simple with a Profile list and an "I lead a team" tick, voice, power with an Anchored tick, location (automatic sharing, obscure range, Public / Cloud sharing), maps, the keys, then an All set summary with a setup QR for the next device. New installs open on the map home with the General profile (I have arrived, On my way, Running late, I need help now, Delayed, All OK, Call me, Let's meet here, Let's eat here, Car park, Share location until stop).
   keys, and the permissions screen.
 - Phone setup QR code: one scan gives a new phone the LAN storage and its login, the tunnel server,
   the Public key, optionally channel A, OpenMANET and the home WiFi, then loads the group's default
@@ -104,11 +104,12 @@ MAPS AND LOCATION
 - Personal map points: kept on this phone only, never shared.
 - Offline routes: plan first, close roads at the +, go via points (convoys), share the route to the channel, a person or another app; automatic rerouting off by default.
 - Route via points (small dots), waypoints (flags) and planned rest / meeting stops (cups) with names, times and notes, a route editor, and route notes shared with the route; waypoints and stops are announced while following.
+- Map home by default (radio buttons home one tap away), a Shortcuts page with the current state (power, Mission mode, Anchored, battery, status, location sharing, radio silent, Fake GPS) and every shortcut, a short menu with a More screen grouped by job, Simple / Advanced channels pages with a shown / hidden eye on every channel, Settings in twelve pages (Me, Channels and listening, Voice and PTT, Alerts, Screen, Power and batteries, Location and privacy, Network, Security, Data and backups, Advanced and Region features, About and updates), a device role and team lead tick, and a setup QR code that can set everything (role, group type, callsign with an optional lock, Anchored, features).
 - The app can open into the full map or TV mode, and the screen can be locked to portrait or landscape, or turned upside down.
 - Calendar and notes: my calendar, a team calendar shared on the channel, both together in two colours, reminders with an optional buzz, and notes with pictures in the text.
 - Protected notes and calendar entries: a padlock and a password (no recovery) keep chosen notes and entries encrypted on this phone only; they are hidden every time the screen opens until unlocked, and never shared or synced.
 - Protected entries: 3 wrong passwords in a row erase them; Change protected password and Erase all protected entries; a protected calendar entry starts with no reminder, and "Add a Protected Meeting reminder" shows no details.
-- Specialised menus (channel array, reports to leaders, tasks, Project NOMAD, VicEmergency, Melbourne trains preset, station names, ARTC rail, ATAK map menu items, Cast screen to TV, Calendar and notes, Relay admin, Battery power, T.REX Arms Topo Map) are off until ticked in Settings > Home screen and menus, or turned on by a setup QR code.
+- Advanced and Region features (once Specialised menus): Channel array, Report to leaders, Tasks and notes, Calendar and notes, Battery power, Cast screen to TV, Relay admin, Cloud group, T.REX Arms Topo Map; Region: VicEmergency, Melbourne trains preset, station names, ARTC rail; More...: Project NOMAD, ATAK map menu items, OpenMANET, Internet audio. All off until ticked in Settings > Advanced and Region features, or turned on by a setup QR code; an Advanced setup list of short guided setups (Cloud Server, Join the Cloud Server, cloud group, tunnel, LAN storage server, cameras, batteries, ATAK and OpenMANET, channel array).
 - ARTC rail network overlay (Australian interstate and freight track), kept for offline use once seen.
 - Live trains on the map with their next stops (GTFS Realtime: Melbourne tick with a free key, or your own home town's feed - recommended).
 - Download detailed map tiles along a route (about 300 m either side, zoom levels and map types ticked).

@@ -13,6 +13,7 @@ public final class CommsApp extends Application {
     public void onCreate() {
         super.onCreate();
         app = this;
+        Prefs.migrateUiReorg(this); // once: phones already set up keep their home screen; role worked out
         org.communitycomms.app.geo.FakeGps.init(this);
         Cw.restore(this); // CW mode survives a restart or a crash
         org.communitycomms.app.geo.Geo.loadUnits(this);

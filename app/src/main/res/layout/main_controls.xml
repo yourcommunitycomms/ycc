@@ -123,12 +123,22 @@
         android:baselineAligned="false"
         android:orientation="horizontal">
 
+        <!-- Shortcuts: every shortcut and the current state (power, Anchored, status, location sharing). -->
+        <Button
+            android:id="@+id/shortcuts"
+            style="@style/SmallButton"
+            android:layout_height="match_parent"
+            android:layout_weight="2"
+            android:text="Shortcuts" />
+
+        <!-- Share my location moved into Shortcuts (kept so the same code drives both home screens). -->
         <Button
             android:id="@+id/share_loc"
             style="@style/SmallButton"
             android:layout_height="match_parent"
             android:layout_weight="2"
-            android:text="@string/share_loc" />
+            android:text="@string/share_loc"
+            android:visibility="gone" />
 
         <Button
             android:id="@+id/call"

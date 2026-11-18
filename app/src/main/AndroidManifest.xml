@@ -39,6 +39,8 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- Clear all data on an APK stamped by a LAN server: Android is asked to uninstall the app too (the person confirms). -->
+    <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
     <!-- Android 4.1–4.3 need this to write the app's own folder on external storage; up to Android 9
          it is also asked for (only then) when Settings > Tools saves a QR picture to Pictures/YCC. -->
     <uses-permission

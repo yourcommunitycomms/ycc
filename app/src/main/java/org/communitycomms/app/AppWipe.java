@@ -63,9 +63,30 @@ public final class AppWipe {
 
     /** Wipe, then close every screen and end the process so nothing is left in memory. */
     public static void wipeAndExit(Activity a) {
+        wipeAndExit(a, false);
+    }
+
+    /**
+     * offerUninstall (Clear all data, not the lost-device wipe): a stamped APK keeps its setup stamp after the data
+     * is erased, so Android is asked to uninstall the app as well (the person confirms it).
+     */
+    public static void wipeAndExit(final Activity a, boolean offerUninstall) {
+        boolean stamped = offerUninstall && ApkStamp.read(a) != null;
         wipe(a);
+        if (stamped) {
+            try {
+                a.startActivity(new android.content.Intent(android.content.Intent.ACTION_DELETE,
+                        android.net.Uri.parse("package:" + a.getPackageName())).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK));
+            } catch (RuntimeException ignored) {
+            }
+        }
         a.finishAffinity();
-        android.os.Process.killProcess(android.os.Process.myPid());
+        new android.os.Handler().postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                android.os.Process.killProcess(android.os.Process.myPid());
+            }
+        }, stamped ? 800 : 0);
     }
 
     private static void deleteChildren(File dir) {

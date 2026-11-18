@@ -19,22 +19,32 @@ public final class ChannelsActivity extends Activity implements ChannelsPanel.Ho
     @Override
     protected void onCreate(Bundle b) {
         super.onCreate(b);
-        setTitle("Channels");
+        setTitle("Advanced channels");
+        if (new Prefs(this).simple()) { // the simple group types have the Simple channels page
+            startActivity(new Intent(this, KeysActivity.class));
+            finish();
+            return;
+        }
         panel = new ChannelsPanel(this, this);
+        android.widget.LinearLayout page = new android.widget.LinearLayout(this);
+        page.setOrientation(android.widget.LinearLayout.VERTICAL);
+        page.addView(ChannelsSwitch.header(this, false));
+        page.addView(panel.view());
+        page.addView(ChannelsSwitch.links(this));
         ScrollView sv = new ScrollView(this);
-        sv.addView(panel.view());
+        sv.addView(page);
         setContentView(sv);
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        panel.start();
+        if (panel != null) panel.start();
     }
 
     @Override
     protected void onPause() {
-        panel.stop();
+        if (panel != null) panel.stop();
         super.onPause();
     }
 

@@ -31,7 +31,7 @@ ALL-FEATURES.txt the one-list summary, PROTOCOL.md the wire format, UPDATES.md t
   pinned announcements; filter by kind and by channel (including Cloud group); every message shows its source.
 - Channel array for leaders, team setup QR codes and cards, Report to leaders, Tasks and notes,
   Private contacts by QR.
-- Calendar and notes (specialised menu): my calendar, team calendar on the channel, reminders, notes with pictures.
+- Calendar and notes (an Advanced feature): my calendar, team calendar on the channel, reminders, notes with pictures.
 - Protected notes and calendar entries: password-encrypted on the device only, hidden every time the screen
   opens, never shared / synced / backed up, 3 wrong passwords erase them, change password / erase all,
   Protected Meeting reminders with no details; the lost-phone wipe deletes them.
@@ -59,8 +59,13 @@ ALL-FEATURES.txt the one-list summary, PROTOCOL.md the wire format, UPDATES.md t
   until the double tap), black screen timer, lock button.
 
 ## Setup and sharing
-- First-start wizard, modes (Advanced, Simple modes, Intercom), phone setup QR (channels, relay, LAN,
-  menus), Save / Read my config, Specialised menus off by default, Tools page (make / scan QR, open in browser).
+- Role-first setup wizard; device roles (Phone radio with an "I lead a team" tick, Commander, Public intercom,
+  TV / display, Camera monitor, Network gateway) that only turn things on and never set Anchored; group types
+  (Advanced, simple ones), switchable from the Channels page; phone setup QR that sets everything and applies
+  without asking (role, group, lead, callsign with an optional lock, Anchored, features, channels, relay, LAN);
+  Save / Read my config; Advanced and Region features off by default with an Advanced setup list; Tools page.
+- Layout (2026-11-18): map home by default, Shortcuts page with the current state, short menu plus a More
+  screen, Simple / Advanced channels pages with a shown / hidden eye per channel, Settings in twelve pages.
 - LAN storage server (Docker, /webadmin: files, updates, setup QR, bridge, sync, docs); Update from URL
   (GitHub release by default) that refreshes the LAN copy for everyone.
 

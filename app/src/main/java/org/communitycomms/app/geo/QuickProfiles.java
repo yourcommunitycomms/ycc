@@ -22,9 +22,9 @@ import java.util.Locale;
  */
 public final class QuickProfiles {
     public static final String[] NAMES = {"Friends", "Security", "Firefighting", "Military", "Custom",
-            "Scouts", "Staff", "4WDing", "Friends convoy", "Caravan / camping", "Emergency services"};
+            "Scouts", "Staff", "4WDing", "Friends convoy", "Caravan / camping", "Emergency services", "General"};
     public static final int FRIENDS = 0, SECURITY = 1, FIRE = 2, MILITARY = 3, CUSTOM = 4,
-            SCOUTS = 5, STAFF = 6, FOURWD = 7, CONVOY = 8, CAMPING = 9, EMERGENCY = 10;
+            SCOUTS = 5, STAFF = 6, FOURWD = 7, CONVOY = 8, CAMPING = 9, EMERGENCY = 10, GENERAL = 11;
 
     /** What a quick button does: drop a map point, send a chat message, or share location until stopped. */
     public static final int KIND_POINT = 0, KIND_MESSAGE = 1, KIND_SHARE = 2;
@@ -81,6 +81,19 @@ public final class QuickProfiles {
     public static List<Item> builtIn(int profile) {
         List<Item> l = new ArrayList<Item>();
         switch (profile) {
+            case GENERAL: // the default for new installs: everyday "where are you" messages
+                l.add(Item.message("I have arrived", "{me} has arrived"));
+                l.add(Item.message("On my way", "{me} is on the way"));
+                l.add(Item.message("Running late", "{me} is running late"));
+                l.add(new Item("I need help now", 25, "{me} NEEDS HELP NOW here", 2 * H, false));
+                l.add(Item.message("Delayed", "{me} is delayed"));
+                l.add(Item.message("All OK", "{me}: all OK"));
+                l.add(Item.message("Call me", "Please call {me}"));
+                l.add(new Item("Let's meet here", 14, "Let's meet here ({me})", 2 * H, false));
+                l.add(new Item("Let's eat here", 29, "Let's eat here ({me})", 2 * H, false));
+                l.add(new Item("Car park", 15, "Car park", 12 * H, false));
+                l.add(Item.share("Share location until stop"));
+                break;
             case FRIENDS:
                 l.add(new Item("I am here", 0, "{me} is here", H, false));
                 l.add(new Item("Toilets", 13, "Toilets here", 12 * H, false));
@@ -257,7 +270,7 @@ public final class QuickProfiles {
     }
 
     public int profile() {
-        return sp.getInt("profile", SECURITY);
+        return sp.getInt("profile", GENERAL); // phones set up before General existed keep Security (Prefs.migrateUiReorg)
     }
 
     /** Switching to Custom for the first time copies the profile in use as the starting point. */

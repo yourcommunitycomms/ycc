@@ -38,7 +38,7 @@ public final class LightDiscipline implements Application.ActivityLifecycleCallb
         apply(a);
     }
 
-    /** Settings > Power and sleep: red light on from one time of day until another (minutes after midnight). */
+    /** Settings > Power and batteries: red light on from one time of day until another (minutes after midnight). */
     public static boolean redAuto(Context c) {
         return c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean("redAuto", false);
     }
@@ -97,7 +97,7 @@ public final class LightDiscipline implements Application.ActivityLifecycleCallb
 
     // ---- blackout ----
 
-    /** Settings > Home screen: lowest backlight instead of none, for older devices where none stops the double tap. */
+    /** Settings > Screen: lowest backlight instead of none, for older devices where none stops the double tap. */
     public static boolean legacyBlackout(Context c) {
         return c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean("blackoutLegacy", false);
     }

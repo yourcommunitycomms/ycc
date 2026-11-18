@@ -10,9 +10,125 @@ public final class Prefs {
     public static final int NET_MULTICAST = 1;
 
     private final SharedPreferences sp;
+    private final Context ctx;
 
     public Prefs(Context c) {
         sp = c.getSharedPreferences("settings", Context.MODE_PRIVATE);
+        ctx = c.getApplicationContext() != null ? c.getApplicationContext() : c;
+    }
+
+    // ---- device role (what this device is for), "I lead a team", a callsign locked by a setup QR ----
+
+    public static final String ROLE_PHONE = "phone", ROLE_COMMANDER = "commander", ROLE_INTERCOM = "intercom",
+            ROLE_TV = "tv", ROLE_CAMERA = "camera", ROLE_GATEWAY = "gateway";
+    public static final String[] ROLE_KEYS = {ROLE_PHONE, ROLE_COMMANDER, ROLE_INTERCOM, ROLE_TV, ROLE_CAMERA, ROLE_GATEWAY};
+    public static final String[] ROLE_NAMES = {"Phone radio", "Commander (base station)", "Public intercom", "TV / display",
+            "Camera and security monitor", "Network gateway"};
+    public static final String[] ROLE_NOTES = {
+            "One person's radio and field tool (simple or advanced). Tick \"I lead a team\" for the team tools.",
+            "A base station that sees everyone: map with the Contacts and Channels panel, records all voice.",
+            "Wall-mounted: anyone can press a room to call. Settings behind a PIN.",
+            "A big screen showing the map, chat and cameras. It can still talk (PTT on).",
+            "Watches cameras (Reolink) and tells the channel about motion or a camera going offline.",
+            "Links this MANET to the internet or other sites (Cloud Server, tunnel, OpenMANET gateway)."};
+
+    /** The device role. Phones set up before roles existed get one worked out once (and kept). */
+    public String role() {
+        String r = sp.getString("role", "");
+        if (java.util.Arrays.asList(ROLE_KEYS).contains(r)) return r;
+        r = derivedRole();
+        sp.edit().putString("role", r).commit();
+        return r;
+    }
+
+    private String derivedRole() {
+        if (appMode() == MODE_INTERCOM) return ROLE_INTERCOM;
+        if (homeStart() == HOME_TV) return ROLE_TV;
+        android.content.res.Configuration c = ctx.getResources().getConfiguration();
+        if (android.os.Build.VERSION.SDK_INT >= 13 && c.smallestScreenWidthDp >= 600) return ROLE_COMMANDER;
+        return ROLE_PHONE;
+    }
+
+    public int roleIndex() {
+        return Math.max(0, java.util.Arrays.asList(ROLE_KEYS).indexOf(role()));
+    }
+
+    /** Sets the role; the intercom role is also the intercom mode (and leaving it goes back to Advanced). */
+    public void setRole(String r) {
+        if (!java.util.Arrays.asList(ROLE_KEYS).contains(r)) return;
+        sp.edit().putString("role", r).commit();
+        if (ROLE_INTERCOM.equals(r)) {
+            if (appMode() != MODE_INTERCOM) setAppMode(MODE_INTERCOM);
+        } else if (appMode() == MODE_INTERCOM) {
+            setAppMode(MODE_ADVANCED);
+        }
+    }
+
+    public String roleName() {
+        return ROLE_NAMES[roleIndex()];
+    }
+
+    /** Phone radio: "I lead a team" (team tools pre-ticked). */
+    public boolean lead() {
+        return sp.getBoolean("lead", false);
+    }
+
+    public void setLead(boolean on) {
+        sp.edit().putBoolean("lead", on).commit();
+    }
+
+    /** The callsign was set by a setup QR and may not be edited here (a new setup QR or Clear everything changes it). */
+    public boolean nameLocked() {
+        return sp.getBoolean("nameLock", false);
+    }
+
+    public void setNameLock(boolean on) {
+        sp.edit().putBoolean("nameLock", on).commit();
+    }
+
+    /** Group types as words (setup QR field "group"), by app mode. */
+    public static final String[] GROUP_KEYS = {"advanced", "intercom", "scouts", "staff", "4wd", "convoy", "camping", "general"};
+
+    public String groupKey() {
+        int m = appMode();
+        return m >= 0 && m < GROUP_KEYS.length ? GROUP_KEYS[m] : "advanced";
+    }
+
+    /** The simple group type last used (for the Channels page Simple / Advanced switch). */
+    public int lastSimpleMode() {
+        int m = sp.getInt("lastSimpleMode", MODE_GENERAL);
+        return m >= MODE_SCOUTS && m <= MODE_GENERAL ? m : MODE_GENERAL;
+    }
+
+    /**
+     * Once, on the first start of a version with the new layout: phones already set up keep what they had
+     * (the radio buttons home if that is what they used, the Cloud group if they had one), and get their
+     * role worked out. New installs get the new defaults (map home).
+     */
+    public static void migrateUiReorg(Context c) {
+        SharedPreferences s = c.getSharedPreferences("settings", Context.MODE_PRIVATE);
+        int done = s.getInt("uiReorg", 0);
+        if (done >= 2) return;
+        Prefs p = new Prefs(c);
+        boolean existing = s.getBoolean("setupDone", false) || s.getString("channelA", s.getString("channel", "")).length() > 0;
+        SharedPreferences qp = c.getSharedPreferences("quickProfiles", Context.MODE_PRIVATE);
+        if (existing && !qp.contains("profile")) { // General became the default: keep the quick buttons they had
+            qp.edit().putInt("profile", org.communitycomms.app.geo.QuickProfiles.SECURITY).commit();
+        }
+        if (done >= 1) {
+            s.edit().putInt("uiReorg", 2).commit();
+            return;
+        }
+        SharedPreferences.Editor e = s.edit();
+        if (existing) {
+            if (!s.contains("homeMap")) {
+                e.putBoolean("homeMap", false); // keep the radio buttons home they had...
+                e.putBoolean("mapHomeOffer", true); // ...and offer the map home once
+            }
+            if (p.cloudSet()) e.putBoolean("menu_cloud", true);
+            e.putString("role", p.derivedRole());
+        }
+        e.putInt("uiReorg", 2).commit();
     }
 
     public String callsign() {
@@ -493,22 +609,46 @@ public final class Prefs {
     }
 
     /**
-     * Specialised menus (Settings > Home screen and menus), all off by default and settable by a setup QR
+     * Specialised menus (Settings > Advanced and Region features), all off by default and settable by a setup QR
      * code ("menus": the keys to turn on). Most people never need these.
      */
-    public static final String[] MENU_KEYS = {"array", "report", "tasks", "nomad", "vicemergency", "trains", "stopnames", "artc", "atak", "cast", "calendar", "relayadmin", "bluetti", "trex"};
+    public static final String[] MENU_KEYS = {"array", "report", "tasks", "nomad", "vicemergency", "trains", "stopnames", "artc", "atak", "cast", "calendar", "relayadmin", "bluetti", "trex",
+            "cloud", "openmanet", "streams"};
     public static final String[] MENU_LABELS = {"Channel array", "Report to leaders", "Tasks and notes", "Project NOMAD",
             "VicEmergency alerts on the map", "Melbourne trains preset (in Trains on the map)", "Load station names button (live trains)", "ARTC rail network on the map", "ATAK items in the map menu (map files, export, map source)", "Cast screen to TV (Google TV, Chromecast)", "Calendar and notes (mine, team, both; notes with pictures)",
-            "Relay admin (add and remove the internet relay's sites and remotes; needs its admin key)",
+            "Relay admin (add and remove the Cloud Server's sites, remotes and cloud groups; needs its admin key)",
             "Battery power (read-only: Bluetti, Tesla Powerwall 2, Anker SOLIX*, EcoFlow*; battery and power shared on the channel; * untested)",
-            "T.REX Arms Topo Map (offline topo map: Layer choice, Data import and layers, sharing through the cache server)"};
+            "T.REX Arms Topo Map (offline topo map: Layer choice, Data import and layers, sharing through the cache server)",
+            "Cloud group (a community channel like Public with its own Cloud Server)",
+            "OpenMANET / ATAK Vx talk group and OpenMANET node menus (experimental, not encrypted)",
+            "Internet audio (radio streams in the menu)"};
 
+    /** Advanced and Region features, grouped (all keys are in MENU_KEYS; all off by default). */
+    public static final String[] FEATURES_ADVANCED = {"array", "report", "tasks", "calendar", "bluetti", "cast", "relayadmin", "cloud", "trex"};
+    public static final String[] FEATURES_REGION = {"vicemergency", "trains", "stopnames", "artc"};
+    public static final String[] FEATURES_MORE = {"nomad", "atak", "openmanet", "streams"};
+
+    public static String menuLabel(String key) {
+        int i = java.util.Arrays.asList(MENU_KEYS).indexOf(key);
+        return i < 0 ? key : MENU_LABELS[i];
+    }
+
+    /** Is this Advanced or Region feature on? ("openmanet" and "streams" are the older settings of the same name.) */
     public boolean menuOn(String key) {
+        if ("openmanet".equals(key)) return showOpenManet();
+        if ("streams".equals(key)) return streamsEnabled();
         return sp.getBoolean("menu_" + key, false);
     }
 
     public void setMenuOn(String key, boolean on) {
-        sp.edit().putBoolean("menu_" + key, on).commit();
+        if ("openmanet".equals(key)) sp.edit().putBoolean("showOpenManet", on).commit();
+        else if ("streams".equals(key)) setStreamsEnabled(on);
+        else sp.edit().putBoolean("menu_" + key, on).commit();
+    }
+
+    /** The Cloud group shows on the Channels and Keys pages: the feature is on, or a group is already set. */
+    public boolean cloudFeature() {
+        return menuOn("cloud") || cloudSet();
     }
 
     /** The menus turned on, comma separated (for a setup QR code). */
@@ -582,7 +722,7 @@ public final class Prefs {
 
     /** Home screen style: false = radio (big PTT), true = map with a smaller PTT. */
     public boolean homeMap() {
-        return sp.getBoolean("homeMap", false);
+        return sp.getBoolean("homeMap", true); // map home by default (phones set up before keep theirs: migrateUiReorg)
     }
 
     public void setHomeMap(boolean on) {
@@ -777,7 +917,7 @@ public final class Prefs {
         sp.edit().putString("reportCode", s == null ? "" : s.trim()).commit();
     }
 
-    // ---- Settings > Power and sleep ----
+    // ---- Settings > Power and batteries ----
 
     public int powerMode() {
         return sp.getInt("powerMode", PowerMode.NORMAL);
@@ -998,16 +1138,30 @@ public final class Prefs {
     // ---- app mode: the full radio, a simple activity mode, or the wall intercom ----
 
     public static final int MODE_ADVANCED = 0, MODE_INTERCOM = 1, MODE_SCOUTS = 2, MODE_STAFF = 3, MODE_4WD = 4,
-            MODE_CONVOY = 5, MODE_CAMPING = 6;
+            MODE_CONVOY = 5, MODE_CAMPING = 6, MODE_GENERAL = 7;
     public static final String[] MODE_NAMES = {"Advanced (full radio, DRYAD, maps)", "Intercom (wall-mounted, rooms)",
-            "Scouts", "Staff", "4WDing", "Friends convoy", "Caravan / camping"};
+            "Scouts", "Staff", "4WDing", "Friends convoy", "Caravan / camping", "General (simple)"};
+    /** The quick button profile each simple group type starts with. */
+    public static int profileForMode(int m) {
+        switch (m) {
+            case MODE_SCOUTS: return org.communitycomms.app.geo.QuickProfiles.SCOUTS;
+            case MODE_STAFF: return org.communitycomms.app.geo.QuickProfiles.STAFF;
+            case MODE_4WD: return org.communitycomms.app.geo.QuickProfiles.FOURWD;
+            case MODE_CONVOY: return org.communitycomms.app.geo.QuickProfiles.CONVOY;
+            case MODE_CAMPING: return org.communitycomms.app.geo.QuickProfiles.CAMPING;
+            case MODE_INTERCOM: return org.communitycomms.app.geo.QuickProfiles.FRIENDS;
+            default: return org.communitycomms.app.geo.QuickProfiles.GENERAL;
+        }
+    }
 
     public int appMode() {
         return sp.getInt("appMode", MODE_ADVANCED);
     }
 
     public void setAppMode(int m) {
-        sp.edit().putInt("appMode", m).commit();
+        SharedPreferences.Editor e = sp.edit().putInt("appMode", m);
+        if (m >= MODE_SCOUTS) e.putInt("lastSimpleMode", m);
+        e.commit();
     }
 
     /** Simple modes: no DRYAD, Pigpen or OpenMANET; a private key (channel A) and the public key. */

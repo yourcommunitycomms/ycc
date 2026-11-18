@@ -2686,7 +2686,7 @@ public final class RadioService extends Service implements RadioEngine.Listener 
             messages.sendText("Anchor " + new Prefs(this).callsign() + " lost mains power (unplugged for 10 minutes).");
         }
         notifyMission("This phone lost mains power", "It has been unplugged for 10 minutes. Still an anchor? Turn it off in "
-                + "Settings > Power and sleep if it is now on battery.");
+                + "Settings > Power and batteries if it is now on battery.");
     }
 
     // ---- going offline as planned ----
@@ -3489,7 +3489,7 @@ public final class RadioService extends Service implements RadioEngine.Listener 
         }
     }
 
-    // ---- Settings > Power and sleep ----
+    // ---- Settings > Power and batteries ----
 
     private boolean asleep, feedsWere = true, offlineWere;
     private long asleepSince;

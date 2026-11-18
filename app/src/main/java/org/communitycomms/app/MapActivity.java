@@ -963,7 +963,7 @@ public final class MapActivity extends Activity {
         fakeToggle[0] = new MapIconButton(this, MapIconButton.FAKE, "Fake", "Fake GPS on or off (lit = on)", new Runnable() {
             @Override
             public void run() {
-                // Training / demos: a random spot near the Fake GPS centre (Settings > Mission and data).
+                // Training / demos: a random spot near the Fake GPS centre (Settings > Location and privacy).
                 boolean on = !org.communitycomms.app.geo.FakeGps.enabled(MapActivity.this);
                 String centre = org.communitycomms.app.geo.FakeGps.centre(MapActivity.this);
                 if (on && centre.trim().length() == 0) centre = Geo.latLon(map.centerLat(), map.centerLon()); // none yet: the +
@@ -1626,7 +1626,7 @@ public final class MapActivity extends Activity {
 
     /** The shared maps cache at work: tiles read from the LAN storage and given to it since the app started. */
     private String lanStatus() {
-        if (!new org.communitycomms.app.geo.LanTiles(this).configured()) return "\nLAN maps cache: not set up (Settings > Network and sync)";
+        if (!new org.communitycomms.app.geo.LanTiles(this).configured()) return "\nLAN maps cache: not set up (Settings > Data and backups)";
         int got = TileMapView.lanGot.get(), sent = TileMapView.lanSent.get(), failed = TileMapView.lanFailed.get();
         return "\nLAN maps cache: " + got + " tile(s) from it, " + sent + " given to it"
                 + (failed > 0 ? ", " + failed + " could not be given (check the address and login)" : "");

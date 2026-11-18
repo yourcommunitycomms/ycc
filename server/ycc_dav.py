@@ -13,6 +13,7 @@ from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from urllib.parse import unquote, urlencode
 
 import admin
+import provision
 
 ROOT = os.path.realpath(os.environ.get("YCC_ROOT", "/data"))
 PORT = int(os.environ.get("YCC_PORT", sys.argv[1] if len(sys.argv) > 1 else "47490"))
@@ -22,7 +23,7 @@ if not PASSWORD:
     sys.exit("Set YCC_PASSWORD")
 MAX_UPLOAD = int(os.environ.get("YCC_MAX_UPLOAD_MB", "2048")) * 1024 * 1024
 MAX_FORM = 300 * 1024 * 1024  # admin page posts (an APK upload)
-STORE_FOLDERS = ("Maps cache", "Updates", "Logs", "Data", "DRYAD", "Configs", "Missions", "T.REX Arms Topo Map")
+STORE_FOLDERS = ("Maps cache", "Updates", "Logs", "Data", "DRYAD", "Configs", "Missions", "T.REX Arms Topo Map", "Personal")
 for sub in ("Maps cache", "Updates"):
     os.makedirs(os.path.join(ROOT, "YCC", sub), exist_ok=True)
 admin.init(ROOT, USER, PASSWORD)
@@ -101,7 +102,25 @@ class H(SimpleHTTPRequestHandler):
     def public(self):
         p = self.local()
         return p is not None and (p.startswith(os.path.join(ROOT, "YCC", "Maps cache") + os.sep)
-                                  or p == os.path.join(ROOT, "YCC", "Updates", "YCC.apk"))
+                                  or p == os.path.join(ROOT, "YCC", "Updates", "YCC.apk")
+                                  or provision.public_file(p))
+
+    def personal_dir(self, p):
+        """The personal APKs folder is never listed (each file name holds that person's code)."""
+        pd = os.path.join(ROOT, "YCC", "Personal")
+        return p is not None and (p == pd or (os.path.isdir(p) and p.startswith(pd + os.sep)))
+
+    def setup_text(self, path):
+        """What a stamped APK fetches on first start (no login: the token in the address is the key)."""
+        if path in ("/YCC/Updates/YCC-site.setup", "/Updates/YCC-site.setup"):
+            t = provision.site_setup(admin.setup, admin.current_user(), admin.current_password())
+            code = 200 if t else 404
+        else:
+            name = path.rsplit("/", 1)[-1]
+            code, t = provision.person_setup(name[:-len(".setup")], admin.setup, admin.current_user(), admin.current_password())
+        if t is None:
+            return self.done(code)
+        self.send_page(t.encode("utf-8"), ctype="text/plain; charset=utf-8")
 
     def do_OPTIONS(self):
         self.send_response(200)
@@ -125,7 +144,9 @@ class H(SimpleHTTPRequestHandler):
             return
         if path in ("/", "/admin", "/admin/"):
             return self.redirect("/webadmin")
-        if self.local() is None:
+        if path.endswith(".setup") and ("/Personal/" in path or path.endswith("/Updates/YCC-site.setup")):
+            return self.setup_text(unquote(path))
+        if self.local() is None or self.personal_dir(self.local()):
             return self.done(404)
         if self.public() or self.ok_auth():
             super().do_GET()

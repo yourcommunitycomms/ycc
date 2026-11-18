@@ -257,7 +257,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         setUpTitleToggle();
         if (mapHome) setUpHomeMap();
         if (findViewById(R.id.side_holder) != null) setUpCommander();
-        // Settings > Home screen: open straight into the full map or TV mode (only when the app starts).
+        // Settings > Screen: open straight into the full map or TV mode (only when the app starts).
         if (savedInstanceState == null && !startRouted && Intent.ACTION_MAIN.equals(getIntent().getAction())) {
             startRouted = true;
             final int hs = prefs.homeStart();
@@ -371,6 +371,13 @@ public final class MainActivity extends Activity implements RadioService.Ui {
             @Override
             public void onClick(View v) {
                 toggleRapidShare();
+            }
+        });
+        View shortcutsBtn = findViewById(R.id.shortcuts);
+        if (shortcutsBtn != null) shortcutsBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                showShortcuts();
             }
         });
 
@@ -558,6 +565,13 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         renderSlots();
         rejoinIfSettingsChanged();
         renderJoinButton();
+        offerMapHomeOnce();
+        handler.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                if (!isFinishing()) offerRoleSetupOnce();
+            }
+        }, 1500);
         if (joinWhenBack) {
             joinWhenBack = false; // first start chose Public: join once the permissions screen is done
             requestJoin();
@@ -1110,11 +1124,30 @@ public final class MainActivity extends Activity implements RadioService.Ui {
     private void renderQuick() {
         quickItems = new org.communitycomms.app.geo.QuickProfiles(this).items();
         // Simple modes get a second row: up to 8 buttons on the radio home.
+        // The rest of the shortcuts are on the Shortcuts page now, so one row of four (picked there).
         View row2 = findViewById(R.id.quick_row2);
-        boolean two = !mapHome && row2 != null && prefs.simple();
-        if (row2 != null) row2.setVisibility(two ? View.VISIBLE : View.GONE);
+        boolean two = false;
+        if (row2 != null) row2.setVisibility(View.GONE);
         TextView ql = (TextView) findViewById(R.id.quick_label);
         if (ql != null) ql.setText(prefs.simple() ? "Quick buttons" : getString(R.string.quick_poi));
+        if (!mapHome) {
+            List<Integer> pick = homeQuick();
+            for (int i = 0; i < QUICK_IDS.length; i++) {
+                Button b = (Button) findViewById(QUICK_IDS[i]);
+                final int q = i < pick.size() ? pick.get(i) : -1;
+                b.setVisibility(q < 0 ? View.INVISIBLE : View.VISIBLE);
+                boolean sharing = q >= 0 && quickItems.get(q).kind == org.communitycomms.app.geo.QuickProfiles.KIND_SHARE
+                        && service != null && service.rapidShareLeftMs() > 0;
+                b.setText(sharing ? "Stop sharing" : q >= 0 ? quickItems.get(q).label : "");
+                b.setOnClickListener(new View.OnClickListener() {
+                    @Override
+                    public void onClick(View v) {
+                        if (q >= 0) quickPoi(q);
+                    }
+                });
+            }
+            return;
+        }
         int[] ids = two ? QUICK_IDS_8 : QUICK_IDS;
         boolean more = mapHome || quickItems.size() > ids.length;
         int direct = mapHome ? 0 : (more ? ids.length - 1 : quickItems.size());
@@ -1459,6 +1492,12 @@ public final class MainActivity extends Activity implements RadioService.Ui {
             b.setText(mapHome ? R.string.share_loc_short : R.string.share_loc);
             b.setTextColor(0xffffffff);
         }
+        Button sc = (Button) findViewById(R.id.shortcuts); // radio home: sharing shows on the Shortcuts button
+        if (sc != null) {
+            String t = left > 0 ? "Shortcuts\n(sharing location: " + shareState() + ")" : "Shortcuts";
+            if (!t.contentEquals(sc.getText())) sc.setText(t);
+            sc.setTextColor(left > 0 ? 0xffa5d6a7 : 0xffffffff);
+        }
     }
 
     /** The four channel buttons; which channel each shows is set by the eyes on the Channels page. */
@@ -1562,7 +1601,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
     private static final int MENU_DRYAD = 1, MENU_PIGPEN = 2, MENU_CHANNEL_QR = 3, MENU_SCAN = 4, MENU_FILES = 5,
             MENU_OPENMANET = 6, MENU_BLACKOUT = 7, MENU_RED = 8, MENU_SETTINGS = 9, MENU_CHAT = 10, MENU_AUDIO = 11, MENU_ABOUT = 12, MENU_EXIT = 13,
             MENU_STREAMS = 14, MENU_INTERCOM = 15, MENU_VIDEOS = 16, MENU_TV = 17, MENU_GATEWAY = 18,
-            MENU_HOME_TOGGLE = 19, MENU_TOP_CHAT = 20, MENU_TOP_BLACK = 21, MENU_NOMAD = 22, MENU_TV_MENU = 23, MENU_TASKS = 24, MENU_ARRAY = 25, MENU_REPORT_UP = 26, MENU_CAST = 27, MENU_CALENDAR = 28, MENU_RELAY_ADMIN = 29, MENU_BLUETTI = 30;
+            MENU_HOME_TOGGLE = 19, MENU_TOP_CHAT = 20, MENU_TOP_BLACK = 21, MENU_NOMAD = 22, MENU_TV_MENU = 23, MENU_TASKS = 24, MENU_ARRAY = 25, MENU_REPORT_UP = 26, MENU_CAST = 27, MENU_CALENDAR = 28, MENU_RELAY_ADMIN = 29, MENU_BLUETTI = 30, MENU_SHORTCUTS = 31, MENU_MORE = 32;
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
@@ -1585,6 +1624,8 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         menu.add(0, MENU_HOME_TOGGLE, 0, "Map / buttons home").setIcon(mapHome
                 ? android.R.drawable.ic_menu_agenda : android.R.drawable.ic_menu_mapmode)
                 .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS);
+        menu.add(0, MENU_SHORTCUTS, 0, "Shortcuts").setIcon(shortcutsIcon())
+                .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS);
         menu.add(0, MENU_TOP_CHAT, 0, "Chat").setIcon(android.R.drawable.sym_action_chat)
                 .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS);
         menu.add(0, MENU_TOP_BLACK, 0, "Blackout (double-tap to wake)").setIcon(android.R.drawable.ic_lock_power_off)
@@ -1604,13 +1645,429 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         menu.add(0, MENU_BLUETTI, 2, "Battery power");
         menu.add(0, MENU_GATEWAY, 6, "OpenMANET internet gateway");
         menu.add(0, MENU_EXIT, 10, "Exit (go off air and close)");
+        menu.add(0, MENU_MORE, 8, "More… (everything else, grouped)");
         AnchorButton.add(this, menu); // shows while plugged in (or anchored): one tap sets or clears Anchored
         return true;
     }
 
-    private Menu lastMenu;
+    // ---- Shortcuts: every shortcut in one place, with the current state at the top ----
 
-    /** The whole menu as a list (TVs, where the overflow dots may not show). */
+    private android.app.AlertDialog shortcutsDlg;
+
+    /** The quick map point buttons shown on the radio home (picked on the Shortcuts page; the first four by default). */
+    private List<Integer> homeQuick() {
+        List<Integer> out = new ArrayList<Integer>();
+        String saved = getSharedPreferences("settings", MODE_PRIVATE).getString("homeQuick", "");
+        if (saved.length() > 0) {
+            for (String label : saved.split("\n")) {
+                for (int i = 0; i < quickItems.size(); i++) {
+                    if (quickItems.get(i).label.equals(label) && !out.contains(i) && out.size() < QUICK_IDS.length) out.add(i);
+                }
+            }
+        }
+        if (out.isEmpty()) for (int i = 0; i < Math.min(QUICK_IDS.length, quickItems.size()); i++) out.add(i);
+        return out;
+    }
+
+    /** Pick up to four quick map point buttons for the radio home. */
+    private void chooseHomeQuick() {
+        final String[] labels = new String[quickItems.size()];
+        final boolean[] on = new boolean[labels.length];
+        List<Integer> now = homeQuick();
+        for (int i = 0; i < labels.length; i++) {
+            labels[i] = quickItems.get(i).label;
+            on[i] = now.contains(i);
+        }
+        new android.app.AlertDialog.Builder(this).setTitle("Buttons on the radio home (up to 4)")
+                .setMultiChoiceItems(labels, on, new DialogInterface.OnMultiChoiceClickListener() {
+                    @Override
+                    public void onClick(DialogInterface d, int which, boolean checked) {
+                        on[which] = checked;
+                    }
+                })
+                .setPositiveButton(android.R.string.ok, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface d, int w) {
+                        StringBuilder sb = new StringBuilder();
+                        int n = 0;
+                        for (int i = 0; i < labels.length && n < QUICK_IDS.length; i++) {
+                            if (on[i]) {
+                                sb.append(n++ > 0 ? "\n" : "").append(labels[i]);
+                            }
+                        }
+                        getSharedPreferences("settings", MODE_PRIVATE).edit().putString("homeQuick", sb.toString()).commit();
+                        renderQuick();
+                    }
+                })
+                .setNegativeButton(android.R.string.cancel, null).show();
+    }
+
+    private String shortStatus() {
+        int s = prefs.status();
+        return s == 1 ? "Away" : s == 2 ? "Stealth" : "Available";
+    }
+
+    private String shareState() {
+        long left = service == null ? 0 : service.rapidShareLeftMs();
+        if (left > 24 * 3600000L) return service.rapidShareAlways() ? "always" : service.rapidShareUntilRestart() ? "until restart" : "on";
+        if (left > 0) {
+            long min = (left + 59999) / 60000;
+            return min > 90 ? (min + 30) / 60 + " h left" : min + " min left";
+        }
+        return "off";
+    }
+
+    /** Shortcuts page: state at the top (tap to change), then every shortcut. Works the same on both home screens. */
+    private void showShortcuts() {
+        if (shortcutsDlg != null && shortcutsDlg.isShowing()) shortcutsDlg.dismiss();
+        final float d = getResources().getDisplayMetrics().density;
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding((int) (10 * d), (int) (6 * d), (int) (10 * d), (int) (6 * d));
+        String[] modes = {"Normal", "Power saver", "Ultra low", "Offline"};
+        int pm = PowerMode.mode();
+        boolean mission = PowerMode.missionMine() || PowerMode.missionOthers();
+        boolean plugged = AnchorButton.pluggedIn(this);
+        int bat = RadioEngine.myBattery;
+        String power = (plugged ? "plugged in" : "on battery") + (bat >= 0 ? " " + bat + "%" : "");
+        stateRow(box, "Power: " + modes[Math.max(0, Math.min(3, pm))] + (mission ? " · Mission mode" : "") + "  ›", new Runnable() {
+            @Override
+            public void run() {
+                SettingsActivity.open(MainActivity.this, "power");
+            }
+        });
+        stateRow(box, (prefs.anchor() ? "Anchored" : "Not anchored") + " · " + power + "  ›", new Runnable() {
+            @Override
+            public void run() {
+                AnchorButton.ask(MainActivity.this, null);
+            }
+        });
+        stateRow(box, "Status: " + shortStatus() + "  ›", new Runnable() {
+            @Override
+            public void run() {
+                chooseStatus();
+            }
+        });
+        stateRow(box, "Location sharing: " + shareState() + "  ›", new Runnable() {
+            @Override
+            public void run() {
+                toggleRapidShare();
+            }
+        });
+        stateRow(box, "Radio silent: " + (prefs.radioSilent() ? "ON (nothing is sent)" : "off") + "  ›", new Runnable() {
+            @Override
+            public void run() {
+                toggleRadioSilent();
+            }
+        });
+        boolean fake = org.communitycomms.app.geo.FakeGps.enabled(this);
+        int obs = org.communitycomms.app.geo.FakeGps.obscureM(this);
+        stateRow(box, "Fake GPS: " + (fake ? "ON" : "off") + (obs > 0 ? " · location obscured " + org.communitycomms.app.geo.Geo.range(obs) : "") + "  ›", new Runnable() {
+            @Override
+            public void run() {
+                SettingsActivity.open(MainActivity.this, "location");
+            }
+        });
+
+        List<String> names = new ArrayList<String>();
+        final List<Runnable> runs = new ArrayList<Runnable>();
+        for (int i = 0; i < quickItems.size(); i++) {
+            final int q = i;
+            final org.communitycomms.app.geo.QuickProfiles.Item it = quickItems.get(i);
+            boolean sharing = it.kind == org.communitycomms.app.geo.QuickProfiles.KIND_SHARE && service != null && service.rapidShareLeftMs() > 0;
+            names.add(sharing ? "Stop sharing" : it.label);
+            runs.add(new Runnable() {
+                @Override
+                public void run() {
+                    if (homeMap != null && !it.atMapCentre && it.kind == org.communitycomms.app.geo.QuickProfiles.KIND_POINT) askWhere(q);
+                    else quickPoi(q);
+                }
+            });
+        }
+        int quickCount = names.size();
+        long left = service == null ? 0 : service.rapidShareLeftMs();
+        names.add(left > 0 ? "Sharing location (options)" : getString(R.string.share_loc));
+        runs.add(new Runnable() {
+            @Override
+            public void run() {
+                toggleRapidShare();
+            }
+        });
+        if (prefs.callEnabled()) {
+            names.add("Call everyone");
+            runs.add(new Runnable() {
+                @Override
+                public void run() {
+                    callEveryone();
+                }
+            });
+        }
+        names.add("My status");
+        runs.add(new Runnable() {
+            @Override
+            public void run() {
+                chooseStatus();
+            }
+        });
+        names.add("Text as voice");
+        runs.add(new Runnable() {
+            @Override
+            public void run() {
+                askSay(-1);
+            }
+        });
+        names.add("Mark… (whole list)");
+        runs.add(new Runnable() {
+            @Override
+            public void run() {
+                pickQuick();
+            }
+        });
+        names.add("Photo");
+        runs.add(new Runnable() {
+            @Override
+            public void run() {
+                startActivity(new Intent(MainActivity.this, FilesActivity.class).putExtra(FilesActivity.EXTRA_PHOTO, true));
+            }
+        });
+        names.add("Black screen");
+        runs.add(new Runnable() {
+            @Override
+            public void run() {
+                if (LightDiscipline.legacyBlackout(MainActivity.this)) Toast.makeText(MainActivity.this, "Double-tap to wake", Toast.LENGTH_SHORT).show();
+                LightDiscipline.blackout(MainActivity.this);
+            }
+        });
+        names.add(prefs.locked() ? "Locked (hold Lock to unlock)" : "Lock");
+        runs.add(new Runnable() {
+            @Override
+            public void run() {
+                if (!prefs.locked()) {
+                    prefs.setLocked(true);
+                    renderLock();
+                }
+            }
+        });
+        final boolean canReport = prefs.reportCode().length() > 0 && prefs.menuOn("report");
+        if (!prefs.simple() || canReport) {
+            names.add(canReport ? "Report to leaders" : "Reports");
+            runs.add(new Runnable() {
+                @Override
+                public void run() {
+                    startActivity(new Intent(MainActivity.this, canReport ? ReportUpActivity.class : ReportsActivity.class));
+                }
+            });
+        }
+        names.add("Chat");
+        runs.add(new Runnable() {
+            @Override
+            public void run() {
+                startActivity(new Intent(MainActivity.this, ChatActivity.class));
+            }
+        });
+        names.add("Contacts");
+        runs.add(new Runnable() {
+            @Override
+            public void run() {
+                startActivity(new Intent(MainActivity.this, ContactsActivity.class));
+            }
+        });
+        names.add("Full map");
+        runs.add(new Runnable() {
+            @Override
+            public void run() {
+                startActivity(new Intent(MainActivity.this, MapActivity.class));
+            }
+        });
+        names.add("Channels");
+        runs.add(new Runnable() {
+            @Override
+            public void run() {
+                startActivity(new Intent(MainActivity.this, prefs.simple() ? KeysActivity.class : ChannelsActivity.class));
+            }
+        });
+        names.add("Change map point profile");
+        runs.add(new Runnable() {
+            @Override
+            public void run() {
+                chooseProfile(MainActivity.this);
+            }
+        });
+        if (!mapHome && !quickItems.isEmpty()) {
+            names.add("Pick the 4 on the radio home…");
+            runs.add(new Runnable() {
+                @Override
+                public void run() {
+                    chooseHomeQuick();
+                }
+            });
+        }
+        TextView h = new TextView(this);
+        h.setText(quickCount > 0 ? "Map points and messages (" + org.communitycomms.app.geo.QuickProfiles.NAMES[new org.communitycomms.app.geo.QuickProfiles(this).profile()] + ")" : "Shortcuts");
+        h.setTextColor(0xfff0c75e);
+        h.setPadding(0, (int) (10 * d), 0, (int) (2 * d));
+        box.addView(h);
+        for (int i = 0; i < names.size(); i += 2) {
+            List<Button> row = new ArrayList<Button>();
+            for (int j = i; j < Math.min(i + 2, names.size()); j++) {
+                final Runnable r = runs.get(j);
+                Button b = new Button(this);
+                b.setText(names.get(j));
+                b.setAllCaps(false);
+                b.setTextSize(14);
+                b.setOnClickListener(new View.OnClickListener() {
+                    @Override
+                    public void onClick(View v) {
+                        if (shortcutsDlg != null) shortcutsDlg.dismiss();
+                        r.run();
+                    }
+                });
+                row.add(b);
+            }
+            box.addView(FilesActivity.row(row.toArray(new Button[0])));
+        }
+        android.widget.ScrollView sv = new android.widget.ScrollView(this);
+        sv.addView(box);
+        shortcutsDlg = new android.app.AlertDialog.Builder(this).setTitle("Shortcuts").setView(sv)
+                .setNegativeButton("Close", null).show();
+    }
+
+    private void stateRow(LinearLayout box, String text, final Runnable r) {
+        float d = getResources().getDisplayMetrics().density;
+        TextView t = new TextView(this);
+        t.setText(text);
+        t.setTextSize(15);
+        t.setTextColor(0xffe8f5e9);
+        t.setBackgroundColor(0xff1f3d2b);
+        t.setPadding((int) (10 * d), (int) (9 * d), (int) (10 * d), (int) (9 * d));
+        t.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (shortcutsDlg != null) shortcutsDlg.dismiss();
+                r.run();
+            }
+        });
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        lp.topMargin = (int) (3 * d);
+        box.addView(t, lp);
+    }
+
+    /** A 3 × 3 grid of dots for the Shortcuts title bar button (drawn, so it works on Android 4.1). */
+    private android.graphics.drawable.BitmapDrawable shortcutsIcon() {
+        float d = getResources().getDisplayMetrics().density;
+        int s = (int) (32 * d);
+        android.graphics.Bitmap bm = android.graphics.Bitmap.createBitmap(s, s, android.graphics.Bitmap.Config.ARGB_8888);
+        android.graphics.Canvas c = new android.graphics.Canvas(bm);
+        android.graphics.Paint p = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+        p.setColor(0xfff0c75e);
+        float step = s / 3.6f, r = s / 11f;
+        for (int x = 0; x < 3; x++) for (int y = 0; y < 3; y++) c.drawCircle(s / 2f + (x - 1) * step, s / 2f + (y - 1) * step, r, p);
+        return new android.graphics.drawable.BitmapDrawable(getResources(), bm);
+    }
+
+    /** Phones set up before the map home became the default: offered once. */
+    private void offerMapHomeOnce() {
+        final android.content.SharedPreferences sp = getSharedPreferences("settings", MODE_PRIVATE);
+        if (!sp.getBoolean("mapHomeOffer", false) || mapHome || !prefs.setupDone() || prefs.appMode() == Prefs.MODE_INTERCOM
+                || (setupAsk != null && setupAsk.isShowing())) return;
+        sp.edit().putBoolean("mapHomeOffer", false).commit();
+        setupAsk = new android.app.AlertDialog.Builder(this).setTitle("New: map home")
+                .setMessage("The map home (map, PTT and the main buttons) is now the default screen. The radio buttons home "
+                        + "stays one tap away: the map / buttons icon in the title bar. Every other shortcut is on the new "
+                        + "Shortcuts page (title bar, or the Shortcuts button).\n\nSwitch to the map home now?")
+                .setPositiveButton("Map home", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface d, int w) {
+                        prefs.setHomeMap(true);
+                        recreate();
+                    }
+                })
+                .setNegativeButton("Keep the buttons", null).show();
+    }
+
+    /** Menu items that live on the More screen instead of the overflow menu. */
+    private static final int[] MORE_IDS = {MENU_AUDIO, MENU_STREAMS, MENU_FILES, MENU_TASKS, MENU_CALENDAR, MENU_ARRAY, MENU_REPORT_UP,
+            MENU_VIDEOS, MENU_BLUETTI, MENU_CAST, MENU_DRYAD, MENU_RELAY_ADMIN, MENU_OPENMANET, MENU_GATEWAY, MENU_NOMAD, MENU_BLACKOUT, MENU_RED};
+    private final java.util.Set<Integer> moreAllowed = new java.util.HashSet<Integer>();
+
+    /** More: the rest of the menu grouped by job. Groups only show what is switched on (role, Advanced and Region features). */
+    private void showMore() {
+        if (lastMenu != null) onPrepareOptionsMenu(lastMenu);
+        final float d = getResources().getDisplayMetrics().density;
+        final LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding((int) (12 * d), (int) (4 * d), (int) (12 * d), (int) (8 * d));
+        final android.app.AlertDialog[] dlg = new android.app.AlertDialog[1];
+        final boolean adv = !prefs.simple();
+        Object[][] groups = {
+                {"Talk and chat", MENU_AUDIO, "Audio (recordings, tests)", MENU_STREAMS, "Radio streams (internet)"},
+                {"Map and location", "map", "Full map", MENU_FILES, "Data / files (send location, photos, tiles)"},
+                {"Team", MENU_TASKS, "Tasks and notes", MENU_CALENDAR, "Calendar and notes", MENU_ARRAY, "Channel array", MENU_REPORT_UP, "Report to leaders"},
+                {"Cameras and power", MENU_VIDEOS, "Video feed", MENU_BLUETTI, "Battery power", MENU_CAST, "Cast screen to TV"},
+                {"Codes", MENU_DRYAD, "DRYAD sheets", "pigpen", "Pigpen", "enigma", "Enigma / CW (Morse)", "challenge", "Challenge and response"},
+                {"Network", "cloud", "Cloud group", MENU_RELAY_ADMIN, "Relay admin (Cloud Server)", MENU_OPENMANET, "OpenMANET node (browser)",
+                        MENU_GATEWAY, "OpenMANET internet gateway", MENU_NOMAD, "Project NOMAD (local AI, library)"},
+                {"Tools", "tools", "Tools (QR codes, open in browser)", "scan", "Scan a QR code"},
+                {"Screen", MENU_BLACKOUT, "Blackout screen", MENU_RED, LightDiscipline.redMode(this) ? "Red light mode: on (tap for off)" : "Red light mode"}};
+        for (Object[] g : groups) {
+            List<Button> buttons = new ArrayList<Button>();
+            for (int i = 1; i < g.length; i += 2) {
+                final Object what = g[i];
+                boolean show;
+                if (what instanceof Integer) show = moreAllowed.contains(what);
+                else if ("pigpen".equals(what) || "enigma".equals(what)) show = adv;
+                else if ("challenge".equals(what)) show = prefs.appMode() == Prefs.MODE_ADVANCED;
+                else if ("cloud".equals(what)) show = prefs.cloudFeature();
+                else show = true;
+                if (!show) continue;
+                Button b = new Button(this);
+                b.setText((String) g[i + 1]);
+                b.setAllCaps(false);
+                b.setGravity(android.view.Gravity.START | android.view.Gravity.CENTER_VERTICAL);
+                b.setOnClickListener(new View.OnClickListener() {
+                    @Override
+                    public void onClick(View v) {
+                        dlg[0].dismiss();
+                        moreAction(what);
+                    }
+                });
+                buttons.add(b);
+            }
+            if (buttons.isEmpty()) continue;
+            TextView h = new TextView(this);
+            h.setText((String) g[0]);
+            h.setTextColor(0xfff0c75e);
+            h.setPadding(0, (int) (10 * d), 0, (int) (2 * d));
+            box.addView(h);
+            for (Button b : buttons) box.addView(b, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        }
+        android.widget.ScrollView sv = new android.widget.ScrollView(this);
+        sv.addView(box);
+        dlg[0] = new android.app.AlertDialog.Builder(this).setTitle("More").setView(sv).setNegativeButton("Close", null).show();
+    }
+
+    private void moreAction(Object what) {
+        if (what instanceof Integer) {
+            MenuItem it = lastMenu == null ? null : lastMenu.findItem((Integer) what);
+            if (it != null) onOptionsItemSelected(it);
+        } else if ("map".equals(what)) {
+            startActivity(new Intent(this, MapActivity.class));
+        } else if ("pigpen".equals(what)) {
+            startActivity(new Intent(this, PigpenActivity.class));
+        } else if ("enigma".equals(what)) {
+            startActivity(new Intent(this, EnigmaActivity.class));
+        } else if ("challenge".equals(what)) {
+            startActivity(new Intent(this, ChallengeActivity.class));
+        } else if ("cloud".equals(what)) {
+            startActivity(new Intent(this, CloudGroupActivity.class));
+        } else if ("tools".equals(what)) {
+            startActivity(new Intent(this, ToolsActivity.class));
+        } else if ("scan".equals(what)) {
+            if (!blockedByLock()) startActivity(new Intent(this, QrScanActivity.class));
+        }
+    }
+
+    private Menu lastMenu;    /** The whole menu as a list (TVs, where the overflow dots may not show). */
     private void showMenuList() {
         final Menu m = lastMenu;
         if (m == null) return;
@@ -1642,6 +2099,10 @@ public final class MainActivity extends Activity implements RadioService.Ui {
     @Override
     public boolean onPrepareOptionsMenu(Menu menu) {
         lastMenu = menu;
+        for (int id : MORE_IDS) { // shown again here, so the rules below decide (they were hidden for the More screen)
+            MenuItem it = menu.findItem(id);
+            if (it != null) it.setVisible(true);
+        }
         boolean l = prefs.locked();
         // Locked: nothing that changes setup (settings, channels, PIN) is reachable.
         for (int id : new int[]{MENU_SETTINGS, MENU_DRYAD, MENU_CHANNEL_QR, MENU_SCAN, MENU_OPENMANET, MENU_GATEWAY}) {
@@ -1663,13 +2124,15 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         MenuItem ht = menu.findItem(MENU_HOME_TOGGLE);
         // Map / buttons home: every mode with a home screen (the simple modes too), not intercom or the commander view.
         if (ht != null) ht.setVisible(prefs.appMode() != Prefs.MODE_INTERCOM && !commander());
+        MenuItem sc = menu.findItem(MENU_SHORTCUTS);
+        if (sc != null) sc.setVisible(prefs.appMode() != Prefs.MODE_INTERCOM);
         for (int id : new int[]{MENU_TOP_CHAT, MENU_TOP_BLACK}) {
             MenuItem it = menu.findItem(id);
             if (it != null) it.setVisible(adv);
         }
         MenuItem st = menu.findItem(MENU_STREAMS);
         if (st != null) st.setVisible(prefs.streamsEnabled()); // Settings: Internet audio
-        // Specialised menus: only when ticked (Settings > Home screen and menus, or a setup QR code).
+        // Specialised menus: only when ticked (Settings > Advanced and Region features, or a setup QR code).
         int[] special = {MENU_ARRAY, MENU_REPORT_UP, MENU_TASKS, MENU_NOMAD, MENU_CAST, MENU_CALENDAR, MENU_RELAY_ADMIN, MENU_BLUETTI};
         String[] keys = {"array", "report", "tasks", "nomad", "cast", "calendar", "relayadmin", "bluetti"};
         for (int i = 0; i < special.length; i++) {
@@ -1681,6 +2144,14 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         AnchorButton.update(this, menu);
         MenuItem anc = menu.findItem(AnchorButton.MENU_ID);
         if (anc != null && prefs.appMode() == Prefs.MODE_INTERCOM) anc.setVisible(false);
+        // A short menu: everything else is on the More screen, grouped by job (only what is switched on).
+        moreAllowed.clear();
+        for (int id : MORE_IDS) {
+            MenuItem it = menu.findItem(id);
+            if (it == null) continue;
+            if (it.isVisible() && it.isEnabled()) moreAllowed.add(id);
+            it.setVisible(false);
+        }
         return super.onPrepareOptionsMenu(menu);
     }
 
@@ -2011,6 +2482,10 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         } else if (id == MENU_HOME_TOGGLE) {
             prefs.setHomeMap(!mapHome);
             recreate();
+        } else if (id == MENU_MORE) {
+            showMore();
+        } else if (id == MENU_SHORTCUTS) {
+            showShortcuts();
         } else if (id == MENU_TOP_CHAT) {
             startActivity(new Intent(this, ChatActivity.class));
         } else if (id == MENU_TOP_BLACK) {
@@ -2159,10 +2634,16 @@ public final class MainActivity extends Activity implements RadioService.Ui {
 
     private void renderSlots() {
         // Simple modes: just the private channel (A) and Public.
-        homeSlots = !prefs.simple() ? prefs.homeSlots()
-                : prefs.showPublic() ? (prefs.shown(Prefs.SLOT_CLOUD) ? new int[]{Prefs.SLOT_A, Prefs.SLOT_PUBLIC, Prefs.SLOT_CLOUD}
-                : new int[]{Prefs.SLOT_A, Prefs.SLOT_PUBLIC})
-                : prefs.shown(Prefs.SLOT_CLOUD) ? new int[]{Prefs.SLOT_A, Prefs.SLOT_CLOUD} : new int[]{Prefs.SLOT_A};
+        if (!prefs.simple()) {
+            homeSlots = prefs.homeSlots();
+        } else { // Private (A), Public and the Cloud group, each with its eye on the Keys page
+            List<Integer> l = new ArrayList<Integer>();
+            if (prefs.shown(Prefs.SLOT_A)) l.add(Prefs.SLOT_A);
+            if (prefs.showPublic()) l.add(Prefs.SLOT_PUBLIC);
+            if (prefs.shown(Prefs.SLOT_CLOUD)) l.add(Prefs.SLOT_CLOUD);
+            homeSlots = new int[l.size()];
+            for (int i = 0; i < homeSlots.length; i++) homeSlots[i] = l.get(i);
+        }
         for (int i = 0; i < SLOT_IDS.length; i++) {
             android.widget.RadioButton rb = (android.widget.RadioButton) findViewById(SLOT_IDS[i]);
             if (i >= homeSlots.length) {
@@ -2195,10 +2676,17 @@ public final class MainActivity extends Activity implements RadioService.Ui {
             prefs.setSetupDone();
             return;
         }
+        wz.edit().putBoolean("wizardSummary", true).commit(); // the closing summary, once the wizard is done
+        wizardQuickSet(); // a setup QR code first: it can set the callsign too
+    }
+
+    /** Callsign and units (skipped when a setup QR code set the callsign). */
+    private void wizardName(final Runnable next) {
         final EditText name = new EditText(this);
         name.setSingleLine(true);
         name.setText(prefs.callsign());
         name.setSelectAllOnFocus(true);
+        name.setEnabled(!prefs.nameLocked()); // set and locked by a setup QR code
         // Units below the callsign: metric by default.
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
@@ -2215,7 +2703,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         units.check(org.communitycomms.app.geo.Geo.imperial ? 2 : 1);
         box.addView(units);
         new android.app.AlertDialog.Builder(this)
-                .setTitle("Welcome: your callsign")
+                .setTitle("Your callsign")
                 .setMessage("The name others see when you talk or send, and the units for distances. You can change "
                         + "both later in Settings.")
                 .setView(pad(box))
@@ -2224,9 +2712,9 @@ public final class MainActivity extends Activity implements RadioService.Ui {
                     @Override
                     public void onClick(android.content.DialogInterface d, int w) {
                         String n = name.getText().toString().trim();
-                        if (n.length() > 0) prefs.setCallsign(n);
+                        if (n.length() > 0 && !prefs.nameLocked()) prefs.setCallsign(n);
                         org.communitycomms.app.geo.Geo.setImperial(MainActivity.this, units.getCheckedRadioButtonId() == 2);
-                        wizardBurst();
+                        next.run();
                     }
                 })
                 .show();
@@ -2234,39 +2722,73 @@ public final class MainActivity extends Activity implements RadioService.Ui {
 
     /** A phone setup QR code (LAN storage admin page, or another phone) sets everything at once. */
     /** New installs start in burst voice; this page says so and offers live voice instead. */
-    private void wizardBurst() {
+    private void wizardBurst(final Runnable next) {
         if (!prefs.hasBurstChoice()) prefs.setBurstVoice(true);
         new android.app.AlertDialog.Builder(this)
                 .setTitle("Voice: burst mode")
                 .setMessage("Each press of PTT is recorded, squeezed small and sent as one clip when you let go. It "
                         + "arrives a moment later than live voice, but gets through more reliably, saves battery and "
                         + "works with the power saving and silence features.\n\nLive voice is heard as you speak. "
-                        + "You can change this any time in Settings > Audio. The OpenMANET / ATAK talk group always "
+                        + "You can change this any time in Settings > Voice and PTT. The OpenMANET / ATAK talk group always "
                         + "uses live voice.")
                 .setCancelable(false)
                 .setPositiveButton("Keep burst (recommended)", new android.content.DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(android.content.DialogInterface d, int w) {
                         prefs.setBurstVoice(true);
-                        wizardQuickSet();
+                        next.run();
                     }
                 })
                 .setNegativeButton("Use live voice", new android.content.DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(android.content.DialogInterface d, int w) {
                         prefs.setBurstVoice(false);
-                        wizardQuickSet();
+                        next.run();
                     }
                 })
                 .show();
     }
 
+    /** A stamp offered once per wizard run (Not now goes on to the QR code step). */
+    private boolean stampAsked;
+
+    /**
+     * This APK came stamped from a LAN server (a site or personal APK): offer to set up from it. Stage 1 is the
+     * stamp (callsign, update address, Public key, a cloud group); stage 2 fetches the rest from the server. Asked
+     * every time (also after the app's own wipe), never applied silently.
+     */
+    private boolean wizardStamp() {
+        if (stampAsked || !StampSetup.available(this)) return false;
+        stampAsked = true;
+        StampSetup.run(this, new Runnable() {
+            @Override
+            public void run() {
+                if (prefs.nameLocked() || getSharedPreferences("settings", MODE_PRIVATE).getBoolean("qrSetCall", false)) {
+                    recreate();
+                } else {
+                    wizardName(new Runnable() {
+                        @Override
+                        public void run() {
+                            recreate();
+                        }
+                    });
+                }
+            }
+        }, new Runnable() {
+            @Override
+            public void run() {
+                wizardQuickSet();
+            }
+        });
+        return true;
+    }
     private void wizardQuickSet() {
+        if (wizardStamp()) return;
         new android.app.AlertDialog.Builder(this)
-                .setTitle("Quick set from a QR code")
+                .setTitle("Welcome: quick set from a QR code")
                 .setMessage("Has your group given you a phone setup QR code? It is on the LAN storage's admin page, or "
-                        + "another phone shows it (Settings > Phone setup QR code). Scanning it sets the LAN storage, "
-                        + "channels, tunnel, OpenMANET, home WiFi and your group's defaults in one go.")
+                        + "another phone shows it (Settings > Phone setup QR code). Scanning it sets everything in one go: "
+                        + "the device role, group type, channels, Cloud Server, tunnel, LAN storage and the group's defaults.")
                 .setCancelable(false)
                 .setPositiveButton("Scan QR code", new android.content.DialogInterface.OnClickListener() {
                     @Override
@@ -2275,10 +2797,15 @@ public final class MainActivity extends Activity implements RadioService.Ui {
                                 .putExtra(QrScanActivity.EXTRA_SETUP_ONLY, true), REQ_SETUP_QR);
                     }
                 })
-                .setNegativeButton("Skip quick set", new android.content.DialogInterface.OnClickListener() {
+                .setNegativeButton("No code: set up by hand", new android.content.DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(android.content.DialogInterface d, int w) {
-                        wizardAboutModes();
+                        wizardName(new Runnable() {
+                            @Override
+                            public void run() {
+                                wizardRole();
+                            }
+                        });
                     }
                 })
                 .show();
@@ -2288,10 +2815,13 @@ public final class MainActivity extends Activity implements RadioService.Ui {
     private void wizardAboutModes() {
         new android.app.AlertDialog.Builder(this)
                 .setTitle("Advanced or simple")
-                .setMessage("Advanced modes revolve around what is known as a DRYAD sheet, used for encryption, for "
-                        + "securing digital and physical messages, and for channel names. Once a sheet is made, the app "
-                        + "shares it simply between trusted devices.\n\nSimple modes have fixed keys, which you set next, "
-                        + "and are for those not wanting all the extra complexity that security needs.")
+                .setMessage("Simple: one private key for your group, plus Public and the Cloud group. The Simple channels "
+                        + "page has just those keys, the home screen shows Private and Public, and the quick buttons suit "
+                        + "your group type (Scouts, Staff, 4WD, convoy, camping). No DRYAD sheets to manage.\n\n"
+                        + "Advanced: channels A to H, listening to several at once, and DRYAD sheets, used for encryption, "
+                        + "for securing digital and physical messages, and for channel names; once a sheet is made, the app "
+                        + "shares it simply between trusted devices. The Advanced channels page also has Pigpen and Enigma.\n\n"
+                        + "Both keep the full map, and you can switch any time at the top of the Channels page.")
                 .setCancelable(false)
                 .setPositiveButton("Next", new android.content.DialogInterface.OnClickListener() {
                     @Override
@@ -2307,7 +2837,17 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         super.onActivityResult(req, res, data);
         if (req != REQ_SETUP_QR) return;
         if (res == RESULT_OK && prefs.setupDone()) {
-            recreate(); // the new channels and settings show at once
+            android.content.SharedPreferences sp = getSharedPreferences("settings", MODE_PRIVATE);
+            if (sp.getBoolean("qrSetCall", false) || prefs.nameLocked()) {
+                recreate(); // the new channels and settings show at once
+            } else { // the code had no callsign: ask for it, then show the new setup
+                wizardName(new Runnable() {
+                    @Override
+                    public void run() {
+                        recreate();
+                    }
+                });
+            }
         } else {
             wizardQuickSet(); // came back without a code: ask again (or skip)
         }
@@ -2367,12 +2907,114 @@ public final class MainActivity extends Activity implements RadioService.Ui {
     /** The setup question on screen (one at a time). */
     private android.app.AlertDialog setupAsk;
 
-    private void askBlackScreenOnce() {
-        if (setupAsk != null && setupAsk.isShowing()) return;
+    /** Location: share when asked (or automatically), how far to obscure it, and Public / Cloud sharing (off). */
+    private void wizardLocation(final Runnable next) {
+        final float d = getResources().getDisplayMetrics().density;
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        final android.widget.CheckBox auto = new android.widget.CheckBox(this);
+        auto.setText("Share automatically when someone on my private channels asks (30 minutes). Off: I am asked each time.");
+        auto.setChecked(RadioService.autoAcceptLocation(this));
+        box.addView(auto);
+        TextView ol = new TextView(this);
+        ol.setText("Obscure my position (others get a spot up to this far away):");
+        ol.setPadding(0, (int) (10 * d), 0, 0);
+        box.addView(ol);
+        final int[] metres = {0, 500, 1000, 2000, 5000, 10000};
+        String[] labels = {"Exact position", "Up to 500 m", "Up to 1 km", "Up to 2 km (default)", "Up to 5 km", "Up to 10 km"};
+        final android.widget.Spinner obs = new android.widget.Spinner(this);
+        android.widget.ArrayAdapter<String> ad = new android.widget.ArrayAdapter<String>(this, android.R.layout.simple_spinner_item, labels);
+        ad.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        obs.setAdapter(ad);
+        int now = org.communitycomms.app.geo.FakeGps.obscureM(this), sel = 3;
+        for (int i = 0; i < metres.length; i++) if (metres[i] == now) sel = i;
+        obs.setSelection(sel);
+        box.addView(obs);
+        final android.widget.CheckBox pub = new android.widget.CheckBox(this);
+        pub.setText("Share my location with Public and cloud groups (anyone there could see it)");
+        pub.setChecked(prefs.shareLocationPublic());
+        box.addView(pub);
+        new android.app.AlertDialog.Builder(this).setTitle("Location")
+                .setView(pad(box)).setCancelable(false)
+                .setPositiveButton("Next", new android.content.DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(android.content.DialogInterface di, int w) {
+                        getSharedPreferences("settings", MODE_PRIVATE).edit().putBoolean("autoAcceptLocation", auto.isChecked()).commit();
+                        org.communitycomms.app.geo.FakeGps.setObscureM(MainActivity.this, metres[Math.max(0, obs.getSelectedItemPosition())]);
+                        prefs.setShareLocationPublic(pub.isChecked());
+                        next.run();
+                    }
+                }).show();
+    }
+
+    /** Maps: where tiles come from (the LAN cache, online when there is internet, or ask), and how to get an area offline. */
+    private void wizardMaps(final Runnable next) {
+        final org.communitycomms.app.geo.MapPrefs mp = new org.communitycomms.app.geo.MapPrefs(this);
+        boolean lan = new org.communitycomms.app.geo.LanTiles(this).configured();
+        final android.widget.RadioGroup g = new android.widget.RadioGroup(this);
+        final android.widget.RadioButton ask = new android.widget.RadioButton(this), online = new android.widget.RadioButton(this);
+        ask.setText("Ask when the map has no offline tiles (recommended: the app stays offline unless you say)");
+        online.setText("Always fetch online map tiles when there is internet");
+        ask.setId(1);
+        online.setId(2);
+        g.addView(ask);
+        g.addView(online);
+        g.check(mp.onlineEnabled() ? 2 : 1);
+        new android.app.AlertDialog.Builder(this).setTitle("Maps")
+                .setMessage((lan ? "Map tiles come from your LAN maps cache when you are on its network.\n\n" : "")
+                        + "To keep an area for use with no internet: Data / files > Data Tile Management (prefetch around a "
+                        + "point or the current screen). T.REX topo maps are an Advanced feature.")
+                .setView(pad(g)).setCancelable(false)
+                .setPositiveButton("Next", new android.content.DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(android.content.DialogInterface di, int w) {
+                        mp.setOnlineEnabled(g.getCheckedRadioButtonId() == 2);
+                        next.run();
+                    }
+                }).show();
+    }
+
+    /** Once, after the wizard and the Permissions screen: what was set, and a setup QR code for the next device. */
+    private boolean offerWizardSummary() {
+        final android.content.SharedPreferences sp = getSharedPreferences("settings", MODE_PRIVATE);
+        if (!sp.getBoolean("wizardSummary", false)) return false;
+        sp.edit().putBoolean("wizardSummary", false).commit();
+        org.communitycomms.app.geo.QuickProfiles qp = new org.communitycomms.app.geo.QuickProfiles(this);
+        StringBuilder s = new StringBuilder();
+        s.append("Callsign: ").append(prefs.callsign()).append(prefs.nameLocked() ? " (locked)" : "").append('\n');
+        s.append("Device role: ").append(prefs.roleName()).append(prefs.lead() ? ", team leader" : "").append('\n');
+        s.append("Group type: ").append(Prefs.MODE_NAMES[prefs.appMode()]).append('\n');
+        s.append("Profile: ").append(org.communitycomms.app.geo.QuickProfiles.NAMES[qp.profile()]).append('\n');
+        s.append("Voice: ").append(prefs.burstVoice() ? "burst" : "live").append('\n');
+        s.append("Anchored: ").append(prefs.anchor() ? "yes" : "no").append('\n');
+        s.append("Channel A: ").append(prefs.channel(Prefs.SLOT_A).length() > 0 ? "set" : "not set").append('\n');
+        String f = prefs.menusOn();
+        s.append("Advanced and Region features: ").append(f.length() > 0 ? f.replace(",", ", ") : "none");
+        s.append("\n\nChange any of these in Settings. The next device can copy this setup from a setup QR code.");
+        setupAsk = new android.app.AlertDialog.Builder(this).setTitle("All set")
+                .setMessage(s.toString())
+                .setPositiveButton("Done", new android.content.DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(android.content.DialogInterface d, int w) {
+                        askBlackScreenOnce();
+                    }
+                })
+                .setNeutralButton("Setup QR for the next device", new android.content.DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(android.content.DialogInterface d, int w) {
+                        SetupQr.show(MainActivity.this);
+                    }
+                })
+                .setCancelable(false).show();
+        return true;
+    }
+
+    private void askBlackScreenOnce() {        if (setupAsk != null && setupAsk.isShowing()) return;
         final android.content.SharedPreferences sp = getSharedPreferences("settings", MODE_PRIVATE);
         if (!prefs.setupDone() || !sp.getBoolean("permissionsShown", false) || prefs.appMode() == Prefs.MODE_INTERCOM) {
             return;
         }
+        if (offerWizardSummary()) return; // the black screen question comes after it
         if (sp.getBoolean("blackPromptShown", false)) {
             askRecordAllOnce();
             return;
@@ -2459,13 +3101,13 @@ public final class MainActivity extends Activity implements RadioService.Ui {
                 .show();
     }
 
-    /** How the app will be used: the full radio, the wall intercom, or a simple activity mode. */
-    private void wizardMode() {
-        final int[] pick = {prefs.appMode()};
+    /** Role first: what this device is for. Phone radio goes on to the group type; the others have fixed homes. */
+    private void wizardRole() {
+        final int[] pick = {prefs.roleIndex()};
         new android.app.AlertDialog.Builder(this)
-                .setTitle("How will you use it?")
+                .setTitle("What is this device for?")
                 .setCancelable(false)
-                .setSingleChoiceItems(Prefs.MODE_NAMES, pick[0], new android.content.DialogInterface.OnClickListener() {
+                .setSingleChoiceItems(RoleDefaults.roleList(this), pick[0], new android.content.DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(android.content.DialogInterface d, int which) {
                         pick[0] = which;
@@ -2474,12 +3116,163 @@ public final class MainActivity extends Activity implements RadioService.Ui {
                 .setPositiveButton("Next", new android.content.DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(android.content.DialogInterface d, int w) {
-                        applyMode(MainActivity.this, pick[0]);
-                        if (pick[0] == Prefs.MODE_ADVANCED) wizardPublicKey();
-                        else wizardPrivateKey();
+                        String role = Prefs.ROLE_KEYS[pick[0]];
+                        RoleDefaults.apply(MainActivity.this, role, true);
+                        prefs.setRole(role);
+                        if (Prefs.ROLE_CAMERA.equals(role) || Prefs.ROLE_GATEWAY.equals(role)) {
+                            getSharedPreferences("settings", MODE_PRIVATE).edit().putBoolean("roleSetupOffer", true).commit();
+                        }
+                        if (Prefs.ROLE_PHONE.equals(role)) {
+                            wizardAboutModes(); // then the group type
+                        } else if (Prefs.ROLE_INTERCOM.equals(role)) {
+                            applyMode(MainActivity.this, Prefs.MODE_INTERCOM);
+                            wizardBurst(new Runnable() {
+                                @Override
+                                public void run() {
+                                    wizardPower(new Runnable() {
+                                        @Override
+                                        public void run() {
+                                            wizardPrivateKey();
+                                        }
+                                    });
+                                }
+                            });
+                        } else {
+                            applyMode(MainActivity.this, Prefs.MODE_ADVANCED);
+                            afterGroup(true);
+                        }
                     }
                 })
                 .show();
+    }
+
+    /** Quick button profiles offered in the wizard and their names (General first: the default). */
+    static final int[] WIZARD_PROFILES = {org.communitycomms.app.geo.QuickProfiles.GENERAL, org.communitycomms.app.geo.QuickProfiles.FRIENDS,
+            org.communitycomms.app.geo.QuickProfiles.SECURITY, org.communitycomms.app.geo.QuickProfiles.FIRE,
+            org.communitycomms.app.geo.QuickProfiles.MILITARY, org.communitycomms.app.geo.QuickProfiles.EMERGENCY,
+            org.communitycomms.app.geo.QuickProfiles.SCOUTS, org.communitycomms.app.geo.QuickProfiles.STAFF,
+            org.communitycomms.app.geo.QuickProfiles.FOURWD, org.communitycomms.app.geo.QuickProfiles.CONVOY,
+            org.communitycomms.app.geo.QuickProfiles.CAMPING};
+    static final String[] WIZARD_PROFILE_NAMES = {"General (arrived, on my way, late, help now…)", "Friends and family (meet-ups, events)",
+            "Security", "Firefighting", "Military", "Emergency services (response)", "Scouts", "Staff", "4WDing", "Friends convoy",
+            "Caravan / camping"};
+    private boolean profileChosen;
+
+    /** Phone radio: Advanced or Simple, the quick button profile from a list, and "I lead a team". */
+    private void wizardMode() {
+        final float d = getResources().getDisplayMetrics().density;
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        final android.widget.RadioGroup kind = new android.widget.RadioGroup(this);
+        final android.widget.RadioButton adv = new android.widget.RadioButton(this), simple = new android.widget.RadioButton(this);
+        adv.setText("Advanced: channels A to H, DRYAD sheets, every tool");
+        simple.setText("Simple: one private key, Public and the Cloud group");
+        adv.setId(1);
+        simple.setId(2);
+        kind.addView(adv);
+        kind.addView(simple);
+        kind.check(prefs.simple() ? 2 : 1);
+        box.addView(kind);
+        TextView pl = new TextView(this);
+        pl.setText("Profile (the quick buttons and map points)");
+        pl.setTextColor(0xfff0c75e);
+        pl.setPadding(0, (int) (12 * d), 0, 0);
+        box.addView(pl);
+        final android.widget.Spinner prof = new android.widget.Spinner(this);
+        android.widget.ArrayAdapter<String> ad = new android.widget.ArrayAdapter<String>(this, android.R.layout.simple_spinner_item, WIZARD_PROFILE_NAMES);
+        ad.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        prof.setAdapter(ad);
+        int cur = new org.communitycomms.app.geo.QuickProfiles(this).profile();
+        for (int i = 0; i < WIZARD_PROFILES.length; i++) if (WIZARD_PROFILES[i] == cur) prof.setSelection(i);
+        box.addView(prof);
+        final android.widget.CheckBox lead = new android.widget.CheckBox(this);
+        lead.setText("I lead a team (Channel array, Report to leaders, Tasks and notes, Calendar and notes)");
+        lead.setChecked(prefs.lead());
+        box.addView(lead);
+        android.widget.ScrollView sv = new android.widget.ScrollView(this);
+        sv.addView(box);
+        new android.app.AlertDialog.Builder(this)
+                .setTitle("Advanced or simple, and your profile")
+                .setCancelable(false)
+                .setView(pad(sv))
+                .setPositiveButton("Next", new android.content.DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(android.content.DialogInterface di, int w) {
+                        int p = WIZARD_PROFILES[Math.max(0, prof.getSelectedItemPosition())];
+                        boolean advanced = kind.getCheckedRadioButtonId() != 2;
+                        int mode = Prefs.MODE_ADVANCED;
+                        if (!advanced) { // a simple group type: the one that matches the profile, else General
+                            mode = Prefs.MODE_GENERAL;
+                            for (int m = Prefs.MODE_SCOUTS; m <= Prefs.MODE_CAMPING; m++) if (Prefs.profileForMode(m) == p) mode = m;
+                        }
+                        applyMode(MainActivity.this, mode);
+                        new org.communitycomms.app.geo.QuickProfiles(MainActivity.this).setProfile(p);
+                        profileChosen = true;
+                        prefs.setLead(lead.isChecked());
+                        if (lead.isChecked()) RoleDefaults.turnOnLeadFeatures(prefs);
+                        renderQuick();
+                        afterGroup(advanced);
+                    }
+                })
+                .show();
+    }
+    /** Voice, then power (Anchored), then the keys (the key steps finish the wizard). */
+    private void afterGroup(final boolean advanced) {
+        wizardBurst(new Runnable() {
+            @Override
+            public void run() {
+                wizardPower(new Runnable() {
+                    @Override
+                    public void run() {
+                        wizardLocation(new Runnable() {
+                            @Override
+                            public void run() {
+                                wizardMaps(new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        if (advanced) wizardPublicKey();
+                                        else wizardPrivateKey();
+                                    }
+                                });
+                            }
+                        });
+                    }
+                });
+            }
+        });
+    }
+
+    /** Power: Normal with rest GPS by default; Anchored only if this device is on stable power (never set by a role). */
+    private void wizardPower(final Runnable next) {
+        final android.widget.CheckBox anchored = new android.widget.CheckBox(this);
+        anchored.setText("Anchored: this device is on stable power (mains, not a power bank)");
+        anchored.setChecked(prefs.anchor());
+        boolean always = Prefs.ROLE_INTERCOM.equals(prefs.role()) || Prefs.ROLE_TV.equals(prefs.role());
+        new android.app.AlertDialog.Builder(this)
+                .setTitle("Power")
+                .setMessage("The app starts in Normal power, with GPS resting while you are still. Power saver and Ultra low "
+                        + "are in Settings > Power and batteries" + (always ? ". An intercom or TV usually stays plugged in and on." : ".")
+                        + "\n\nAn anchored device stays awake, holds what sleeping phones miss and tells the channel if its "
+                        + "power is lost. The anchor button in the title bar changes it while plugged in.")
+                .setView(pad(anchored))
+                .setCancelable(false)
+                .setPositiveButton("Next", new android.content.DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(android.content.DialogInterface d, int w) {
+                        if (anchored.isChecked() != prefs.anchor()) PowerMode.setAnchor(MainActivity.this, anchored.isChecked());
+                        next.run();
+                    }
+                })
+                .show();
+    }
+
+    /** After the wizard (and the permissions screen): the camera or gateway setup the role asked for, once. */
+    private void offerRoleSetupOnce() {
+        final android.content.SharedPreferences sp = getSharedPreferences("settings", MODE_PRIVATE);
+        if (!sp.getBoolean("roleSetupOffer", false) || !prefs.setupDone() || !sp.getBoolean("permissionsShown", false)
+                || (setupAsk != null && setupAsk.isShowing()) || !hasWindowFocus()) return;
+        sp.edit().putBoolean("roleSetupOffer", false).commit();
+        AdvancedSetup.offerForRole(this, prefs.role());
     }
 
     /** Sets the mode and what goes with it (quick buttons, recording for the intercom). Also from Settings. */
@@ -2487,8 +3280,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         Prefs p = new Prefs(a);
         p.setAppMode(mode);
         org.communitycomms.app.geo.QuickProfiles qp = new org.communitycomms.app.geo.QuickProfiles(a);
-        if (mode >= Prefs.MODE_SCOUTS) qp.setProfile(org.communitycomms.app.geo.QuickProfiles.SCOUTS + mode - Prefs.MODE_SCOUTS);
-        else if (mode == Prefs.MODE_INTERCOM) qp.setProfile(org.communitycomms.app.geo.QuickProfiles.FRIENDS);
+        if (mode >= Prefs.MODE_SCOUTS || mode == Prefs.MODE_INTERCOM) qp.setProfile(Prefs.profileForMode(mode));
         if (mode == Prefs.MODE_INTERCOM) p.setRecordAllVoice(true); // tap History to hear any call again
         if (mode >= Prefs.MODE_SCOUTS) p.setShowSlots(p.showPublic(), false); // simple modes: OpenMANET off
         IntercomActivity.showFullRadio = false;
@@ -2646,7 +3438,8 @@ public final class MainActivity extends Activity implements RadioService.Ui {
                     @Override
                     public void onClick(android.content.DialogInterface d, int w) {
                         prefs.setPublicKey(key.getText().toString());
-                        wizardProfile();
+                        if (profileChosen) wizardDryad(); // the profile was picked with Advanced / Simple
+                        else wizardProfile();
                     }
                 })
                 .show();
@@ -2655,12 +3448,9 @@ public final class MainActivity extends Activity implements RadioService.Ui {
     /** What the group is for: sets the map point buttons (and the commander view's list). Shared with settings. */
     private void wizardProfile() {
         final org.communitycomms.app.geo.QuickProfiles qp = new org.communitycomms.app.geo.QuickProfiles(this);
-        final String[] names = {"Friends and family (meet-ups, events)", "Security", "Firefighting", "Military",
-                "Emergency services (response)"};
-        final int[] profiles = {org.communitycomms.app.geo.QuickProfiles.FRIENDS, org.communitycomms.app.geo.QuickProfiles.SECURITY,
-                org.communitycomms.app.geo.QuickProfiles.FIRE, org.communitycomms.app.geo.QuickProfiles.MILITARY,
-                org.communitycomms.app.geo.QuickProfiles.EMERGENCY};
-        int sel = 1;
+        final String[] names = WIZARD_PROFILE_NAMES;
+        final int[] profiles = WIZARD_PROFILES;
+        int sel = 0;
         for (int i = 0; i < profiles.length; i++) if (profiles[i] == qp.profile()) sel = i;
         new android.app.AlertDialog.Builder(this)
                 .setTitle("What is your group for?")
@@ -2922,6 +3712,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
             RadioEngine e = engine();
             for (int s : prefs.pttPins()) {
                 if (want.size() >= PIN_MAX || !hear.contains(s)) continue;
+                if (!prefs.shown(s) && !Prefs.isExtra(s)) continue; // hidden from the home screen: no PTT of its own (C-H keep theirs)
                 RadioEngine m = service.engineFor(s);
                 if (m != null && m != e) want.add(s);
             }

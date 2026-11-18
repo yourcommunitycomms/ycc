@@ -76,7 +76,7 @@ public final class TrexMaps {
         return d;
     }
 
-    /** The Specialised menu (Settings > Home screen and menus, off by default): with it off, nothing T.REX shows or runs. */
+    /** The Specialised menu (Settings > Advanced and Region features, off by default): with it off, nothing T.REX shows or runs. */
     public static boolean menuOn(Context c) {
         return new org.communitycomms.app.Prefs(c).menuOn("trex");
     }

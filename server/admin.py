@@ -19,6 +19,8 @@ import zipfile
 from urllib.parse import parse_qs, quote, urlsplit
 
 import bridge_admin
+import provision
+import qr
 import setup
 import sync
 
@@ -67,6 +69,7 @@ def init(root, user, password):
     _auth = _env_auth
     setup.init(root)
     sync.init(root)
+    provision.init(root)
     bridge_admin.init(root)
     if os.path.isfile(LOGIN_FILE):  # a login changed on this page wins over the environment
         with open(LOGIN_FILE) as f:
@@ -527,6 +530,13 @@ def _tab_defaults(out, q):
 
 def _tab_setup(out, q):
     setup.tab(out, _e, _hidden, _confirm, q["_host"], current_user(), current_password())
+    # Below the setup code: ready-made APKs built from these same settings (site APK, personal APKs per person).
+    provision.tab(out, _e, _hidden, _confirm, _when, q["_host"], setup_url(q["_host"]), qr, q)
+
+
+def setup_url(host=""):
+    u = str(setup.load().get("url", "") or "").strip().rstrip("/")
+    return u or ("http://%s/YCC" % host if host else "")
 
 
 def _tab_sync(out, q):
@@ -826,7 +836,9 @@ def act(form, files):
         warn = ""
         if found is not None and str(found) != code:
             warn = " Warning: the APK itself says %d, so phones may keep updating." % found
-        return "Published version code %s%s (%s).%s" % (code, " (%s)" % vname if vname else "", _size(len(data)), warn)
+        d = provision.load()
+        stamped = (" " + provision.build_all(d)) if (d["people"] or d.get("site", {}).get("on")) else ""
+        return "Published version code %s%s (%s).%s%s" % (code, " (%s)" % vname if vname else "", _size(len(data)), warn, stamped)
     if a == "unpublish":
         vt = os.path.join(YCC, "Updates", "version.txt")
         if os.path.isfile(vt):
@@ -834,7 +846,14 @@ def act(form, files):
         return "Update no longer offered."
 
     if a == "setup_save":
-        return setup.act(form)
+        msg = setup.act(form)
+        d = provision.load()
+        if d["people"] or d.get("site", {}).get("on"):  # the stamped APKs carry the address and Public key
+            d["url"] = setup_url()
+            msg += " " + provision.build_all(d)
+        return msg
+    if a.startswith("prov_"):
+        return provision.act(form, setup_url())
     if a.startswith("sync_"):
         return sync.act(form)
     if a.startswith("bridge_"):

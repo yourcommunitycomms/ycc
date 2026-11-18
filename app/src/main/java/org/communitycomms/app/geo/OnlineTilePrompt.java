@@ -114,6 +114,8 @@ public final class OnlineTilePrompt {
         if (System.currentTimeMillis() < snoozeUntil) return;
         if (mp.onlineUrl().length() == 0) return; // custom source with no URL: nothing to offer
         if (new org.communitycomms.app.Prefs(activity).radioSilent()) return;
+        if (!new org.communitycomms.app.Prefs(activity).setupDone()) return; // never over the setup wizard (map home is the default)
+        if (!activity.hasWindowFocus()) return; // nor over another question (asked again when the map is next blank)
         final int[] left = {ASK_SECONDS};
         final android.widget.TextView msg = new android.widget.TextView(activity);
         android.widget.LinearLayout box = choices(msg, true);

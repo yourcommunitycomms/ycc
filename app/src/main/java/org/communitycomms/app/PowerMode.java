@@ -3,7 +3,7 @@ package org.communitycomms.app;
 import android.content.Context;
 
 /**
- * Settings > Power and sleep. Normal; Power saver (slower check-ins and GPS, no background data); Ultra low
+ * Settings > Power and batteries. Normal; Power saver (slower check-ins and GPS, no background data); Ultra low
  * (with the screen off the radio sleeps and wakes every 4 minutes to check in); Offline (no network expected:
  * no remote prompts or sync, and GPS and check-ins rest while nobody is around and the screen is off).
  * After PTT, Power saver and Ultra low work as normal for a few minutes so a reply is heard.
@@ -18,7 +18,7 @@ public final class PowerMode {
     private static volatile int mode = NORMAL;
     /** Last voice heard or sent on any channel (RadioEngine), for adaptive presence and the Wi-Fi lock. */
     public static volatile long lastVoiceMs = System.currentTimeMillis();
-    /** Settings > Power and sleep > Deep sleep (experimental): the CPU sleeps between packets right now. */
+    /** Settings > Power and batteries > Deep sleep (experimental): the CPU sleeps between packets right now. */
     static volatile boolean deepSleeping;
     static final long BUSY_MS = 120000, QUIET_MS = 600000, QUIET_PRESENCE_MS = 60000;
 
@@ -46,7 +46,7 @@ public final class PowerMode {
         anchor = p.anchor();
     }
 
-    /** Settings > Power and sleep > Max sleep time: the Ultra low check-in interval (and later sleeps). */
+    /** Settings > Power and batteries > Max sleep time: the Ultra low check-in interval (and later sleeps). */
     public static long ultraCheckInMs() {
         return sleepMs();
     }
@@ -58,7 +58,7 @@ public final class PowerMode {
 
     // ---- "I'm on mains power" anchor: stays awake and holds a copy of everything for sleepers ----
 
-    /** This phone is an anchor (Settings > Power and sleep). */
+    /** This phone is an anchor (Settings > Power and batteries). */
     static volatile boolean anchor;
     /** An anchor was heard on the channel in the last 10 minutes (RadioService keeps it up to date). */
     static volatile boolean anchorHeard;

@@ -27,7 +27,7 @@ public final class KeysActivity extends Activity {
         super.onCreate(b);
         prefs = new Prefs(this);
         final boolean intercom = prefs.appMode() == Prefs.MODE_INTERCOM;
-        setTitle(intercom ? "Intercom key" : "Keys");
+        setTitle(intercom ? "Intercom key" : "Simple channels");
         float d = getResources().getDisplayMetrics().density;
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
@@ -69,6 +69,7 @@ public final class KeysActivity extends Activity {
             }
         });
         box.addView(FilesActivity.row(showPriv, make, qr, scan));
+        if (!intercom) box.addView(eyeRow(Prefs.SLOT_A, "Private"));
 
         if (!intercom) {
             box.addView(label("Public key"));
@@ -91,24 +92,20 @@ public final class KeysActivity extends Activity {
                     ListenKeyShare.show(KeysActivity.this);
                 }
             }));
-            final CheckBox onHome = new CheckBox(this);
-            onHome.setText("Show Public on the home screen");
-            onHome.setChecked(prefs.showPublic());
-            onHome.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    prefs.setShowSlots(onHome.isChecked(), false);
-                }
-            });
-            box.addView(onHome);
-            box.addView(label("Cloud group"));
-            box.addView(note("A community channel like Public with its own relay server, joined from a share link."));
-            box.addView(button("Cloud group…", new Runnable() {
-                @Override
-                public void run() {
-                    startActivity(new Intent(KeysActivity.this, CloudGroupActivity.class));
-                }
-            }));
+            box.addView(eyeRow(Prefs.SLOT_PUBLIC, "Public"));
+            if (prefs.cloudFeature()) {
+                box.addView(label("Cloud group"));
+                box.addView(note("A community channel like Public with its own Cloud Server, joined from a share link or QR code."));
+                box.addView(button("Cloud group…", new Runnable() {
+                    @Override
+                    public void run() {
+                        startActivity(new Intent(KeysActivity.this, CloudGroupActivity.class));
+                    }
+                }));
+                if (prefs.cloudSet()) box.addView(eyeRow(Prefs.SLOT_CLOUD, "Cloud group"));
+            }
+            box.addView(note("\nEye: shown on the home screen or hidden. A hidden channel keeps its key and can still be "
+                    + "listened to, but has no home button and no PTT of its own."));
         }
 
         Button done = button("Save", new Runnable() {
@@ -126,8 +123,12 @@ public final class KeysActivity extends Activity {
                 LinearLayout.LayoutParams.WRAP_CONTENT);
         lp.topMargin = (int) (16 * d);
         box.addView(done, lp);
+        LinearLayout page = new LinearLayout(this);
+        page.setOrientation(LinearLayout.VERTICAL);
+        if (!intercom) page.addView(ChannelsSwitch.header(this, true));
+        page.addView(box);
         ScrollView sv = new ScrollView(this);
-        sv.addView(box);
+        sv.addView(page);
         setContentView(sv);
     }
 
@@ -148,6 +149,36 @@ public final class KeysActivity extends Activity {
         if (pub != null && pub.getText().toString().trim().length() > 0) prefs.setPublicKey(pub.getText().toString());
         if (toast) Toast.makeText(this, "Saved", Toast.LENGTH_SHORT).show();
         return true;
+    }
+
+    /** Eye button: this channel on the home screen, or hidden. */
+    private View eyeRow(final int slot, final String name) {
+        float d = getResources().getDisplayMetrics().density;
+        LinearLayout row = new LinearLayout(this);
+        row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        final android.widget.ImageButton eye = new android.widget.ImageButton(this);
+        final TextView t = new TextView(this);
+        final Runnable show = new Runnable() {
+            @Override
+            public void run() {
+                boolean on = prefs.shown(slot);
+                eye.setImageResource(on ? R.drawable.ic_eye : R.drawable.ic_eye_off);
+                eye.setContentDescription(on ? name + " shown on the home screen" : name + " hidden from the home screen");
+                t.setText(on ? name + ": shown on the home screen" : name + ": hidden (no home button or PTT)");
+            }
+        };
+        eye.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                prefs.setShown(slot, !prefs.shown(slot));
+                show.run();
+            }
+        });
+        show.run();
+        row.addView(eye, new LinearLayout.LayoutParams((int) (46 * d), (int) (44 * d)));
+        t.setPadding((int) (8 * d), 0, 0, 0);
+        row.addView(t);
+        return row;
     }
 
     private EditText keyField(String v) {

@@ -1,7 +1,7 @@
 # Your Community Communications: UI and menu reorganisation plan
 
-Planning only (2026-11-18). Nothing here is built yet. Ashley reviews it first; then it is done in small,
-reversible steps. Based on the code as it is now (0.1.459238), not the older docs.
+**Built (2026-11-18)**: phases 1 to 7 are in the app (see UPDATES.md and the "As built" notes at the end). The
+plan below is kept as the record of what was decided. Based on the code as it was then (0.1.459238).
 
 Kept as rules throughout:
 - Simple modes keep the full map.
@@ -442,3 +442,28 @@ Risks:
 2. Which items belong in Advanced features and which under More…? (The table in 3.2 is a first guess.)
 3. Should a locked callsign also lock the team name and the role, or only the callsign?
 4. Should the Advanced setup wizards also be reachable from one "Advanced setup" list, or only by ticking a feature?
+
+## 7. As built (2026-11-18)
+
+Choices made for the open questions (the plan's defaults):
+1. **More screen**: yes. The overflow menu is Chat, More…, Settings and Exit (plus Intercom screen and the TV
+   items where they apply); More groups the rest and shows only what is switched on. Shortcuts and the
+   anchor are title bar icons.
+2. **Advanced vs More…**: as table 3.2, with Cloud group under Advanced and Project NOMAD, ATAK items,
+   OpenMANET and Internet audio under More…. Tunnel, Cloud Server and network interface settings stay on the
+   Network page (they are settings, not menus) and have their guided setups under Advanced setup.
+3. **nameLock** locks only the callsign (not the team name or the role).
+4. **Advanced setup** wizards are reachable both from ticking a feature (Relay admin, Cloud group, Battery
+   power, Channel array) and from the Advanced setup list.
+
+Differences from the plan:
+- The radio home loses Share my location (into Shortcuts, with its state on the Shortcuts button) and the
+  simple modes' second row of quick buttons; four quick buttons stay, picked on the Shortcuts page.
+- The map home keeps its buttons; Shortcuts is in the title bar.
+- The wizard asks the callsign first, then the QR code, then the role. The location and maps steps and the
+  closing summary with a setup QR were left out (defaults already match; Settings > Me > Phone setup QR code
+  makes the next device's code).
+- Advanced setup wizards are an intro (what it is, the steps) that opens the existing screen or steps.
+- Route options stay on the Alerts page (not moved into the map's Routes menu).
+- The Cloud group row and OpenMANET row on the channels pages only show when those features are on (or a
+  cloud group is already set); phones that had a cloud group get the feature ticked.

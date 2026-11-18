@@ -68,6 +68,12 @@ public final class SettingsActivity extends Activity {
         keyLabel = (TextView) findViewById(R.id.key_label);
 
         callsign.setText(prefs.callsign());
+        if (prefs.nameLocked()) { // set by a setup QR code: read only here (still triple-tappable)
+            callsign.setFocusable(false);
+            callsign.setKeyListener(null);
+            callsign.setTextColor(0xff9e9e9e);
+            ((TextView) findViewById(R.id.callsign_label)).setText(getString(R.string.callsign) + " (locked by a setup QR code)");
+        }
         channelA.setText(prefs.channel(Prefs.SLOT_A));
         channelB.setText(prefs.channel(Prefs.SLOT_B));
         openManet.setText(prefs.channel(Prefs.SLOT_OPENMANET));
@@ -300,8 +306,8 @@ public final class SettingsActivity extends Activity {
             public void onClick(android.view.View v) {
                 new android.app.AlertDialog.Builder(SettingsActivity.this)
                         .setTitle(R.string.rerun_wizard)
-                        .setMessage("Goes through the first-start questions again: callsign, quick set from a QR code, "
-                                + "mode, keys, permissions, black screen and Record all voice. Settings you do not change "
+                        .setMessage("Goes through the first-start questions again: quick set from a QR code, callsign, device role, "
+                                + "group type and profile, voice, power, location, maps, keys, permissions, black screen and Record all voice. Settings you do not change "
                                 + "there stay as they are.")
                         .setPositiveButton("Run it", new android.content.DialogInterface.OnClickListener() {
                             @Override
@@ -755,7 +761,8 @@ public final class SettingsActivity extends Activity {
             }
         });
         final Button mode = (Button) findViewById(R.id.app_mode);
-        mode.setText("Mode: " + Prefs.MODE_NAMES[prefs.appMode()] + " (tap to change)");
+        addRoleRows(mode);
+        mode.setText("Group type: " + Prefs.MODE_NAMES[prefs.appMode()] + " (tap to change)");
         mode.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -765,7 +772,10 @@ public final class SettingsActivity extends Activity {
                             @Override
                             public void onClick(android.content.DialogInterface di, int which) {
                                 MainActivity.applyMode(SettingsActivity.this, which);
-                                mode.setText("Mode: " + Prefs.MODE_NAMES[which] + " (tap to change)");
+                                if (which == Prefs.MODE_INTERCOM) prefs.setRole(Prefs.ROLE_INTERCOM);
+                                else if (Prefs.ROLE_INTERCOM.equals(prefs.role())) prefs.setRole(Prefs.ROLE_PHONE);
+                                if (roleBtn != null) roleBtn.setText("Device role: " + prefs.roleName() + " (tap to change)");
+                                mode.setText("Group type: " + Prefs.MODE_NAMES[which] + " (tap to change)");
                                 di.dismiss();
                                 Toast.makeText(SettingsActivity.this, which >= Prefs.MODE_SCOUTS
                                         ? "Simple mode: channel A is your private key. DRYAD and Pigpen are hidden."
@@ -794,6 +804,13 @@ public final class SettingsActivity extends Activity {
                 if (!on) StreamsActivity.stopPlayer();
             }
         });
+        // Security page: the same Clear everything as Data and backups (same PIN and confirm).
+        findViewById(R.id.clear_all_sec).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                findViewById(R.id.clear_all).performClick();
+            }
+        });
         findViewById(R.id.clear_all).setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -809,7 +826,7 @@ public final class SettingsActivity extends Activity {
                                     @Override
                                     public void onClick(android.content.DialogInterface di, int w) {
                                         StreamsActivity.stopPlayer();
-                                        AppWipe.wipeAndExit(SettingsActivity.this);
+                                        AppWipe.wipeAndExit(SettingsActivity.this, true); // a stamped APK: also asks to uninstall
                                     }
                                 })
                                 .setNegativeButton(android.R.string.cancel, null)
@@ -1174,12 +1191,14 @@ public final class SettingsActivity extends Activity {
     /** Which settings page this is (null = the main page, which links to the others). */
     public static final String EXTRA_SECTION = "section";
     private static final int[] SECTIONS = {R.id.sec_channels, R.id.sec_audio, R.id.sec_home, R.id.sec_power, R.id.sec_network,
-            R.id.sec_security, R.id.sec_data};
+            R.id.sec_security, R.id.sec_data, R.id.sec_alerts, R.id.sec_location, R.id.sec_features, R.id.sec_about};
     private static final int[] LINKS = {R.id.link_channels, R.id.link_audio, R.id.link_home, R.id.link_power, R.id.link_network,
-            R.id.link_security, R.id.link_data};
-    private static final String[] NAMES = {"channels", "audio", "home", "power", "network", "security", "data"};
+            R.id.link_security, R.id.link_data, R.id.link_alerts, R.id.link_location, R.id.link_features, R.id.link_about};
+    private static final String[] NAMES = {"channels", "audio", "home", "power", "network", "security", "data", "alerts", "location",
+            "features", "about"};
     private static final int[] TITLES = {R.string.page_channels, R.string.page_audio, R.string.page_home, R.string.page_power,
-            R.string.page_network, R.string.page_security, R.string.page_data};
+            R.string.page_network, R.string.page_security, R.string.page_data, R.string.page_alerts, R.string.page_location,
+            R.string.page_features, R.string.page_about};
     private int section = -1;
 
     /** One page of the settings: the main page (top and bottom items, links), or one section. */
@@ -1198,7 +1217,7 @@ public final class SettingsActivity extends Activity {
                 }
             });
         }
-        if (section >= 0) setTitle(getString(TITLES[section]).replace("…", ""));
+        if (section >= 0) setTitle(getString(TITLES[section]).replaceAll(" \\(.*", "").replace("…", ""));
         View tools = findViewById(R.id.link_tools);
         if (tools != null) tools.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -1240,7 +1259,7 @@ public final class SettingsActivity extends Activity {
 
     private static final int[] POWER_RADIOS = {R.id.power_normal, R.id.power_saver, R.id.power_ultra, R.id.power_offline};
 
-    /** Settings > Power and sleep (the black screen settings there are set up with the others). */
+    /** Settings > Power and batteries (the black screen settings there are set up with the others). */
     private android.widget.Button missionBtn, maxSleepBtn;
 
     private void setUpPower() {
@@ -1524,7 +1543,7 @@ public final class SettingsActivity extends Activity {
         if (here(askSaver)) {
             prefs.setPowerAskSaver(percent(askSaver));
             prefs.setPowerAskUltra(percent(askUltra));
-        }        if (here(callsign)) prefs.setCallsign(callsign.getText().toString().trim());
+        }        if (here(callsign) && !prefs.nameLocked()) prefs.setCallsign(callsign.getText().toString().trim());
         if (here(channelA)) prefs.setChannel(Prefs.SLOT_A, channelA.getText().toString().trim());
         if (here(channelB)) prefs.setChannel(Prefs.SLOT_B, channelB.getText().toString().trim());
         if (here(openManet)) prefs.setChannel(Prefs.SLOT_OPENMANET, openManet.getText().toString().trim());
@@ -1761,33 +1780,148 @@ public final class SettingsActivity extends Activity {
 
     private void secretWipe() {
         wiped = true;
+        boolean stamped = ApkStamp.read(this) != null;
         AppWipe.wipe(this);
         Toast.makeText(this, "All app data erased", Toast.LENGTH_LONG).show();
+        if (stamped) { // the setup stamp stays in the installed app: offer to remove it too
+            try {
+                startActivity(new Intent(Intent.ACTION_DELETE, android.net.Uri.parse("package:" + getPackageName())));
+                finish();
+                return;
+            } catch (RuntimeException ignored) {
+            }
+        }
         startActivity(new Intent(this, MainActivity.class)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK));
         finish();
     }
 
-    /** Home screen and menus > Specialised menus: off by default; a setup QR code can turn them on. */
+    private Button roleBtn;
+
+    /** Settings > Me: the device role (with the list of what it turns on) and "I lead a team", above the group type. */
+    private void addRoleRows(final Button mode) {
+        if (!(mode.getParent() instanceof android.view.ViewGroup) || roleBtn != null) return;
+        android.view.ViewGroup parent = (android.view.ViewGroup) mode.getParent();
+        int at = parent.indexOfChild(mode);
+        roleBtn = new Button(this);
+        roleBtn.setAllCaps(false);
+        roleBtn.setText("Device role: " + prefs.roleName() + " (tap to change)");
+        roleBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                RoleDefaults.choose(SettingsActivity.this, new Runnable() {
+                    @Override
+                    public void run() {
+                        roleBtn.setText("Device role: " + prefs.roleName() + " (tap to change)");
+                        mode.setText("Group type: " + Prefs.MODE_NAMES[prefs.appMode()] + " (tap to change)");
+                    }
+                });
+            }
+        });
+        parent.addView(roleBtn, at);
+        final CheckBox lead = new CheckBox(this);
+        lead.setText("I lead a team (turns on Channel array, Report to leaders, Tasks and notes, Calendar and notes)");
+        lead.setChecked(prefs.lead());
+        lead.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(CompoundButton b, boolean on) {
+                prefs.setLead(on);
+                if (on) RoleDefaults.turnOnLeadFeatures(prefs); // never turned off again by unticking
+            }
+        });
+        parent.addView(lead, at + 1);
+        if (StampSetup.available(this)) { // a site or personal APK: set up (again) from its server
+            org.json.JSONObject st = ApkStamp.read(this);
+            Button fromStamp = new Button(this);
+            fromStamp.setAllCaps(false);
+            fromStamp.setText("Set up from this app's server (" + st.optString("site", "LAN server")
+                    + (ApkStamp.personal(st) ? ", as " + st.optString("call") : "") + ")…");
+            fromStamp.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    StampSetup.run(SettingsActivity.this, new Runnable() {
+                        @Override
+                        public void run() {
+                            recreate();
+                        }
+                    }, null);
+                }
+            });
+            parent.addView(fromStamp, at + 2);
+        }
+    }
+
+    /**
+     * Settings > Advanced and Region features (once called Specialised menus): a checklist, all off by default and
+     * settable by a setup QR code, in three groups (the obscure ones behind More…), plus the Advanced setup list.
+     * Ticking one that needs setting up offers its setup.
+     */
     private void addSpecialisedMenus() {
-        android.widget.LinearLayout sec = (android.widget.LinearLayout) findViewById(R.id.sec_home);
+        final android.widget.LinearLayout sec = (android.widget.LinearLayout) findViewById(R.id.sec_features);
         if (sec == null || sec.findViewWithTag("specialised") != null) return;
         TextView head = new TextView(this);
         head.setTag("specialised");
-        head.setText("\nSpecialised menus (most people do not need these; a setup QR code can turn them on)");
-        head.setTextColor(0xffa5d6a7);
+        head.setText("Advanced and Region features");
+        head.setTextColor(0xfff0c75e);
+        head.setTextSize(18);
         sec.addView(head);
-        for (int i = 0; i < Prefs.MENU_KEYS.length; i++) {
-            final String k = Prefs.MENU_KEYS[i];
+        TextView note = new TextView(this);
+        note.setText("All off by default: most people never need these. A setup QR code can turn them on.");
+        note.setTextSize(13);
+        sec.addView(note);
+        Button setup = new Button(this);
+        setup.setAllCaps(false);
+        setup.setText("Advanced setup (Cloud Server, cloud group, tunnel, LAN server, cameras, batteries, ATAK)…");
+        setup.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                AdvancedSetup.showList(SettingsActivity.this);
+            }
+        });
+        sec.addView(setup);
+        featureGroup(sec, "Advanced features", Prefs.FEATURES_ADVANCED);
+        featureGroup(sec, "Region features", Prefs.FEATURES_REGION);
+        final android.widget.LinearLayout more = new android.widget.LinearLayout(this);
+        more.setOrientation(android.widget.LinearLayout.VERTICAL);
+        boolean anyOn = false;
+        for (String k : Prefs.FEATURES_MORE) anyOn |= prefs.menuOn(k);
+        more.setVisibility(anyOn ? View.VISIBLE : View.GONE);
+        final Button moreBtn = new Button(this);
+        moreBtn.setAllCaps(false);
+        moreBtn.setText(anyOn ? "More… (the more obscure ones) ▲" : "More… (the more obscure ones) ▼");
+        moreBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                boolean show = more.getVisibility() != View.VISIBLE;
+                more.setVisibility(show ? View.VISIBLE : View.GONE);
+                moreBtn.setText(show ? "More… (the more obscure ones) ▲" : "More… (the more obscure ones) ▼");
+            }
+        });
+        sec.addView(moreBtn);
+        featureGroup(more, null, Prefs.FEATURES_MORE);
+        sec.addView(more);
+    }
+
+    private void featureGroup(android.widget.LinearLayout into, String title, String[] keys) {
+        if (title != null) {
+            TextView h = new TextView(this);
+            h.setText("\n" + title);
+            h.setTextColor(0xffa5d6a7);
+            into.addView(h);
+        }
+        for (final String k : keys) {
             android.widget.CheckBox cb = new android.widget.CheckBox(this);
-            cb.setText(Prefs.MENU_LABELS[i]);
+            cb.setText(Prefs.menuLabel(k));
             cb.setChecked(prefs.menuOn(k));
             cb.setOnCheckedChangeListener(new android.widget.CompoundButton.OnCheckedChangeListener() {
                 @Override
                 public void onCheckedChanged(android.widget.CompoundButton b, boolean on) {
                     prefs.setMenuOn(k, on);
+                    if ("streams".equals(k) && !on) StreamsActivity.stopPlayer();
+                    if (on) AdvancedSetup.offerForFeature(SettingsActivity.this, k);
                 }
             });
-            sec.addView(cb);
+            into.addView(cb);
         }
-    }}
+    }
+}

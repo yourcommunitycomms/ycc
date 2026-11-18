@@ -67,7 +67,7 @@ public final class TrainFeed {
         return sp.getBoolean("enabled", false);
     }
 
-    /** The Melbourne preset: ticked here, and its specialised menu on (Settings > Home screen and menus). */
+    /** The Melbourne preset: ticked here, and its specialised menu on (Settings > Advanced and Region features). */
     public boolean melbourne() {
         return sp.getBoolean("melbourne", false) && new org.communitycomms.app.Prefs(ctx).menuOn("trains");
     }
@@ -623,7 +623,7 @@ public final class TrainFeed {
         on.setText("Show live trains on the map (needs internet)");
         on.setChecked(enabled() || !configured());
         box.addView(on);
-        // The Melbourne preset shows when ticked in Settings > Home screen and menus (or already in use).
+        // The Melbourne preset shows when ticked in Settings > Advanced and Region features (or already in use).
         boolean showMel = new org.communitycomms.app.Prefs(a).menuOn("trains");
         final CheckBox mel = new CheckBox(a);
         mel.setText("Melbourne: Metro Trains and V/Line (Transport Victoria open data)");

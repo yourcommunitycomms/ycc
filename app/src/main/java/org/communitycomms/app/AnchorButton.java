@@ -20,7 +20,7 @@ import android.widget.Toast;
 /**
  * The Anchored button in the title bar (radio home, map home, full map). It shows while the device is plugged in
  * (grey crossed anchor = not anchored, gold anchor = anchored), and also while anchored on battery (gold anchor with
- * a red dot: power lost). One tap asks, then sets or clears Anchored (the same setting as Settings > Power and sleep).
+ * a red dot: power lost). One tap asks, then sets or clears Anchored (the same setting as Settings > Power and batteries).
  * It stays a manual setting: plugging in never anchors a device by itself (a power bank is not stable power).
  */
 final class AnchorButton {
@@ -55,6 +55,12 @@ final class AnchorButton {
     /** Handles a tap; true when it was the anchor button. */
     static boolean onSelected(final Activity a, MenuItem item) {
         if (item.getItemId() != MENU_ID) return false;
+        ask(a, null);
+        return true;
+    }
+
+    /** Asks, then sets or clears Anchored (the title bar button and the Shortcuts page). */
+    static void ask(final Activity a, final Runnable after) {
         final boolean anchored = new Prefs(a).anchor();
         new AlertDialog.Builder(a)
                 .setTitle(anchored ? "Stop being anchored?" : "Anchor this device?")
@@ -67,10 +73,10 @@ final class AnchorButton {
                         PowerMode.setAnchor(a, !anchored);
                         Toast.makeText(a, anchored ? "Not anchored" : "Anchored", Toast.LENGTH_SHORT).show();
                         a.invalidateOptionsMenu();
+                        if (after != null) after.run();
                     }
                 })
                 .setNegativeButton(android.R.string.cancel, null).show();
-        return true;
     }
 
     /** Redraws the title bar when the power cable goes in or out (register in onResume, unregister in onPause). */

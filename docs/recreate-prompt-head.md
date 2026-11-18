@@ -141,9 +141,20 @@ press); optional Black screen button; big PTT; a blank strip at the bottom so th
 do not hit PTT. ▲ hides the title bar, a small ▼ brings it back. Two styles: Radio (big PTT) or Map
 (mostly map, small PTT, "Mark…" asking at the X or at me). Landscape layouts for both. Black screen
 after N seconds without a touch (Settings; warn if the phone's own timeout is shorter). Every other
-screen has a house button back home. Menu: Chat, Audio, Settings, Data/files, Modern DRYAD, Pigpen,
-OpenMANET node (browser), Radio streams (only when Internet audio is on), Blackout, Red light mode,
-Exit (off air and close). A Permissions screen (Settings, and once at first start) checks and asks for
+screen has a house button back home. The **map home is the default** (phones set up before keep
+theirs, offered the map home once). A **Shortcuts** page (radio home button, dots icon in the title bar):
+the current power mode, Mission mode, Anchored and battery, status, location sharing, radio silent and
+Fake GPS at the top (tap to change), then every shortcut whatever the mode; the radio home keeps four
+quick buttons picked there. Menu: Chat, **More…** (the rest grouped by job: Talk and chat, Map and
+location, Team, Cameras and power, Codes, Network, Tools, Screen; only what is switched on), Settings,
+Exit (off air and close). **Device roles** (Phone radio + "I lead a team", Commander, Public intercom,
+TV / display, Camera monitor, Network gateway) only turn things on, never Anchored; the wizard is role
+first; the Channels page has Simple | Advanced at the top (= the group type) and a shown / hidden eye on
+every channel (hidden: no home button, no pinned PTT). Settings pages: Me, Channels and listening, Voice
+and PTT, Alerts, Screen, Power and batteries, Location and privacy, Network, Security, Data and backups,
+Advanced and Region features (checklist, all off, More… for the obscure ones, an Advanced setup list),
+About and updates. The phone setup QR also carries role, group, lead, call + nameLock, anchored and
+features, and is applied without asking. A Permissions screen (Settings, and once at first start) checks and asks for
 everything with phone-maker power-saving instructions.
 
 **Contacts:** everyone heard with status colour, last seen, battery, distance and bearing, show on

@@ -140,7 +140,7 @@ public final class UpdateFromUrl {
         }
         return ok ? "\n\nThe LAN storage had " + (cached == 0 ? "no update" : "version " + cached) + ": version " + code
                 + " is now there too, so the other phones get it from the cache."
-                : "\n\nIt could not be copied to the LAN storage (check its login in Settings > Network and sync).";
+                : "\n\nIt could not be copied to the LAN storage (check its login in Settings > Data and backups).";
     }
 
     /** Downloads and checks the APK; null = ready to install, otherwise what went wrong. */

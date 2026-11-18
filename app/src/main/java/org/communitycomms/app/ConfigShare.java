@@ -44,6 +44,8 @@ public final class ConfigShare {
             "callsign", "pinHash", "pinSalt", "pinFails", "wipeOnBadPin", "lastChannelHash", "pmPub", "pmPriv",
             "setupDone", "uiLocked", "btButton", "btButtonName", "pttKey", "netInterface", "radioSilent",
             "rxGainPct", "micGainPct", "onlineUntil",
+            // this device's role, team lead tick, a callsign locked by a setup QR, one-time layout changes
+            "role", "lead", "nameLock", "uiReorg", "mapHomeOffer", "lastSimpleMode", "homeQuick",
             // this phone's own state and screen choices, and its private channel notes
             "status", "wasOnAir", "permissionsShown", "titleHidden", "commanderChannels", "commanderSideHidden",
             "contactsCompact", "broadcast", "noteA", "noteB", "noteC", "noteD", "noteE", "noteF", "noteG", "noteH", "notePublic",
@@ -393,7 +395,7 @@ public final class ConfigShare {
                     public void onClick(DialogInterface d, int w) {
                         Set<String> keep = new HashSet<String>(Arrays.asList("callsign", "setupDone", "permissionsShown",
                                 "publicKey", "channel", "channelA", "channelB", "channelC", "channelD", "channelE", "channelF",
-                                "channelG", "channelH", "appMode"));
+                                "channelG", "channelH", "appMode", "role", "lead", "nameLock", "uiReorg"));
                         keep.addAll(SECRET);
                         for (String name : FILES) {
                             if (name.equals("dryad")) continue; // the sheets' own store settings
