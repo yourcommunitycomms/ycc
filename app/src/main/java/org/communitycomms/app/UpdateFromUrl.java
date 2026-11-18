@@ -49,47 +49,139 @@ public final class UpdateFromUrl {
         download(a, url(a));
     }
 
-    /** "Edit update URL": type it, Test downloads it, and a working address is kept. */
+    /** "Edit update URL": type it, or fill it from a local server or GitHub; Test downloads it, and a working address is kept. */
     public static void edit(final Activity a, final boolean thenUpdate) {
+        final float dp = a.getResources().getDisplayMetrics().density;
         final EditText e = new EditText(a);
         e.setSingleLine(true);
         e.setText(url(a));
         e.setSelectAllOnFocus(true);
-        int p = (int) (16 * a.getResources().getDisplayMetrics().density);
-        android.widget.FrameLayout box = new android.widget.FrameLayout(a);
+        android.widget.LinearLayout box = new android.widget.LinearLayout(a);
+        box.setOrientation(android.widget.LinearLayout.VERTICAL);
+        int p = (int) (16 * dp);
         box.setPadding(p, 0, p, 0);
         box.addView(e);
+        android.widget.Button local = new android.widget.Button(a), gh = new android.widget.Button(a);
+        local.setText("Local server…");
+        gh.setText("GitHub");
+        local.setAllCaps(false);
+        gh.setAllCaps(false);
+        local.setOnClickListener(new android.view.View.OnClickListener() {
+            @Override
+            public void onClick(android.view.View v) {
+                askLocal(a, e);
+            }
+        });
+        gh.setOnClickListener(new android.view.View.OnClickListener() {
+            @Override
+            public void onClick(android.view.View v) {
+                e.setText(DEFAULT_URL);
+            }
+        });
+        android.widget.LinearLayout row = new android.widget.LinearLayout(a);
+        row.addView(local, new android.widget.LinearLayout.LayoutParams(0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        row.addView(gh, new android.widget.LinearLayout.LayoutParams(0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        box.addView(row);
+        final String was = url(a);
         new AlertDialog.Builder(a)
                 .setTitle("Update URL")
                 .setMessage("Where to get the app from: the project's GitHub release (the default, always the newest), "
-                        + "or the LAN storage's http://<server>:8647/YCC/Updates/YCC.apk (the middle button switches). Test downloads it; it is kept once it works, and "
-                        + "a group's network defaults can set it for every phone. A newer app from outside the LAN is "
-                        + "also put on the LAN storage, so the other phones update from there.")
+                        + "or a local storage server, e.g. http://192.168.1.10:8647/YCC/Updates/YCC.apk. Local server asks for "
+                        + "its name and fills in the rest. Test downloads it; it is kept once it works, and a group's network "
+                        + "defaults can set it for every phone. A newer app from outside the LAN is also put on the LAN storage, "
+                        + "so the other phones update from there.")
                 .setView(box)
                 .setPositiveButton(thenUpdate ? "Test and update" : "Test and save", new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface d, int w) {
-                        String u = e.getText().toString().trim();
+                        final String u = e.getText().toString().trim();
                         if (!u.startsWith("http://") && !u.startsWith("https://")) {
                             Toast.makeText(a, "The address starts with http:// or https://", Toast.LENGTH_LONG).show();
+                            return;
+                        }
+                        if (was.contains("/Personal/") && !u.equals(was)) { // a personal APK's own address: ask first
+                            new AlertDialog.Builder(a).setTitle("Replace this app's own update address?")
+                                    .setMessage("This app came from your storage server set up for you, with its own update "
+                                            + "address that keeps your setup in each update. Use the new address instead?")
+                                    .setPositiveButton("Replace", new DialogInterface.OnClickListener() {
+                                        @Override
+                                        public void onClick(DialogInterface d2, int w2) {
+                                            download(a, u);
+                                        }
+                                    })
+                                    .setNegativeButton("Keep mine", null).show();
                             return;
                         }
                         download(a, u);
                     }
                 })
-                .setNeutralButton(lanUrl(a) != null ? "LAN storage" : "GitHub", null)
                 .setNegativeButton(android.R.string.cancel, null)
-                .show()
-                .getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener(new android.view.View.OnClickListener() {
-                    @Override
-                    public void onClick(android.view.View v) {
-                        // Switch the field between the LAN storage and the GitHub release (the dialog stays open).
-                        String lan = lanUrl(a), now = e.getText().toString().trim();
-                        e.setText(lan != null && !now.equals(lan) ? lan : DEFAULT_URL);
-                    }
-                });
+                .show();
     }
 
+    /** Local server: its name (or address), port and path, put together into the update address. */
+    private static void askLocal(final Activity a, final EditText target) {
+        float dp = a.getResources().getDisplayMetrics().density;
+        String host = "", port = "8647", path = "/YCC/Updates/YCC.apk";
+        LanTiles lan = new LanTiles(a);
+        try {
+            java.net.URL cur = new java.net.URL(lan.configured() ? lan.base() : target.getText().toString().trim());
+            if (!cur.getHost().contains("github")) {
+                host = cur.getHost();
+                if (cur.getPort() > 0) port = String.valueOf(cur.getPort());
+            }
+        } catch (Exception ignored) {
+        }
+        final EditText h = field(a, host, "Server name or address, e.g. mypi.local or 192.168.1.10");
+        final EditText po = field(a, port, "Port");
+        po.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+        final EditText pa = field(a, path, "Path");
+        android.widget.LinearLayout box = new android.widget.LinearLayout(a);
+        box.setOrientation(android.widget.LinearLayout.VERTICAL);
+        int p = (int) (16 * dp);
+        box.setPadding(p, 0, p, 0);
+        box.addView(label(a, "Server name or address"));
+        box.addView(h);
+        box.addView(label(a, "Port (8647 on a Project NOMAD box or Raspberry Pi)"));
+        box.addView(po);
+        box.addView(label(a, "Path"));
+        box.addView(pa);
+        new AlertDialog.Builder(a).setTitle("Local server").setView(box)
+                .setPositiveButton(android.R.string.ok, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface d, int w) {
+                        String hs = h.getText().toString().trim().replaceAll("^https?://", "").replaceAll("[/:].*$", "");
+                        if (hs.length() == 0) {
+                            Toast.makeText(a, "Enter the server's name or address", Toast.LENGTH_SHORT).show();
+                            return;
+                        }
+                        String ps = po.getText().toString().trim(), pth = pa.getText().toString().trim();
+                        if (!pth.startsWith("/")) pth = "/" + pth;
+                        target.setText("http://" + hs + (ps.length() > 0 ? ":" + ps : "") + pth);
+                    }
+                })
+                .setNegativeButton(android.R.string.cancel, null).show();
+    }
+
+    private static EditText field(Activity a, String v, String hint) {
+        EditText e = new EditText(a);
+        e.setSingleLine(true);
+        e.setText(v);
+        e.setHint(hint);
+        return e;
+    }
+
+    private static android.widget.TextView label(Activity a, String t) {
+        android.widget.TextView v = new android.widget.TextView(a);
+        v.setText(t);
+        v.setTextSize(13);
+        return v;
+    }
+
+    /** Download and install from this address (the Shortcuts page's "Update available"). */
+    static void downloadFrom(Activity a, String u) {
+        download(a, u);
+    }
     private static void download(final Activity a, final String u) {
         Toast.makeText(a, "Downloading the app from " + u + "…", Toast.LENGTH_SHORT).show();
         new Thread(new Runnable() {

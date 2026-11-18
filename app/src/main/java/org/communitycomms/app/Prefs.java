@@ -178,6 +178,7 @@ public final class Prefs {
 
     public void setShowSlots(boolean pub, boolean openManet) {
         sp.edit().putBoolean("showPublic", pub).putBoolean("showOpenManet", openManet).commit();
+        if (openManet) burstOffFor("OpenMANET");
     }
 
     /** First-start wizard done (name, public key, first DRYAD). */
@@ -641,7 +642,10 @@ public final class Prefs {
     }
 
     public void setMenuOn(String key, boolean on) {
-        if ("openmanet".equals(key)) sp.edit().putBoolean("showOpenManet", on).commit();
+        if ("openmanet".equals(key)) {
+            sp.edit().putBoolean("showOpenManet", on).commit();
+            if (on) burstOffFor("OpenMANET");
+        }
         else if ("streams".equals(key)) setStreamsEnabled(on);
         else sp.edit().putBoolean("menu_" + key, on).commit();
     }
@@ -892,6 +896,25 @@ public final class Prefs {
 
     public void setBlackScreenButton(boolean on) {
         sp.edit().putBoolean("blackScreenButton", on).commit();
+    }
+
+    /**
+     * The person has gone through the black screen settings or its warning once (the setup question, Shortcuts >
+     * Black screen, or the Settings rows). Until then a red dot shows on the black screen button, the Shortcuts icon
+     * and the Black screen row. A setup QR code or a ready-made APK setting the values does not count.
+     * Phones from before this setting count as accepted if they answered the setup question with a black screen.
+     */
+    public boolean blackAccepted() {
+        if (!sp.contains("blackAccepted")) {
+            boolean old = sp.getBoolean("blackPromptShown", false) && (blackScreenButton() || blackAfterSec() > 0);
+            sp.edit().putBoolean("blackAccepted", old).commit();
+            return old;
+        }
+        return sp.getBoolean("blackAccepted", false);
+    }
+
+    public void setBlackAccepted() {
+        sp.edit().putBoolean("blackAccepted", true).commit();
     }
 
     /** Team or group name, shown before the callsign on air: channel, group, individual. */
@@ -1265,8 +1288,24 @@ public final class Prefs {
         return sp.contains("burstVoice");
     }
 
+    /** Burst mode can't be on with ATAK compatibility or OpenMANET (they need live voice). */
+    public boolean burstBlocked() {
+        return sp.getBoolean("atakOn", false) || showOpenManet();
+    }
+
+    /** Burst voice on or off; on is refused (stays off) while ATAK or OpenMANET is on. */
     public void setBurstVoice(boolean on) {
-        sp.edit().putBoolean("burstVoice", on).commit();
+        sp.edit().putBoolean("burstVoice", on && !burstBlocked()).commit();
+    }
+
+    /** ATAK compatibility or OpenMANET was just turned on: burst mode goes off, with a short note. */
+    public void burstOffFor(String what) {
+        if (!burstVoice()) return;
+        sp.edit().putBoolean("burstVoice", false).commit();
+        try {
+            android.widget.Toast.makeText(ctx, "Burst mode turned off for " + what + " (it needs live voice)", android.widget.Toast.LENGTH_LONG).show();
+        } catch (RuntimeException ignored) { // not on the main thread
+        }
     }
 
     /** 0 smallest … 3 clearest (BurstVoice.QUALITY_NAMES). */

@@ -103,6 +103,7 @@ class H(SimpleHTTPRequestHandler):
         p = self.local()
         return p is not None and (p.startswith(os.path.join(ROOT, "YCC", "Maps cache") + os.sep)
                                   or p == os.path.join(ROOT, "YCC", "Updates", "YCC.apk")
+                                  or p == os.path.join(ROOT, "YCC", "Updates", "version.txt")  # the app's update check
                                   or provision.public_file(p))
 
     def personal_dir(self, p):

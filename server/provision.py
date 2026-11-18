@@ -201,6 +201,10 @@ def _embed(st, who):
             st["pub"] = pub
     if who.get("embedCloud") and who.get("cloud"):
         st["cloud"] = who["cloud"]
+    if who.get("fakeGps") in ("0", "1"):  # Fake GPS is stage 1: it works before the phone reaches the server
+        st["fakeGps"] = int(who["fakeGps"])
+        if who.get("fakeCentre"):
+            st["fakeCentre"] = who["fakeCentre"]
     return st
 
 
@@ -293,8 +297,29 @@ SETTINGS = (
     ("shareLocPub", "Location on Public / cloud", YESNO, "Share my location with Public and cloud groups."),
     ("mapsOnline", "Online map tiles", (("", "(the phone chooses)"), ("0", "Ask first"), ("1", "Always when there is internet")), ""),
     ("chA", "Private channel (A)", None, "Optional: this channel instead of the one in the phone setup above. Fetched, never in the APK."),
+    ("fakeGps", "Fake GPS", (("", "(the phone chooses)"), ("1", "On, near the coordinates below"), ("0", "Off")),
+     "In the APK itself (stage 1): the phone uses and shares a made-up spot near these coordinates, for training or demos."),
+    ("fakeCentre", "Fake GPS coordinates", None, "Latitude, longitude in decimal degrees, e.g. -37.81360, 144.96310."),
 )
-NUMERIC = ("lead", "burst", "anchored", "autoLoc", "obscure", "shareLocPub", "mapsOnline")
+NUMERIC = ("lead", "burst", "anchored", "autoLoc", "obscure", "shareLocPub", "mapsOnline", "fakeGps")
+
+
+def _fake_check(who):
+    """Fake GPS on needs valid coordinates; they are tidied to "lat, lon" with 5 decimals. Returns an error or None."""
+    c = str(who.get("fakeCentre", "") or "").strip()
+    if not c:
+        if who.get("fakeGps") == "1":
+            return "Not saved: Fake GPS is on, so enter its coordinates (latitude, longitude)."
+        return None
+    parts = [x for x in c.replace(",", " ").split() if x]
+    try:
+        lat, lon = float(parts[0]), float(parts[1])
+        if len(parts) != 2 or not (-90 <= lat <= 90 and -180 <= lon <= 180):
+            raise ValueError
+    except (ValueError, IndexError):
+        return "Not saved: the Fake GPS coordinates must be latitude, longitude in decimal degrees (e.g. -37.81360, 144.96310)."
+    who["fakeCentre"] = "%.5f, %.5f" % (lat, lon)
+    return None
 
 
 def _settings_from(form, who):
@@ -500,7 +525,7 @@ def _person_from(form, p):
     p["nameLock"] = "nameLock" in form
     p["resetup"] = "resetup" in form
     _settings_from(form, p)
-    return _keys_from(form, p)
+    return _fake_check(p) or _keys_from(form, p)
 
 
 def act(form, setup_url):
@@ -512,7 +537,7 @@ def act(form, setup_url):
     if a == "prov_site":
         s = {"on": "on" in form, "name": _site_name(), "login": "login" in form}
         _settings_from(form, s)
-        bad = _keys_from(form, s)
+        bad = _fake_check(s) or _keys_from(form, s)
         if bad:
             return bad
         d["site"] = s

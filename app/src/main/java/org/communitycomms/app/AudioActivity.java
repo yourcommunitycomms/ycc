@@ -253,6 +253,11 @@ public final class AudioActivity extends Activity {
             @Override
             public void onCheckedChanged(android.widget.CompoundButton b, boolean on) {
                 prefs.setBurstVoice(on);
+                if (on && !prefs.burstVoice()) { // refused: ATAK or OpenMANET is on
+                    android.widget.Toast.makeText(AudioActivity.this, "Burst mode can't be on with ATAK compatibility or OpenMANET: they need live voice",
+                            android.widget.Toast.LENGTH_LONG).show();
+                    b.setChecked(false);
+                }
                 show.run();
             }
         });

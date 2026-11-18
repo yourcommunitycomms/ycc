@@ -92,6 +92,7 @@ final class ApkStamp {
         if (up.length() > 0) c.getSharedPreferences("settings", Context.MODE_PRIVATE).edit().putString("updateUrl", up).commit();
         if (s.optString("pub").trim().length() > 0) p.setPublicKey(s.optString("pub"));
         SetupQr.applyCloud(p, s.optJSONObject("cloud"));
+        SetupQr.applyFakeGps(c, s);
     }
 
     /** Stage 2: the rest of the setup from the server (a setup code), or an error message starting with "!". */

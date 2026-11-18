@@ -65,34 +65,21 @@ final class ChannelsSwitch {
                 .setNegativeButton(android.R.string.cancel, null).show();
     }
 
+    /**
+     * Back to Simple without asking: the simple group type used last (General if none), keeping the quick button
+     * profile in use. The profile is changed from Shortcuts > Edit current layout, or the group type in Settings > Me.
+     */
     private static void toSimple(final Activity a) {
-        final Prefs p = new Prefs(a);
-        final String[] names = new String[Prefs.MODE_GENERAL - Prefs.MODE_SCOUTS + 1];
-        for (int i = 0; i < names.length; i++) names[i] = Prefs.MODE_NAMES[Prefs.MODE_SCOUTS + i];
-        final int[] pick = {p.lastSimpleMode() - Prefs.MODE_SCOUTS};
-        TextView note = new TextView(a);
-        float d = a.getResources().getDisplayMetrics().density;
-        note.setPadding((int) (20 * d), (int) (8 * d), (int) (20 * d), 0);
-        note.setText("Simple: your private key (channel A), Public and the Cloud group, and the group's quick buttons. "
-                + "DRYAD, Pigpen and OpenMANET are hidden (nothing is deleted).");
-        new AlertDialog.Builder(a).setTitle("Simple channels: which group type?").setView(note)
-                .setSingleChoiceItems(names, pick[0], new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface di, int which) {
-                        pick[0] = which;
-                    }
-                })
-                .setPositiveButton("Simple", new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface di, int w) {
-                        MainActivity.applyMode(a, Prefs.MODE_SCOUTS + pick[0]);
-                        a.startActivity(new Intent(a, KeysActivity.class));
-                        a.finish();
-                    }
-                })
-                .setNegativeButton(android.R.string.cancel, null).show();
+        Prefs p = new Prefs(a);
+        org.communitycomms.app.geo.QuickProfiles qp = new org.communitycomms.app.geo.QuickProfiles(a);
+        int profile = qp.profile();
+        MainActivity.applyMode(a, p.lastSimpleMode());
+        qp.setProfile(profile);
+        android.widget.Toast.makeText(a, "Simple channels (" + Prefs.MODE_NAMES[p.appMode()] + "): DRYAD, Pigpen and OpenMANET are hidden, nothing is deleted",
+                android.widget.Toast.LENGTH_LONG).show();
+        a.startActivity(new Intent(a, KeysActivity.class));
+        a.finish();
     }
-
     /** Advanced channels page: links to the key tools. */
     static View links(final Activity a) {
         final Prefs p = new Prefs(a);

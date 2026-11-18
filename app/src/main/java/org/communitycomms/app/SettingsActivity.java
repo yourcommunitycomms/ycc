@@ -547,6 +547,7 @@ public final class SettingsActivity extends Activity {
                             @Override
                             public void onClick(android.content.DialogInterface d, int w) {
                                 sset.edit().putBoolean("atakOn", true).commit();
+                                prefs.burstOffFor("ATAK compatibility");
                             }
                         })
                         .setNegativeButton(android.R.string.cancel, new android.content.DialogInterface.OnClickListener() {
@@ -878,6 +879,7 @@ public final class SettingsActivity extends Activity {
             @Override
             public void onCheckedChanged(CompoundButton bt, boolean on) {
                 prefs.setBlackScreenButton(on);
+                prefs.setBlackAccepted(); // the note on how to get out of it is right below
             }
         });
         CheckBox blackLegacy = (CheckBox) findViewById(R.id.black_legacy);
@@ -911,6 +913,7 @@ public final class SettingsActivity extends Activity {
                     v = 0;
                 }
                 prefs.setBlackAfterSec(v);
+                prefs.setBlackAccepted();
                 renderBlackAfter();
             }
         });

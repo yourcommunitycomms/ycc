@@ -215,7 +215,7 @@ public final class SetupQr {
         final String url = o.optString("url").trim();
         final boolean hasLan = url.startsWith("http://") || url.startsWith("https://");
         boolean any = hasLan;
-        for (String k : new String[]{"tunnel", "vps", "pub", "chA", "omg", "home", "menus", "features", "role", "group", "call", "anchored", "lead", "burst", "prof", "cloud", "update", "autoLoc", "obscure", "shareLocPub", "mapsOnline"}) {
+        for (String k : new String[]{"tunnel", "vps", "pub", "chA", "omg", "home", "menus", "features", "role", "group", "call", "anchored", "lead", "burst", "prof", "cloud", "update", "autoLoc", "obscure", "shareLocPub", "mapsOnline", "fakeGps"}) {
             if (o.has(k) && o.optString(k).length() > 0) any = true;
         }
         if (!any) {
@@ -261,6 +261,7 @@ public final class SetupQr {
         if (o.has("autoLoc")) sb.append("Share location when asked: ").append(o.optInt("autoLoc") == 1 ? "automatically" : "ask each time").append('\n');
         if (o.has("obscure")) sb.append("Obscure position: ").append(o.optInt("obscure") == 0 ? "exact" : org.communitycomms.app.geo.Geo.range(o.optInt("obscure"))).append('\n');
         if (o.has("shareLocPub")) sb.append("Location on Public / cloud: ").append(o.optInt("shareLocPub") == 1 ? "on" : "off").append('\n');
+        if (o.has("fakeGps")) sb.append("Fake GPS: ").append(o.optInt("fakeGps") == 1 ? "on, near " + o.optString("fakeCentre") : "off").append('\n');
         if (o.has("mapsOnline")) sb.append("Online map tiles: ").append(o.optInt("mapsOnline") == 1 ? "always" : "ask first").append('\n');
         return sb.toString().trim();
     }
@@ -398,6 +399,7 @@ public final class SetupQr {
         int prof = java.util.Arrays.asList(org.communitycomms.app.geo.QuickProfiles.NAMES).indexOf(o.optString("prof"));
         if (prof >= 0 && !o.has("team")) new org.communitycomms.app.geo.QuickProfiles(a).setProfile(prof);
         applyCloud(p, o.optJSONObject("cloud"));
+        applyFakeGps(a, o);
         // The wizard's location and maps choices (from the server's Phone setup page)
         if (o.has("autoLoc")) a.getSharedPreferences("settings", android.content.Context.MODE_PRIVATE).edit()
                 .putBoolean("autoAcceptLocation", o.optInt("autoLoc") == 1).commit();
@@ -407,6 +409,16 @@ public final class SetupQr {
         String up = o.optString("update").trim(); // a personal APK's own update address
         if (up.startsWith("http://") || up.startsWith("https://")) {
             a.getSharedPreferences("settings", android.content.Context.MODE_PRIVATE).edit().putString("updateUrl", up).commit();
+        }
+    }
+
+    /** Fake GPS from a setup code or an APK stamp: "fakeGps" 1 / 0 and "fakeCentre" "lat, lon". */
+    static void applyFakeGps(android.content.Context c, JSONObject o) {
+        if (!o.has("fakeGps")) return;
+        boolean on = o.optInt("fakeGps") == 1;
+        String centre = o.optString("fakeCentre", org.communitycomms.app.geo.FakeGps.centre(c));
+        if (!org.communitycomms.app.geo.FakeGps.set(c, on, centre) && on) {
+            android.util.Log.w("SetupQr", "Fake GPS not turned on: bad coordinates");
         }
     }
 
@@ -472,6 +484,7 @@ public final class SetupQr {
                             ed.putBoolean("homeNetOn", true).putString("homeNetSsid", o.optString("home"));
                         }
                         ed.commit();
+                        if (o.optString("omg").length() > 0) p.burstOffFor("OpenMANET");
                         if (o.optString("menus").length() > 0) p.turnOnMenus(o.optString("menus"));
                         if (o.has("burst")) p.setBurstVoice(o.optInt("burst") == 1);
                         applyNewFields(a, o, p);

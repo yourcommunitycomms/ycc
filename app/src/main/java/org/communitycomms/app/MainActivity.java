@@ -535,6 +535,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         else getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         View black = findViewById(R.id.black_screen);
         if (black != null) black.setVisibility(prefs.blackScreenButton() ? View.VISIBLE : View.GONE);
+        showBlackDot();
         View reports = findViewById(R.id.reports);
         boolean canReport = prefs.reportCode().length() > 0 && prefs.menuOn("report");
         if (reports != null) reports.setVisibility(prefs.simple() && !canReport ? View.GONE : View.VISIBLE); // simple modes: no reports
@@ -566,6 +567,13 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         rejoinIfSettingsChanged();
         renderJoinButton();
         offerMapHomeOnce();
+        UpdateCheck.checkIfDue(this, new Runnable() { // at most every 6 hours: a dot on Shortcuts when an update is out
+            @Override
+            public void run() {
+                invalidateOptionsMenu();
+                renderShare();
+            }
+        });
         handler.postDelayed(new Runnable() {
             @Override
             public void run() {
@@ -1497,6 +1505,12 @@ public final class MainActivity extends Activity implements RadioService.Ui {
             String t = left > 0 ? "Shortcuts\n(sharing location: " + shareState() + ")" : "Shortcuts";
             if (!t.contentEquals(sc.getText())) sc.setText(t);
             sc.setTextColor(left > 0 ? 0xffa5d6a7 : 0xffffffff);
+            boolean dot = shortcutsDot(); // an update, or black screen not set up: a small red dot on the button
+            if (dot != (sc.getTag() != null)) {
+                sc.setTag(dot ? "dot" : null);
+                sc.setCompoundDrawables(null, null, dot ? redDot() : null, null);
+                sc.setContentDescription(dot ? "Shortcuts, something to look at" : "Shortcuts");
+            }
         }
     }
 
@@ -1624,7 +1638,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         menu.add(0, MENU_HOME_TOGGLE, 0, "Map / buttons home").setIcon(mapHome
                 ? android.R.drawable.ic_menu_agenda : android.R.drawable.ic_menu_mapmode)
                 .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS);
-        menu.add(0, MENU_SHORTCUTS, 0, "Shortcuts").setIcon(shortcutsIcon())
+        menu.add(0, MENU_SHORTCUTS, 0, "Shortcuts").setIcon(shortcutsIcon(shortcutsDot()))
                 .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS);
         menu.add(0, MENU_TOP_CHAT, 0, "Chat").setIcon(android.R.drawable.sym_action_chat)
                 .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS);
@@ -1724,6 +1738,22 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
         box.setPadding((int) (10 * d), (int) (6 * d), (int) (10 * d), (int) (6 * d));
+        final int upd = UpdateCheck.available(this);
+        stateRow(box, upd > 0 ? "Update available: 0.1." + upd + ", tap to update  ›" : "Check for updates (this is 0.1." + LanSync.installedVersion(this) + ")  ›", new Runnable() {
+            @Override
+            public void run() {
+                if (upd > 0) UpdateFromUrl.downloadFrom(MainActivity.this, UpdateCheck.source(MainActivity.this));
+                else UpdateCheck.checkNow(MainActivity.this, new Runnable() {
+                    @Override
+                    public void run() {
+                        invalidateOptionsMenu();
+                        renderShare();
+                        if (UpdateCheck.available(MainActivity.this) > 0) showShortcuts();
+                    }
+                }, true);
+            }
+        });
+        if (upd > 0 && box.getChildCount() > 0) ((TextView) box.getChildAt(0)).setTextColor(0xfff0c75e);
         String[] modes = {"Normal", "Power saver", "Ultra low", "Offline"};
         int pm = PowerMode.mode();
         boolean mission = PowerMode.missionMine() || PowerMode.missionOthers();
@@ -1740,6 +1770,22 @@ public final class MainActivity extends Activity implements RadioService.Ui {
             @Override
             public void run() {
                 AnchorButton.ask(MainActivity.this, null);
+            }
+        });
+        int bs = prefs.blackAfterSec();
+        TextView blackRow = stateRow(box, "Black screen: " + (bs <= 0 ? "never by itself" : "after " + (bs < 60 ? bs + " s" : bs / 60 + " min")) + (prefs.blackScreenButton() ? " · button on the home" : "") + "  ›", new Runnable() {
+            @Override
+            public void run() {
+                chooseBlackScreen();
+            }
+        });
+        if (blackDot()) blackRow.setCompoundDrawables(null, null, redDot(), null); // not looked at yet
+        String[] qn = org.communitycomms.app.audio.BurstVoice.QUALITY_NAMES;
+        stateRow(box, "Voice: " + (prefs.burstVoice() ? "burst mode, quality " + qn[Math.max(0, Math.min(qn.length - 1, prefs.burstQuality()))]
+                : "live" + (prefs.burstBlocked() ? " (ATAK / OpenMANET on)" : "")) + "  ›", new Runnable() {
+            @Override
+            public void run() {
+                chooseVoice();
             }
         });
         stateRow(box, "Status: " + shortStatus() + "  ›", new Runnable() {
@@ -1769,132 +1815,61 @@ public final class MainActivity extends Activity implements RadioService.Ui {
             }
         });
 
-        List<String> names = new ArrayList<String>();
-        final List<Runnable> runs = new ArrayList<Runnable>();
-        for (int i = 0; i < quickItems.size(); i++) {
-            final int q = i;
-            final org.communitycomms.app.geo.QuickProfiles.Item it = quickItems.get(i);
-            boolean sharing = it.kind == org.communitycomms.app.geo.QuickProfiles.KIND_SHARE && service != null && service.rapidShareLeftMs() > 0;
-            names.add(sharing ? "Stop sharing" : it.label);
-            runs.add(new Runnable() {
-                @Override
-                public void run() {
-                    if (homeMap != null && !it.atMapCentre && it.kind == org.communitycomms.app.geo.QuickProfiles.KIND_POINT) askWhere(q);
-                    else quickPoi(q);
-                }
-            });
-        }
-        int quickCount = names.size();
-        long left = service == null ? 0 : service.rapidShareLeftMs();
-        names.add(left > 0 ? "Sharing location (options)" : getString(R.string.share_loc));
-        runs.add(new Runnable() {
+        final org.communitycomms.app.geo.QuickProfiles qp = new org.communitycomms.app.geo.QuickProfiles(this);
+        Button layout = new Button(this);
+        layout.setAllCaps(false);
+        layout.setText("Edit current layout (" + org.communitycomms.app.geo.QuickProfiles.NAMES[qp.profile()] + ")");
+        layout.setOnClickListener(new View.OnClickListener() {
             @Override
-            public void run() {
-                toggleRapidShare();
+            public void onClick(View v) {
+                if (shortcutsDlg != null) shortcutsDlg.dismiss();
+                editLayout();
             }
         });
-        if (prefs.callEnabled()) {
-            names.add("Call everyone");
-            runs.add(new Runnable() {
-                @Override
-                public void run() {
-                    callEveryone();
-                }
-            });
-        }
-        names.add("My status");
-        runs.add(new Runnable() {
+        Button use = new Button(this); // one of the layout's buttons now (the whole list)
+        use.setAllCaps(false);
+        use.setText("Use a button");
+        use.setOnClickListener(new View.OnClickListener() {
             @Override
-            public void run() {
-                chooseStatus();
-            }
-        });
-        names.add("Text as voice");
-        runs.add(new Runnable() {
-            @Override
-            public void run() {
-                askSay(-1);
-            }
-        });
-        names.add("Mark… (whole list)");
-        runs.add(new Runnable() {
-            @Override
-            public void run() {
+            public void onClick(View v) {
+                if (shortcutsDlg != null) shortcutsDlg.dismiss();
                 pickQuick();
             }
         });
-        names.add("Photo");
-        runs.add(new Runnable() {
-            @Override
-            public void run() {
-                startActivity(new Intent(MainActivity.this, FilesActivity.class).putExtra(FilesActivity.EXTRA_PHOTO, true));
-            }
-        });
-        names.add("Black screen");
-        runs.add(new Runnable() {
-            @Override
-            public void run() {
-                if (LightDiscipline.legacyBlackout(MainActivity.this)) Toast.makeText(MainActivity.this, "Double-tap to wake", Toast.LENGTH_SHORT).show();
-                LightDiscipline.blackout(MainActivity.this);
-            }
-        });
-        names.add(prefs.locked() ? "Locked (hold Lock to unlock)" : "Lock");
-        runs.add(new Runnable() {
-            @Override
-            public void run() {
-                if (!prefs.locked()) {
-                    prefs.setLocked(true);
-                    renderLock();
-                }
-            }
-        });
-        final boolean canReport = prefs.reportCode().length() > 0 && prefs.menuOn("report");
-        if (!prefs.simple() || canReport) {
-            names.add(canReport ? "Report to leaders" : "Reports");
-            runs.add(new Runnable() {
-                @Override
-                public void run() {
-                    startActivity(new Intent(MainActivity.this, canReport ? ReportUpActivity.class : ReportsActivity.class));
-                }
-            });
-        }
-        names.add("Chat");
-        runs.add(new Runnable() {
-            @Override
-            public void run() {
-                startActivity(new Intent(MainActivity.this, ChatActivity.class));
-            }
-        });
-        names.add("Contacts");
-        runs.add(new Runnable() {
-            @Override
-            public void run() {
-                startActivity(new Intent(MainActivity.this, ContactsActivity.class));
-            }
-        });
-        names.add("Full map");
-        runs.add(new Runnable() {
-            @Override
-            public void run() {
-                startActivity(new Intent(MainActivity.this, MapActivity.class));
-            }
-        });
-        names.add("Channels");
-        runs.add(new Runnable() {
-            @Override
-            public void run() {
-                startActivity(new Intent(MainActivity.this, prefs.simple() ? KeysActivity.class : ChannelsActivity.class));
-            }
-        });
-        names.add("Change map point profile");
+        LinearLayout row = new LinearLayout(this);
+        row.addView(layout, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 2));
+        row.addView(use, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        lp.topMargin = (int) (10 * d);
+        box.addView(row, lp);        android.widget.ScrollView sv = new android.widget.ScrollView(this);
+        sv.addView(box);
+        shortcutsDlg = new android.app.AlertDialog.Builder(this).setTitle("Shortcuts").setView(sv)
+                .setNegativeButton("Close", null).show();
+    }
+
+    /** Shortcuts > Edit current layout: switch profile, edit the buttons (a copy you can change), pick the radio home's four. */
+    private void editLayout() {
+        final org.communitycomms.app.geo.QuickProfiles qp = new org.communitycomms.app.geo.QuickProfiles(this);
+        final String name = org.communitycomms.app.geo.QuickProfiles.NAMES[qp.profile()];
+        List<String> items = new ArrayList<String>();
+        final List<Runnable> runs = new ArrayList<Runnable>();
+        items.add("Change layout (profile): now " + name);
         runs.add(new Runnable() {
             @Override
             public void run() {
                 chooseProfile(MainActivity.this);
             }
         });
-        if (!mapHome && !quickItems.isEmpty()) {
-            names.add("Pick the 4 on the radio home…");
+        items.add(qp.profile() == org.communitycomms.app.geo.QuickProfiles.CUSTOM ? "Edit the buttons" : "Edit the buttons (makes an editable copy of " + name + ")");
+        runs.add(new Runnable() {
+            @Override
+            public void run() {
+                if (qp.profile() != org.communitycomms.app.geo.QuickProfiles.CUSTOM) qp.setProfile(org.communitycomms.app.geo.QuickProfiles.CUSTOM);
+                startActivity(new Intent(MainActivity.this, QuickProfileActivity.class));
+            }
+        });
+        if (!mapHome) {
+            items.add("Pick the 4 on the radio home");
             runs.add(new Runnable() {
                 @Override
                 public void run() {
@@ -1902,38 +1877,127 @@ public final class MainActivity extends Activity implements RadioService.Ui {
                 }
             });
         }
-        TextView h = new TextView(this);
-        h.setText(quickCount > 0 ? "Map points and messages (" + org.communitycomms.app.geo.QuickProfiles.NAMES[new org.communitycomms.app.geo.QuickProfiles(this).profile()] + ")" : "Shortcuts");
-        h.setTextColor(0xfff0c75e);
-        h.setPadding(0, (int) (10 * d), 0, (int) (2 * d));
-        box.addView(h);
-        for (int i = 0; i < names.size(); i += 2) {
-            List<Button> row = new ArrayList<Button>();
-            for (int j = i; j < Math.min(i + 2, names.size()); j++) {
-                final Runnable r = runs.get(j);
-                Button b = new Button(this);
-                b.setText(names.get(j));
-                b.setAllCaps(false);
-                b.setTextSize(14);
-                b.setOnClickListener(new View.OnClickListener() {
+        new android.app.AlertDialog.Builder(this).setTitle("Layout: " + name)
+                .setItems(items.toArray(new String[0]), new DialogInterface.OnClickListener() {
                     @Override
-                    public void onClick(View v) {
-                        if (shortcutsDlg != null) shortcutsDlg.dismiss();
-                        r.run();
+                    public void onClick(DialogInterface d, int which) {
+                        runs.get(which).run();
                     }
-                });
-                row.add(b);
-            }
-            box.addView(FilesActivity.row(row.toArray(new Button[0])));
-        }
-        android.widget.ScrollView sv = new android.widget.ScrollView(this);
-        sv.addView(box);
-        shortcutsDlg = new android.app.AlertDialog.Builder(this).setTitle("Shortcuts").setView(sv)
+                })
                 .setNegativeButton("Close", null).show();
     }
 
-    private void stateRow(LinearLayout box, String text, final Runnable r) {
-        float d = getResources().getDisplayMetrics().density;
+    /** Shortcuts > Voice: burst (with its quality) or live. Burst is not offered while ATAK or OpenMANET is on. */
+    private void chooseVoice() {
+        final String[] qn = org.communitycomms.app.audio.BurstVoice.QUALITY_NAMES;
+        final String[] items = new String[qn.length + 1];
+        items[0] = "Live voice (heard as you speak)";
+        for (int i = 0; i < qn.length; i++) items[i + 1] = "Burst mode, quality " + qn[i] + (i == 0 ? " (smallest, fastest on a weak link)" : i == qn.length - 1 ? " (clearest)" : "");
+        int cur = prefs.burstVoice() ? 1 + Math.max(0, Math.min(qn.length - 1, prefs.burstQuality())) : 0;
+        if (prefs.burstBlocked()) {
+            new android.app.AlertDialog.Builder(this).setTitle("Voice: live")
+                    .setMessage("Burst mode can't be used while ATAK compatibility or OpenMANET is on: they need live voice. "
+                            + "Turn them off in Settings > Advanced and Region features to use burst mode.")
+                    .setPositiveButton(android.R.string.ok, null).show();
+            return;
+        }
+        new android.app.AlertDialog.Builder(this).setTitle("Voice")
+                .setSingleChoiceItems(items, cur, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface d, int which) {
+                        d.dismiss();
+                        if (which == 0) {
+                            prefs.setBurstVoice(false);
+                        } else {
+                            prefs.setBurstVoice(true);
+                            prefs.setBurstQuality(which - 1);
+                        }
+                        Toast.makeText(MainActivity.this, which == 0 ? "Live voice" : "Burst mode, quality " + qn[which - 1], Toast.LENGTH_SHORT).show();
+                    }
+                })
+                .setNegativeButton(android.R.string.cancel, null).show();
+    }
+
+    /** Shortcuts > Black screen: after how long without a touch, and the button on the home screen. */
+    private void chooseBlackScreen() {
+        final int[] secs = {0, 30, 60, 120, 300, 600};
+        String[] names = {"Never by itself", "After 30 s", "After 1 min", "After 2 min", "After 5 min", "After 10 min"};
+        int cur = 0;
+        for (int i = 0; i < secs.length; i++) if (secs[i] == prefs.blackAfterSec()) cur = i;
+        final int[] pick = {cur};
+        final android.widget.CheckBox btn = new android.widget.CheckBox(this);
+        btn.setText("Black screen button on the home screen");
+        btn.setChecked(prefs.blackScreenButton());
+        new android.app.AlertDialog.Builder(this).setTitle("Black screen (double-tap to wake)")
+                .setSingleChoiceItems(names, cur, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface d, int which) {
+                        pick[0] = which;
+                    }
+                })
+                .setView(pad(btn))
+                .setPositiveButton(android.R.string.ok, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface d, int w) {
+                        prefs.setBlackAfterSec(secs[pick[0]]);
+                        boolean changed = btn.isChecked() != prefs.blackScreenButton();
+                        prefs.setBlackScreenButton(btn.isChecked());
+                        prefs.setBlackAccepted();
+                        restartBlackTimer();
+                        if (changed) {
+                            View black = findViewById(R.id.black_screen);
+                            if (black != null) black.setVisibility(btn.isChecked() ? View.VISIBLE : View.GONE);
+                        }
+                        showBlackDot();
+                        invalidateOptionsMenu();
+                    }
+                })
+                .setNegativeButton(android.R.string.cancel, null).show();
+    }
+
+    /** A small red dot: something to look at (an update, or black screen settings never looked at). */
+    private android.graphics.drawable.GradientDrawable redDot() {
+        int sz = (int) (10 * getResources().getDisplayMetrics().density);
+        android.graphics.drawable.GradientDrawable g = new android.graphics.drawable.GradientDrawable();
+        g.setShape(android.graphics.drawable.GradientDrawable.OVAL);
+        g.setColor(0xffff3b30);
+        g.setSize(sz, sz);
+        g.setBounds(0, 0, sz, sz);
+        return g;
+    }
+
+    /** The Shortcuts icon and button dot: an update, or black screen settings never looked at. */
+    private boolean shortcutsDot() {
+        return UpdateCheck.available(this) > 0 || blackDot();
+    }
+
+    /** Black screen settings or warning never looked at (only once the phone is set up). */
+    private boolean blackDot() {
+        return prefs.setupDone() && !prefs.blackAccepted();
+    }
+
+    /** The home screen's Black screen button gets the dot until its settings or warning have been seen once. */
+    private void showBlackDot() {
+        View v = findViewById(R.id.black_screen);
+        if (v instanceof TextView) ((TextView) v).setCompoundDrawables(null, null, blackDot() ? redDot() : null, null);
+    }
+
+    /** The title bar Blackout icon, with the red dot drawn on it when needed. */
+    private android.graphics.drawable.Drawable blackIcon(boolean dot) {
+        android.graphics.drawable.Drawable base = getResources().getDrawable(android.R.drawable.ic_lock_power_off);
+        if (!dot) return base;
+        int w = Math.max(1, base.getIntrinsicWidth()), h = Math.max(1, base.getIntrinsicHeight());
+        android.graphics.Bitmap bm = android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888);
+        android.graphics.Canvas c = new android.graphics.Canvas(bm);
+        base.setBounds(0, 0, w, h);
+        base.draw(c);
+        android.graphics.Paint p = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+        p.setColor(0xffff3b30);
+        c.drawCircle(w - w / 7f, h / 7f, w / 7f, p);
+        return new android.graphics.drawable.BitmapDrawable(getResources(), bm);
+    }
+
+    private TextView stateRow(LinearLayout box, String text, final Runnable r) {        float d = getResources().getDisplayMetrics().density;
         TextView t = new TextView(this);
         t.setText(text);
         t.setTextSize(15);
@@ -1950,10 +2014,11 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
         lp.topMargin = (int) (3 * d);
         box.addView(t, lp);
+        return t;
     }
 
     /** A 3 × 3 grid of dots for the Shortcuts title bar button (drawn, so it works on Android 4.1). */
-    private android.graphics.drawable.BitmapDrawable shortcutsIcon() {
+    private android.graphics.drawable.BitmapDrawable shortcutsIcon(boolean dot) {
         float d = getResources().getDisplayMetrics().density;
         int s = (int) (32 * d);
         android.graphics.Bitmap bm = android.graphics.Bitmap.createBitmap(s, s, android.graphics.Bitmap.Config.ARGB_8888);
@@ -1962,6 +2027,10 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         p.setColor(0xfff0c75e);
         float step = s / 3.6f, r = s / 11f;
         for (int x = 0; x < 3; x++) for (int y = 0; y < 3; y++) c.drawCircle(s / 2f + (x - 1) * step, s / 2f + (y - 1) * step, r, p);
+        if (dot) { // an update is available
+            p.setColor(0xffff3b30);
+            c.drawCircle(s - s / 7f, s / 7f, s / 7f, p);
+        }
         return new android.graphics.drawable.BitmapDrawable(getResources(), bm);
     }
 
@@ -2125,7 +2194,14 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         // Map / buttons home: every mode with a home screen (the simple modes too), not intercom or the commander view.
         if (ht != null) ht.setVisible(prefs.appMode() != Prefs.MODE_INTERCOM && !commander());
         MenuItem sc = menu.findItem(MENU_SHORTCUTS);
-        if (sc != null) sc.setVisible(prefs.appMode() != Prefs.MODE_INTERCOM);
+        if (sc != null) {
+            sc.setVisible(prefs.appMode() != Prefs.MODE_INTERCOM);
+            boolean upd = UpdateCheck.available(this) > 0;
+            sc.setIcon(shortcutsIcon(shortcutsDot()));
+            sc.setTitle(upd ? "Shortcuts (update available)" : blackDot() ? "Shortcuts (black screen not set up)" : "Shortcuts");
+        }
+        MenuItem tb = menu.findItem(MENU_TOP_BLACK);
+        if (tb != null) tb.setIcon(blackIcon(blackDot()));
         for (int id : new int[]{MENU_TOP_CHAT, MENU_TOP_BLACK}) {
             MenuItem it = menu.findItem(id);
             if (it != null) it.setVisible(adv);
@@ -3033,6 +3109,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
                     public void onClick(android.content.DialogInterface d, int w) {
                         prefs.setBlackAfterSec(60);
                         prefs.setBlackScreenButton(true);
+                        prefs.setBlackAccepted();
                         Toast.makeText(MainActivity.this, "Black screen after 1 min; double-tap to wake. Change it in Settings.",
                                 Toast.LENGTH_LONG).show();
                         recreate();
@@ -3042,6 +3119,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
                     @Override
                     public void onClick(android.content.DialogInterface d, int w) {
                         prefs.setBlackScreenButton(true);
+                        prefs.setBlackAccepted();
                         recreate();
                     }
                 })

@@ -121,8 +121,8 @@ channel, or a changed setting) stays on the old channel until the new one is rea
 **Rejoin on start** (Settings, on): the app goes back on the channel it was on; Leave turns it off.
 
 ## Channels page
-At the top: **Simple channels | Advanced channels**, the same setting as the group type (Simple asks which
-group type). **Advanced channels** lists every channel: A, B, the extra **C–H** (switch at the bottom,
+At the top: **Simple channels | Advanced channels**, the same setting as the group type (Simple uses the
+simple group type used last, or General, and keeps the profile). **Advanced channels** lists every channel: A, B, the extra **C–H** (switch at the bottom,
 off by default), Public (with its key), the Cloud group and OpenMANET\* (when those features are on).
 Each row: **eye** (shown on the home screen, room for 4, or hidden: a hidden channel keeps its key and
 can still be listened to, but has no home button and no pinned PTT of its own; C–H keep their pins),
@@ -139,12 +139,12 @@ map home once). The map / buttons icon in the title bar switches between them.
   (shows "sharing location" while you share), Call, Silent, Chat, Map, Lock and a big PTT. Landscape puts
   the PTT on the right half.
 - **Shortcuts** (the Shortcuts button, or the dots icon in the title bar on both homes): the current state
-  at the top, each tap to change it: power mode and Mission mode (opens Power and batteries), **Anchored**
-  and plugged in / battery %, status, location sharing, radio silent, Fake GPS and Obscure location. Below,
-  every shortcut whatever the mode: all the map point and message buttons of the profile, Share my location
-  (stop, 2 hours, until restart, always), Call everyone, My status, Text as voice, Mark…, Photo, Black
-  screen, Lock, Reports, Chat, Contacts, Full map, Channels, Change map point profile and "Pick the 4 on the
-  radio home".
+  at the top, each tap to change it: **Check for updates** (or **Update available: 0.1.N, tap to update**,
+  with a red dot on the Shortcuts icon and button; the app also checks by itself every 6 hours), power mode
+  and Mission mode (opens Power and batteries), **Anchored** and plugged in / battery %, **Black screen**
+  (never, 30 s to 10 min, and the home screen button), **Voice** (live, or burst mode and its quality; burst is off and refused while ATAK compatibility or OpenMANET is on), status, location sharing, radio silent, Fake GPS and
+  Obscure location. Then **Edit current layout (profile)** (change the profile, edit the buttons as an editable
+  copy, or pick the four on the radio home) and, beside it, **Use a button** (the layout's buttons, to use one now).
 - **Menu**: Chat, **More…**, Settings and Exit. **More** groups everything else by job (Talk and chat, Map
   and location, Team, Cameras and power, Codes, Network, Tools, Screen), showing only what is switched on.
 - **Map**: mostly map with map points, people and photo
@@ -509,7 +509,8 @@ the APK installs and updates like the plain one (Android 4.1 and newer).
   **Re-setup** on or off (off: the setup is given only once).
 - **Settings** for the site APK and each person: everything the setup wizard asks (device role, leads a team,
   group type, profile, voice, Anchored, share location when asked, obscure range, location on Public / cloud,
-  online map tiles, channel A, the Advanced and Region features checklist, a cloud group), each "(the phone
+  online map tiles, channel A, the Advanced and Region features checklist, a cloud group, and Fake GPS on or off
+  near given coordinates, which goes in the APK itself), each "(the phone
   chooses)" unless set, on top of the phone setup above it (store, Public key, tunnel, OpenMANET, home WiFi).
 - **On the phone**: a stamped app fetches its setup straight away on first start and shows what it will set
   ("Set up as CALLSIGN?"); nothing is applied without that tap. If the fetch fails (not on the network, server
