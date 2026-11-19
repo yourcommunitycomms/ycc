@@ -25,6 +25,22 @@ public final class QuickProfiles {
             "Scouts", "Staff", "4WDing", "Friends convoy", "Caravan / camping", "Emergency services", "General"};
     public static final int FRIENDS = 0, SECURITY = 1, FIRE = 2, MILITARY = 3, CUSTOM = 4,
             SCOUTS = 5, STAFF = 6, FOURWD = 7, CONVOY = 8, CAMPING = 9, EMERGENCY = 10, GENERAL = 11;
+    /** The order profiles are listed in (General first). The saved numbers above never change. */
+    public static final int[] LIST_ORDER = {GENERAL, FRIENDS, SECURITY, FIRE, MILITARY, CUSTOM, SCOUTS, STAFF, FOURWD,
+            CONVOY, CAMPING, EMERGENCY};
+
+    /** NAMES in LIST_ORDER, for pickers. */
+    public static String[] listNames() {
+        String[] n = new String[LIST_ORDER.length];
+        for (int i = 0; i < n.length; i++) n[i] = NAMES[LIST_ORDER[i]];
+        return n;
+    }
+
+    /** Where a profile number sits in LIST_ORDER (0 if unknown). */
+    public static int listIndex(int profile) {
+        for (int i = 0; i < LIST_ORDER.length; i++) if (LIST_ORDER[i] == profile) return i;
+        return 0;
+    }
 
     /** What a quick button does: drop a map point, send a chat message, or share location until stopped. */
     public static final int KIND_POINT = 0, KIND_MESSAGE = 1, KIND_SHARE = 2;

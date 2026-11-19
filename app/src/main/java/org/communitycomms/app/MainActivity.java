@@ -1267,10 +1267,12 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         final org.communitycomms.app.geo.QuickProfiles qp = new org.communitycomms.app.geo.QuickProfiles(a);
         new android.app.AlertDialog.Builder(a)
                 .setTitle("Quick map point profile")
-                .setSingleChoiceItems(org.communitycomms.app.geo.QuickProfiles.NAMES, qp.profile(),
+                .setSingleChoiceItems(org.communitycomms.app.geo.QuickProfiles.listNames(),
+                        org.communitycomms.app.geo.QuickProfiles.listIndex(qp.profile()),
                         new android.content.DialogInterface.OnClickListener() {
                             @Override
-                            public void onClick(android.content.DialogInterface di, int which) {
+                            public void onClick(android.content.DialogInterface di, int pos) {
+                                int which = org.communitycomms.app.geo.QuickProfiles.LIST_ORDER[pos];
                                 qp.setProfile(which);
                                 di.dismiss();
                                 if (which == org.communitycomms.app.geo.QuickProfiles.CUSTOM) {
@@ -1814,6 +1816,19 @@ public final class MainActivity extends Activity implements RadioService.Ui {
                 SettingsActivity.open(MainActivity.this, "location");
             }
         });
+        // Servers: checked only when tapped (the window runs the checks); shows the last result.
+        TextView srv = stateRow(box, ServerStatus.summary(this) + "  ›", new Runnable() {
+            @Override
+            public void run() {
+                ServerStatus.show(MainActivity.this, new Runnable() {
+                    @Override
+                    public void run() {
+                        if (!isFinishing()) showShortcuts();
+                    }
+                });
+            }
+        });
+        if (ServerStatus.lastColour(this) != 0) srv.setTextColor(ServerStatus.lastColour(this));
 
         final org.communitycomms.app.geo.QuickProfiles qp = new org.communitycomms.app.geo.QuickProfiles(this);
         Button layout = new Button(this);
@@ -2202,10 +2217,10 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         }
         MenuItem tb = menu.findItem(MENU_TOP_BLACK);
         if (tb != null) tb.setIcon(blackIcon(blackDot()));
-        for (int id : new int[]{MENU_TOP_CHAT, MENU_TOP_BLACK}) {
-            MenuItem it = menu.findItem(id);
-            if (it != null) it.setVisible(adv);
-        }
+        MenuItem tc = menu.findItem(MENU_TOP_CHAT);
+        if (tc != null) tc.setVisible(adv);
+        // The title bar Black screen button: every mode with a home screen (not intercom).
+        if (tb != null) tb.setVisible(prefs.appMode() != Prefs.MODE_INTERCOM);
         MenuItem st = menu.findItem(MENU_STREAMS);
         if (st != null) st.setVisible(prefs.streamsEnabled()); // Settings: Internet audio
         // Specialised menus: only when ticked (Settings > Advanced and Region features, or a setup QR code).

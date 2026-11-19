@@ -366,6 +366,26 @@ public final class LanTiles {
         if (code == 201 || code == 405 || code == 301) made.add(dir);
     }
 
+    /**
+     * Read-only check for the Server status window: the HTTP code for the store's top folder (with the login),
+     * or -1 if it could not be reached (err[0] says why). Writes nothing.
+     */
+    public int probeRoot(String[] err) {
+        if (!configured()) return -1;
+        HttpURLConnection c = null;
+        try {
+            c = open(base() + "/", "GET");
+            c.setConnectTimeout(5000);
+            c.setReadTimeout(8000);
+            return c.getResponseCode();
+        } catch (Exception e) {
+            if (err != null) err[0] = e.getClass().getSimpleName();
+            return -1;
+        } finally {
+            if (c != null) c.disconnect();
+        }
+    }
+
     /** "OK" or why the LAN store cannot be used (for the settings screen's Test button). */
     public String test() {
         if (!configured()) return "Enter an address starting http:// or https://";

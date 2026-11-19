@@ -107,6 +107,12 @@ public final class Prefs {
      */
     public static void migrateUiReorg(Context c) {
         SharedPreferences s = c.getSharedPreferences("settings", Context.MODE_PRIVATE);
+        if (!s.getBoolean("blackBtnDefaultOn", false)) { // the home Black screen button became on by default
+            SharedPreferences.Editor b = s.edit().putBoolean("blackBtnDefaultOn", true);
+            boolean old = s.getBoolean("setupDone", false) || s.getString("channelA", s.getString("channel", "")).length() > 0;
+            if (old && !s.contains("blackScreenButton")) b.putBoolean("blackScreenButton", false); // phones set up before keep it off
+            b.commit();
+        }
         int done = s.getInt("uiReorg", 0);
         if (done >= 2) return;
         Prefs p = new Prefs(c);
@@ -889,9 +895,12 @@ public final class Prefs {
         sp.edit().putBoolean("recordAllVoice", on).commit();
     }
 
-    /** Black screen button on the home screen. Off by default: people must read how to get out of it. */
+    /**
+     * Black screen button on the home screen. On by default for new installs (phones set up before keep theirs:
+     * migrateUiReorg); a red dot shows on it until the black screen warning or settings have been seen once.
+     */
     public boolean blackScreenButton() {
-        return sp.getBoolean("blackScreenButton", false);
+        return sp.getBoolean("blackScreenButton", true);
     }
 
     public void setBlackScreenButton(boolean on) {
