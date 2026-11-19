@@ -177,7 +177,7 @@
     <string name="start_tone">Start tone: a short beep at the start of each PTT transmission so others start listening (the first 0.16 s of your voice is replaced by it)</string>
     <string name="streams_enabled">Internet audio: show Radio streams in the menu (public scanner feeds; needs internet)</string>
     <string name="clear_all">Clear all data and exit…</string>
-    <string name="clear_all_note">Erases everything this app keeps on this phone (channels, DRYAD sheets, settings, PIN, history, map points, files, offline maps) and closes it. The next time it opens, the setup wizard starts again.</string>
+    <string name="clear_all_note">Erases everything this app keeps on this phone (channels, DRYAD sheets, settings, PIN, history, map points, recorded paths, files, offline maps) and closes it. The next time it opens, the setup wizard starts again.</string>
     <string name="drop_alert">Alert me when someone on my channel drops out (not heard for 2 minutes)</string>
     <string name="crash_detect">Crash detection* (a hard jolt asks if you are OK; no answer in 30 s sends a rescue alert with your position). *Untested</string>
     <string name="black_after">Black screen after this many seconds without a touch on the home screen (0 = never)</string>

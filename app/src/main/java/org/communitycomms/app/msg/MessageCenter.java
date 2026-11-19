@@ -253,6 +253,7 @@ public final class MessageCenter {
             else if (kind == KIND_KEY) onKey(fromName, b);
             else if (kind == KIND_PRIVATE) onPrivate(b, e.channelTag());
             else if (kind == KIND_VOICE) onVoice(b, e);
+            else if (kind == org.communitycomms.app.TrackShare.KIND_TRACK) org.communitycomms.app.TrackShare.onMessage(ctx, fromName, b);
         } catch (RuntimeException ignored) {
             // malformed
         }

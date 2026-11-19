@@ -822,7 +822,7 @@ public final class SettingsActivity extends Activity {
                         new android.app.AlertDialog.Builder(SettingsActivity.this)
                                 .setTitle("Clear all data and exit?")
                                 .setMessage("Everything this app keeps on this phone is erased: channel names and keys, DRYAD "
-                                        + "sheets, settings, PIN, chat and reports, map points, files and offline maps. "
+                                        + "sheets, settings, PIN, chat and reports, map points, recorded paths (tracks), files and offline maps. "
                                         + "The app then closes, and starts the setup wizard next time.\n\nThis cannot be undone.")
                                 .setPositiveButton("Erase and exit", new android.content.DialogInterface.OnClickListener() {
                                     @Override

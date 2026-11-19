@@ -39,6 +39,8 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- Path tracking: optional step count (off by default), asked only when ticked. -->
+    <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
     <!-- Clear all data on an APK stamped by a LAN server: Android is asked to uninstall the app too (the person confirms). -->
     <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
     <!-- Android 4.1–4.3 need this to write the app's own folder on external storage; up to Android 9
@@ -114,6 +116,7 @@
         </activity>
         <activity android:name=".StreamsActivity" android:exported="false" />
         <activity android:name=".KeysActivity" android:exported="false" />
+        <service android:name=".TrackService" android:exported="false" android:foregroundServiceType="location" />
         <service android:name=".TilePrefetchService" android:exported="false" android:foregroundServiceType="dataSync" />
         <service android:name=".CameraShareService" android:exported="false" android:foregroundServiceType="camera|microphone|dataSync" />
         <activity android:name=".CwSettingsActivity" android:exported="false" />

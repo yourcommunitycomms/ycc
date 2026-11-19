@@ -513,6 +513,7 @@ public final class TileMapView extends View {
         }
         if (railLines != null && !railLines.isEmpty()) drawRail(c);
         if (route != null) drawRoute(c);
+        drawTracks(c);
         if (routeBlocked != null || routeVias != null) drawRouteMarks(c, getResources().getDisplayMetrics().density);
         for (Marker m : markers) {
             float mx = sx(Geo.lonToX(m.lon, z)), my = sy(Geo.latToY(m.lat, z));
@@ -715,6 +716,127 @@ public final class TileMapView extends View {
     public void setRoute(double[] latLonPairs) {
         route = latLonPairs;
         invalidate();
+    }
+
+    // ---- recorded paths (path tracking): lines with direction arrows when zoomed in ----
+
+    /** One path: its pieces (split at breaks), each {lat, lon, lat, lon, ...}, in its colour; a ring marks the start. */
+    public static final class TrackLine {
+        public final List<double[]> segments;
+        public final int colour;
+        public final String label;
+        public final boolean startRing;
+
+        public TrackLine(List<double[]> segments, int colour, String label, boolean startRing) {
+            this.segments = segments;
+            this.colour = colour;
+            this.label = label;
+            this.startRing = startRing;
+        }
+    }
+
+    /** Arrows along a path from this zoom in (about street level). */
+    public static final int TRACK_ARROW_ZOOM = 16;
+    private volatile List<TrackLine> tracks;
+    private final Paint trackLine = new Paint(Paint.ANTI_ALIAS_FLAG), trackHalo = new Paint(Paint.ANTI_ALIAS_FLAG),
+            trackArrow = new Paint(Paint.ANTI_ALIAS_FLAG);
+
+    public void setTracks(List<TrackLine> t) {
+        tracks = t;
+        invalidate();
+    }
+
+    private void drawTracks(Canvas c) {
+        List<TrackLine> all = tracks;
+        if (all == null || all.isEmpty()) return;
+        float d = getResources().getDisplayMetrics().density;
+        for (Paint pt : new Paint[]{trackHalo, trackLine}) {
+            pt.setStyle(Paint.Style.STROKE);
+            pt.setStrokeJoin(Paint.Join.ROUND);
+            pt.setStrokeCap(Paint.Cap.ROUND);
+        }
+        trackHalo.setStrokeWidth(7 * d);
+        trackHalo.setColor(0xb0000000);
+        trackLine.setStrokeWidth(4 * d);
+        trackArrow.setStyle(Paint.Style.FILL);
+        boolean arrows = z >= TRACK_ARROW_ZOOM;
+        float gap = 70 * d;
+        for (TrackLine t : all) {
+            trackLine.setColor(t.colour);
+            android.graphics.Path p = new android.graphics.Path();
+            float lastX = 0, lastY = 0;
+            boolean any = false;
+            for (double[] s : t.segments) {
+                for (int i = 0; i + 1 < s.length; i += 2) {
+                    float x = sx(Geo.lonToX(s[i + 1], z)), y = sy(Geo.latToY(s[i], z));
+                    if (i == 0) p.moveTo(x, y);
+                    else p.lineTo(x, y);
+                    lastX = x;
+                    lastY = y;
+                    any = true;
+                }
+                if (s.length == 2) p.lineTo(lastX + 0.1f, lastY); // a single point still shows as a dot
+            }
+            if (!any) continue;
+            c.drawPath(p, trackHalo);
+            c.drawPath(p, trackLine);
+            if (arrows) {
+                // Arrowheads every ~70 dp of screen, pointing the way the path went.
+                trackArrow.setColor(0xffffffff);
+                for (double[] s : t.segments) {
+                    float run = gap / 2;
+                    for (int i = 0; i + 3 < s.length; i += 2) {
+                        float x1 = sx(Geo.lonToX(s[i + 1], z)), y1 = sy(Geo.latToY(s[i], z));
+                        float x2 = sx(Geo.lonToX(s[i + 3], z)), y2 = sy(Geo.latToY(s[i + 2], z));
+                        float dx = x2 - x1, dy = y2 - y1, len = (float) Math.sqrt(dx * dx + dy * dy);
+                        if (len < 0.5f) continue;
+                        float at = gap - run;
+                        while (at <= len) {
+                            float ax = x1 + dx * at / len, ay = y1 + dy * at / len;
+                            if (ax > -20 && ay > -20 && ax < getWidth() + 20 && ay < getHeight() + 20) {
+                                drawTrackArrow(c, ax, ay, dx / len, dy / len, d);
+                            }
+                            at += gap;
+                        }
+                        run = (run + len) % gap;
+                    }
+                }
+            }
+            if (t.startRing && t.segments.size() > 0 && t.segments.get(0).length >= 2) {
+                double[] s0 = t.segments.get(0);
+                float x = sx(Geo.lonToX(s0[1], z)), y = sy(Geo.latToY(s0[0], z));
+                trackArrow.setColor(0xffffffff);
+                c.drawCircle(x, y, 7 * d, trackArrow);
+                trackArrow.setColor(t.colour);
+                c.drawCircle(x, y, 5 * d, trackArrow);
+                trackArrow.setColor(0xffffffff);
+                c.drawCircle(x, y, 2 * d, trackArrow);
+            }
+            if (t.label != null && t.label.length() > 0) {
+                Paint.Align a = textPaint.getTextAlign(), ha = haloPaint.getTextAlign();
+                textPaint.setTextAlign(Paint.Align.LEFT);
+                haloPaint.setTextAlign(Paint.Align.LEFT);
+                c.drawText(t.label, lastX + 9 * d, lastY - 6 * d, haloPaint);
+                c.drawText(t.label, lastX + 9 * d, lastY - 6 * d, textPaint);
+                textPaint.setTextAlign(a);
+                haloPaint.setTextAlign(ha);
+            }
+        }
+    }
+
+    /** A small white chevron with a dark edge, pointing along (ux, uy). */
+    private void drawTrackArrow(Canvas c, float x, float y, float ux, float uy, float d) {
+        float L = 6 * d, W = 4.5f * d;
+        android.graphics.Path a = new android.graphics.Path();
+        a.moveTo(x + ux * L, y + uy * L);
+        a.lineTo(x - ux * L * 0.6f - uy * W, y - uy * L * 0.6f + ux * W);
+        a.lineTo(x - ux * L * 0.2f, y - uy * L * 0.2f);
+        a.lineTo(x - ux * L * 0.6f + uy * W, y - uy * L * 0.6f - ux * W);
+        a.close();
+        trackHalo.setStrokeWidth(2.5f * d);
+        c.drawPath(a, trackHalo);
+        trackHalo.setStrokeWidth(7 * d);
+        c.drawPath(a, trackArrow);
     }
 
     /**

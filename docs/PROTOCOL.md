@@ -195,7 +195,20 @@ A station whose app restarts gets a new senderId; replace the old entry with the
  7 KEY      pubLen(2) RSA public key (X.509 / SubjectPublicKeyInfo DER)
  8 VOICE    flags(1, bit0 ask, bits 1-7 window in 12-minute steps) count(1), then per recording:
             id(8) ageSec(4) seconds(2) creatorLen(1) creator   (voice catch-up, see below)
+ 9 TRACK    sub(1) toLen(1) to(UTF-8 callsigns joined by ',', <=200 bytes), then by sub:
+            1 POINTS  trackId(8, track start ms) flags(1, bit0 paused, bit1 stopped) mode(1, 0 low 1 walk
+                      2 run 3 ride 4 drive) laps(2) movingSec(4) distanceM(4) steps(4, -1 none) count(2),
+                      then count x { lat(4, deg x 1e6) lon(4) ageSec(4) newSegment(1) }  (<=60 per body)
+            2 REQUEST "show me your path" (the receiver is asked before anything is sent)
+            3 REPLY   code(1): 1 declined, 2 not tracking and did not start
 ```
+- **Path tracking (kind 9):** sent only on a private channel (never Public). A phone that is not named in
+  `to` (its callsign or "team callsign") drops the body. POINTS go when sharing starts (everything recorded,
+  at most the last 2000 points), then live every 15 s at most (one point of overlap so the line joins), and
+  at once on pause and stop; small live bodies are sent twice. REQUEST and REPLY are sent twice and
+  repeats from the same sender within 20 s are ignored. Receivers keep paths in memory only, sorted by
+  time (ages, as below), skip points already held, and start afresh when `trackId` changes. Phones
+  without kind 9 ignore it.
 - **Voice catch-up (kind 8):** every recording of one transmission has the same id on every phone:
   `id = talkerSenderId * 0x9E3779B97F4A7C15 + txId` (64-bit, wrapping). A phone coming back to the front
   sends VOICE with ask set, listing the recordings it holds from the window. A phone with Record all

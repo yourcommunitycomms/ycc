@@ -628,7 +628,20 @@ A station whose app restarts gets a new senderId; replace the old entry with the
  7 KEY      pubLen(2) RSA public key (X.509 / SubjectPublicKeyInfo DER)
  8 VOICE    flags(1, bit0 ask, bits 1-7 window in 12-minute steps) count(1), then per recording:
             id(8) ageSec(4) seconds(2) creatorLen(1) creator   (voice catch-up, see below)
+ 9 TRACK    sub(1) toLen(1) to(UTF-8 callsigns joined by ',', <=200 bytes), then by sub:
+            1 POINTS  trackId(8, track start ms) flags(1, bit0 paused, bit1 stopped) mode(1, 0 low 1 walk
+                      2 run 3 ride 4 drive) laps(2) movingSec(4) distanceM(4) steps(4, -1 none) count(2),
+                      then count x { lat(4, deg x 1e6) lon(4) ageSec(4) newSegment(1) }  (<=60 per body)
+            2 REQUEST "show me your path" (the receiver is asked before anything is sent)
+            3 REPLY   code(1): 1 declined, 2 not tracking and did not start
 ```
+- **Path tracking (kind 9):** sent only on a private channel (never Public). A phone that is not named in
+  `to` (its callsign or "team callsign") drops the body. POINTS go when sharing starts (everything recorded,
+  at most the last 2000 points), then live every 15 s at most (one point of overlap so the line joins), and
+  at once on pause and stop; small live bodies are sent twice. REQUEST and REPLY are sent twice and
+  repeats from the same sender within 20 s are ignored. Receivers keep paths in memory only, sorted by
+  time (ages, as below), skip points already held, and start afresh when `trackId` changes. Phones
+  without kind 9 ignore it.
 - **Voice catch-up (kind 8):** every recording of one transmission has the same id on every phone:
   `id = talkerSenderId * 0x9E3779B97F4A7C15 + txId` (64-bit, wrapping). A phone coming back to the front
   sends VOICE with ask set, listing the recordings it holds from the window. A phone with Record all
@@ -1120,3 +1133,5 @@ Release 1 came out on 2026-10-28. Release 2 (2026-11-16, version 0.1.459170 and 
 - 2026-11-19: The quick map point profile list (Settings, Shortcuts > Edit current layout) now has **General** at the top, above Friends; saved profiles and setup codes are unchanged.
 - 2026-11-19: Shortcuts page: a **Servers** line (the last check, never checked by itself). Tapping it opens **Server status**, which checks the update / mission server, the LAN storage (local cache) server and the secondary map server (with their logins), the Cloud group relay, the internet relay and the tunnel relay, each with a green, red or grey (not set) dot and a short reason, plus this phone's WiFi, addresses, gateway and OpenMANET state. The checks only read; nothing on a server is changed.
 - 2026-11-19: **Data control** (Shortcuts > Data, Settings > Network, the setup wizard, setup codes and ready-made APKs): Always online (online map tiles always on, automatic internet update check, live internet feeds, the relay used over mobile data without asking), User control (each setting as chosen; changing any one after a preset makes it User control) or Offline (no online map tiles or asking, no automatic internet update check, no live internet feeds, tile downloads or online routing, the relay never over mobile data; LAN servers still work). The wizard defaults to Always online for simple group types and User control for Advanced; phones set up before start on User control. A ready-made APK or the server's setup can set it and lock it (web admin: Lock data control, on by default when a preset is chosen); power modes still apply.
+- 2026-11-19: **Path tracking** (full map > Tools > Start tracking my path): Low (every 3 min), Walking, Running, Riding or Driving rates; the path in red with direction arrows when zoomed in; Pause / Resume (breaks), Stats and Stop on a bar over the map, in Tools and in the notification; laps each time you pass the start point again (25 m, after going 60 m away); stats for total and moving time, breaks, distance, pace or speed, this / last / fastest / slowest / average lap; optional step count (off by default; Android 10+ asks for Physical activity). Will not start while Fake GPS is on (asks to turn it off). Tracks stay on the phone (Tools > My tracks) and Clear all data erases them. Live share to chosen people (a commander) on a private channel, and a **Path** button beside each person in Contacts / the commander view that asks them for their path and keeps it updated on the map (new chat kind 9, ignored by older versions).
+- 2026-11-19: Path tracking **laps now check the direction of travel**: passing the start only counts when you head off the same way round as when you started (within 75°), timed from when you passed. An out-and-back passing the start the other way no longer counts a lap; stopping at the start still counts the last lap if you arrived heading the lap direction.

@@ -364,6 +364,14 @@ final class ContactsPanel {
                     callPerson(c);
                 }
             }));
+            // Path tracking: show this person's path on the map (asks them for it; tap again to hide).
+            buttons.addView(small(TrackShare.shown(c.name) ? "Path ✓" : "Path", new Runnable() {
+                @Override
+                public void run() {
+                    TrackUi.toggleRemote(a, c.name);
+                    ContactsPanel.this.adapter.notifyDataSetChanged();
+                }
+            }));
             if (!small && !locked()) {
                 // More details: notes and removal right on the row.
                 buttons.addView(small(Contacts.get(a).note(c.name).length() > 0 ? "Edit note" : "Add note", new Runnable() {

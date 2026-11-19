@@ -18,6 +18,10 @@ public final class AppWipe {
         Context c = a.getApplicationContext();
         RadioService s = RadioService.instance();
         if (s != null) s.stopSilently();
+        // Path tracking: stop recording first, so nothing is written after the files go (tracks live in files/tracks).
+        TrackService.wipeStop(c);
+        TrackUi.viewed = null;
+        TrackShare.clear();
         PinLock.lockNow();
         org.communitycomms.app.geo.PoiStore.wipe(c);
         org.communitycomms.app.msg.MessageLog.forget();
@@ -56,6 +60,7 @@ public final class AppWipe {
         org.communitycomms.app.msg.MessageLog.forget();
         org.communitycomms.app.msg.MessageLog.unread = 0;
         Contacts.get(c).clearPositions();
+        TrackShare.clear(); // others' paths received here (my own saved tracks stay: Map > Tools > My tracks)
         deleteChildren(RadioService.receivedDir(c));
         deleteChildren(new File(c.getFilesDir(), "Received"));
         for (String d : new String[]{"camera", "outgoing", "parts"}) deleteChildren(new File(c.getCacheDir(), d));

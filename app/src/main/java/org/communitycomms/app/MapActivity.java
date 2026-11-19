@@ -704,6 +704,39 @@ public final class MapActivity extends Activity {
         });
         navBtns.addView(navStop, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
         root.addView(navBar);
+        // Shown while tracking my path: time, distance, lap; Pause / Resume, Stats, Stop.
+        trackBar = new LinearLayout(this);
+        trackBar.setOrientation(LinearLayout.VERTICAL);
+        trackBar.setBackgroundColor(0xff4a1414);
+        trackBar.setPadding((int) (8 * d), (int) (4 * d), (int) (4 * d), (int) (2 * d));
+        trackBar.setVisibility(View.GONE);
+        trackText = new TextView(this);
+        trackText.setTextColor(0xffffffff);
+        trackText.setTextSize(14);
+        trackBar.addView(trackText);
+        LinearLayout trackBtns = new LinearLayout(this);
+        trackBar.addView(trackBtns);
+        trackPause = button("Pause", new Runnable() {
+            @Override
+            public void run() {
+                TrackUi.pauseResume(MapActivity.this);
+                trackChanged();
+            }
+        });
+        trackBtns.addView(trackPause, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        trackBtns.addView(button("Stats", new Runnable() {
+            @Override
+            public void run() {
+                TrackUi.stats(MapActivity.this, TrackService.current());
+            }
+        }), new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        trackBtns.addView(button("Stop", new Runnable() {
+            @Override
+            public void run() {
+                TrackUi.confirmStop(MapActivity.this);
+            }
+        }), new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        root.addView(trackBar);
         map = new TileMapView(this, null);
         // Over the map: fold the panel below away (▼ / ▲) and add a point at the + straight away.
         android.widget.FrameLayout mapBox = new android.widget.FrameLayout(this);
@@ -796,16 +829,82 @@ public final class MapActivity extends Activity {
         tools.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+                // Ruler, and path tracking (start, or pause / stats / share / stop while tracking; saved tracks).
+                final List<String> items = new ArrayList<String>();
+                final List<Runnable> acts = new ArrayList<Runnable>();
+                items.add(map.rulerOn() ? "Ruler off" : "Ruler (distance and bearing between two points)");
+                acts.add(new Runnable() {
+                    @Override
+                    public void run() {
+                        boolean on = !map.rulerOn();
+                        map.setRuler(on);
+                        tools.setText(on ? "Tools: ruler" : "Tools");
+                    }
+                });
+                final org.communitycomms.app.geo.Track t = TrackService.current();
+                if (t == null) {
+                    items.add("Start tracking my path");
+                    acts.add(new Runnable() {
+                        @Override
+                        public void run() {
+                            TrackUi.start(MapActivity.this, null);
+                        }
+                    });
+                } else {
+                    items.add(t.paused() ? "Resume tracking" : "Pause tracking (a break)");
+                    acts.add(new Runnable() {
+                        @Override
+                        public void run() {
+                            TrackUi.pauseResume(MapActivity.this);
+                            trackChanged();
+                        }
+                    });
+                    items.add("Track stats (time, laps, breaks)");
+                    acts.add(new Runnable() {
+                        @Override
+                        public void run() {
+                            TrackUi.stats(MapActivity.this, t);
+                        }
+                    });
+                    items.add("Share my live path with…");
+                    acts.add(new Runnable() {
+                        @Override
+                        public void run() {
+                            TrackUi.chooseShare(MapActivity.this);
+                        }
+                    });
+                    items.add("Stop tracking");
+                    acts.add(new Runnable() {
+                        @Override
+                        public void run() {
+                            TrackUi.confirmStop(MapActivity.this);
+                        }
+                    });
+                }
+                items.add("My tracks (saved on this phone)");
+                acts.add(new Runnable() {
+                    @Override
+                    public void run() {
+                        TrackUi.history(MapActivity.this);
+                    }
+                });
+                if (!TrackShare.shownNames().isEmpty()) {
+                    items.add("Hide everyone's paths");
+                    acts.add(new Runnable() {
+                        @Override
+                        public void run() {
+                            for (String n : TrackShare.shownNames()) TrackShare.setShown(n, false);
+                            trackChanged();
+                        }
+                    });
+                }
                 new android.app.AlertDialog.Builder(MapActivity.this).setTitle("Map tools")
-                        .setItems(new String[]{map.rulerOn() ? "Ruler off" : "Ruler (distance and bearing between two points)"},
-                                new android.content.DialogInterface.OnClickListener() {
-                                    @Override
-                                    public void onClick(android.content.DialogInterface d, int which) {
-                                        boolean on = !map.rulerOn();
-                                        map.setRuler(on);
-                                        tools.setText(on ? "Tools: ruler" : "Tools");
-                                    }
-                                })
+                        .setItems(items.toArray(new String[0]), new android.content.DialogInterface.OnClickListener() {
+                            @Override
+                            public void onClick(android.content.DialogInterface d, int which) {
+                                acts.get(which).run();
+                            }
+                        })
                         .setNegativeButton(android.R.string.cancel, null).show();
             }
         });
@@ -978,6 +1077,7 @@ public final class MapActivity extends Activity {
             }
         });
         fakeToggle[0].setLit(org.communitycomms.app.geo.FakeGps.enabled(this));
+        fakeKey = fakeToggle[0];
         keys.add(fakeToggle[0]);
         keys.add(shareKey = new MapIconButton(this, MapIconButton.SHARE, "Share", "Share my location (30 minutes, or longer)",
                 new Runnable() {
@@ -1137,6 +1237,97 @@ public final class MapActivity extends Activity {
         startTrains();
         RadioService.locationAsk = locationAsk;
         renderShareKeys();
+        TrackShare.asker = trackAsker;
+        TrackShare.changed = trackRefresh;
+        handler.post(trackTick);
+        String ask = getIntent().getStringExtra(EXTRA_TRACK_ASK);
+        if (ask != null) {
+            getIntent().removeExtra(EXTRA_TRACK_ASK);
+            TrackUi.answerRequest(this, ask);
+        }
+    }
+
+    // ---- path tracking ----
+
+    static final String EXTRA_TRACK_ASK = "trackAsk";
+    private LinearLayout trackBar;
+    private TextView trackText;
+    private Button trackPause;
+    private MapIconButton fakeKey;
+
+    private final TrackShare.Asker trackAsker = new TrackShare.Asker() {
+        @Override
+        public void askForTrack(String from) {
+            TrackUi.answerRequest(MapActivity.this, from);
+        }
+    };
+    private final Runnable trackRefresh = new Runnable() {
+        @Override
+        public void run() {
+            map.setTracks(TrackUi.lines());
+        }
+    };
+    /** Once a second: the bar's clock, and the path line. */
+    private final Runnable trackTick = new Runnable() {
+        @Override
+        public void run() {
+            org.communitycomms.app.geo.Track t = TrackService.current();
+            trackBar.setVisibility(t == null ? View.GONE : View.VISIBLE);
+            if (t != null) {
+                trackText.setText(TrackUi.barText(t));
+                trackPause.setText(t.paused() ? "Resume" : "Pause");
+            }
+            map.setTracks(TrackUi.lines());
+            handler.postDelayed(this, 1000);
+        }
+    };
+
+    @Override
+    protected void onNewIntent(android.content.Intent i) {
+        super.onNewIntent(i);
+        setIntent(i); // a path request notification: answered in onResume
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int req, String[] perms, int[] results) {
+        super.onRequestPermissionsResult(req, perms, results);
+        TrackUi.onPermission(req, results);
+    }
+
+    void trackChanged() {
+        handler.removeCallbacks(trackTick);
+        handler.postDelayed(trackTick, 250); // the service has the command a moment later
+    }
+
+    void fakeChanged() {
+        boolean on = org.communitycomms.app.geo.FakeGps.enabled(this);
+        if (fakeKey != null) fakeKey.setLit(on);
+        if (fakeHereButton != null) fakeHereButton.setVisibility(on ? View.VISIBLE : View.GONE);
+        refresh();
+    }
+
+    /** My tracks > Show on map: draw it and fit it on screen. */
+    void showTrack(org.communitycomms.app.geo.Track t) {
+        map.setTracks(TrackUi.lines());
+        if (t.points.isEmpty()) {
+            android.widget.Toast.makeText(this, "That track has no positions", android.widget.Toast.LENGTH_SHORT).show();
+            return;
+        }
+        double n = -90, s = 90, e = -180, w = 180;
+        for (org.communitycomms.app.geo.Track.Point p : t.points) {
+            n = Math.max(n, p.lat);
+            s = Math.min(s, p.lat);
+            e = Math.max(e, p.lon);
+            w = Math.min(w, p.lon);
+        }
+        int z = 18;
+        while (z > 3) {
+            double h = Math.abs(Geo.latToY(n, z) - Geo.latToY(s, z)) * 256, wd = Math.abs(Geo.lonToX(e, z) - Geo.lonToX(w, z)) * 256;
+            if (h < map.getHeight() * 0.8 / getResources().getDisplayMetrics().density
+                    && wd < map.getWidth() * 0.8 / getResources().getDisplayMetrics().density) break;
+            z--;
+        }
+        map.center((n + s) / 2, (e + w) / 2, z);
     }
 
     // ---- ATAK: map files and map source ----
@@ -1669,6 +1860,9 @@ public final class MapActivity extends Activity {
         if (trains != null) trains.stop();
         if (RadioService.locationAsk == locationAsk) RadioService.locationAsk = null;
         if (RadioService.poiUi == poiRefresh) RadioService.poiUi = null;
+        if (TrackShare.asker == trackAsker) TrackShare.asker = null;
+        if (TrackShare.changed == trackRefresh) TrackShare.changed = null;
+        handler.removeCallbacks(trackTick);
         handler.removeCallbacks(tick);
         handler.removeCallbacks(crossTick);
         mp.saveView(map.centerLat(), map.centerLon(), map.zoom());

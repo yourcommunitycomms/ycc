@@ -537,6 +537,8 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         anchorWatch = AnchorButton.watch(this);
         invalidateOptionsMenu();
         RadioService.locationAsk = homeLocationAsk;
+        TrackShare.asker = trackAsker;
+        TrackShare.changed = trackRefresh;
         if (homePad != null) homePad.setVisibility(org.communitycomms.app.geo.MapPad.shown(this) ? View.VISIBLE : View.GONE);
         askBlackScreenOnce();
         RadioService.missedListener = commander() ? missedOffer : null;
@@ -1005,6 +1007,8 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         AnchorButton.unwatch(this, anchorWatch);
         anchorWatch = null;
         if (RadioService.locationAsk == homeLocationAsk) RadioService.locationAsk = null;
+        if (TrackShare.asker == trackAsker) TrackShare.asker = null;
+        if (TrackShare.changed == trackRefresh) TrackShare.changed = null;
         if (RadioService.missedListener == missedOffer) RadioService.missedListener = null;
         blackTimer.removeCallbacks(goBlack);
         if (contactsPanel != null) {
@@ -1098,8 +1102,22 @@ public final class MainActivity extends Activity implements RadioService.Ui {
     private void refreshHomeMap() {
         if (homeMap == null) return;
         homeMap.setMarkers(MapActivity.markers(this, myPos == null ? null : myPos.location(), thumbs));
+        homeMap.setTracks(TrackUi.lines()); // my path, and the paths shown with Contacts' Track buttons
         if (myPos != null) homeMap.setMeProblem(myPos.problem());
     }
+
+    private final TrackShare.Asker trackAsker = new TrackShare.Asker() {
+        @Override
+        public void askForTrack(String from) {
+            TrackUi.answerRequest(MainActivity.this, from);
+        }
+    };
+    private final Runnable trackRefresh = new Runnable() {
+        @Override
+        public void run() {
+            if (homeMap != null) homeMap.setTracks(TrackUi.lines());
+        }
+    };
 
     @Override
     protected void onStop() {
@@ -4149,6 +4167,8 @@ public final class MainActivity extends Activity implements RadioService.Ui {
 
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] results) {
+        TrackUi.onPermission(requestCode, results); // path tracking: Physical activity for steps
+        if (requestCode == TrackUi.REQ_LOCATION || requestCode == TrackUi.REQ_STEPS) return;
         if (requestCode == REQ_LOCATION) {
             if (results.length > 0 && results[0] == PackageManager.PERMISSION_GRANTED && pendingQuick == SHARE_AFTER_PERMISSION) toggleRapidShare();
             else if (results.length > 0 && results[0] == PackageManager.PERMISSION_GRANTED && pendingQuick >= 0) quickPoi(pendingQuick);
