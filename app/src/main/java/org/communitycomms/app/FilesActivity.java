@@ -416,6 +416,10 @@ public final class FilesActivity extends Activity {
         final CheckBox online = new CheckBox(this);
         online.setText("Fetch tiles from the internet (off = fully offline)");
         online.setChecked(mp.onlineEnabled());
+        if (!DataControl.tilesChangeable(this)) { // Data control set and locked by the group's server
+            online.setEnabled(false);
+            online.setText(online.getText() + "\n(set by your group's server: Data " + DataControl.NAMES[DataControl.mode(this)] + ")");
+        }
         box.addView(online);
         final android.widget.Spinner preset = new android.widget.Spinner(this);
         preset.setAdapter(new ArrayAdapter<String>(this, android.R.layout.simple_spinner_dropdown_item,
@@ -481,7 +485,9 @@ public final class FilesActivity extends Activity {
                     @Override
                     public void onClick(android.content.DialogInterface di, int w) {
                         if (!sets.isEmpty()) mp.setOfflineSet(sets.get(offline.getSelectedItemPosition()));
-                        mp.setOnlineEnabled(online.isChecked());
+                        if (online.isEnabled()) mp.setOnlineEnabled(online.isChecked());
+                        DataControl.mode(FilesActivity.this); // changed by hand: a preset becomes User control
+                        DataControl.load(FilesActivity.this);
                         mp.setOnline(preset.getSelectedItemPosition(), custom.getText().toString().trim());
                         mp.setOverlay(ovKeys.get(overlay.getSelectedItemPosition()), opacity.getProgress() + 10);
                     }

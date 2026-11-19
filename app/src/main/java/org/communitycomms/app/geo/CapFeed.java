@@ -185,6 +185,7 @@ public final class CapFeed {
     // ---- fetching ----
 
     static String get(String address, String accept) throws Exception {
+        org.communitycomms.app.DataControl.check(address, true);
         HttpURLConnection c = (HttpURLConnection) new URL(address).openConnection();
         c.setConnectTimeout(8000);
         c.setReadTimeout(20000);

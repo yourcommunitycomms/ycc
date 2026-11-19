@@ -49,7 +49,8 @@ final class UpdateCheck {
             @Override
             public void run() {
                 final String[] src = {""};
-                final int found = latest(a, src);
+                // The automatic check reads the internet only if Data control allows it; the LAN storage is always read.
+                final int found = latest(a, src, toast || DataControl.autoUpdateInternet(a));
                 a.runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
@@ -68,7 +69,7 @@ final class UpdateCheck {
     }
 
     /** The newest version code published (-1 if nothing answered); src[0] = where its APK is. */
-    private static int latest(Activity a, String[] src) {
+    private static int latest(Activity a, String[] src, boolean internet) {
         int best = -1;
         String url = UpdateFromUrl.url(a);
         boolean personal = url.contains("/Personal/");
@@ -82,7 +83,7 @@ final class UpdateCheck {
         }
         String vurl = personal ? url.substring(0, url.indexOf("/Personal/")) + "/Updates/version.txt"
                 : url.substring(0, url.lastIndexOf('/') + 1) + "version.txt";
-        int v = parse(get(vurl));
+        int v = internet || DataControl.isLocal(vurl) ? parse(get(vurl)) : -1;
         if (v > best) {
             best = v;
             src[0] = url;

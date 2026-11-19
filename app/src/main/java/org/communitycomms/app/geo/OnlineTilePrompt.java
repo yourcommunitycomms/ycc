@@ -114,6 +114,8 @@ public final class OnlineTilePrompt {
         if (System.currentTimeMillis() < snoozeUntil) return;
         if (mp.onlineUrl().length() == 0) return; // custom source with no URL: nothing to offer
         if (new org.communitycomms.app.Prefs(activity).radioSilent()) return;
+        // Data control Offline: never asks; a preset locked by the server can't be changed here.
+        if (org.communitycomms.app.DataControl.offline || !org.communitycomms.app.DataControl.tilesChangeable(activity)) return;
         if (!new org.communitycomms.app.Prefs(activity).setupDone()) return; // never over the setup wizard (map home is the default)
         if (!activity.hasWindowFocus()) return; // nor over another question (asked again when the map is next blank)
         final int[] left = {ASK_SECONDS};
@@ -195,6 +197,8 @@ public final class OnlineTilePrompt {
             mp.setOnlineEnabled(false);
             mp.setOnlineFor(ms);
         }
+        org.communitycomms.app.DataControl.mode(activity); // changed by hand: a preset becomes User control
+        org.communitycomms.app.DataControl.load(activity);
         apply();
         syncWithLan(); // what the LAN already has need not come from the internet
     }
@@ -225,6 +229,11 @@ public final class OnlineTilePrompt {
 
     /** "Online map tiles…" from a map screen: 5 min, 1 hour, 1 day, permanently, or offline now. */
     public void choose() {
+        if (!org.communitycomms.app.DataControl.tilesChangeable(activity)) {
+            Toast.makeText(activity, "Online map tiles: set by your group's server (Data: "
+                    + org.communitycomms.app.DataControl.NAMES[org.communitycomms.app.DataControl.mode(activity)] + ")", Toast.LENGTH_LONG).show();
+            return;
+        }
         if (mp.onlineUrl().length() == 0) {
             Toast.makeText(activity, "No online map source set (Data / files > Maps)", Toast.LENGTH_LONG).show();
             return;
@@ -242,6 +251,8 @@ public final class OnlineTilePrompt {
                     public void onClick(DialogInterface d, int w) {
                         mp.setOnlineEnabled(false);
                         mp.setOnlineFor(0);
+                        org.communitycomms.app.DataControl.mode(activity);
+                        org.communitycomms.app.DataControl.load(activity);
                         apply();
                     }
                 })

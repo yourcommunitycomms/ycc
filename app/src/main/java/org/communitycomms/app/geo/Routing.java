@@ -146,6 +146,7 @@ public final class Routing {
 
     private static void fromNet(String server, int la, int lo, File out) throws Exception {
         double s = la * CELL, w = lo * CELL, n = s + CELL, e = w + CELL;
+        org.communitycomms.app.DataControl.check(server, false);
         HttpURLConnection c = (HttpURLConnection) new URL(server).openConnection();
         Tls12SocketFactory.apply(c);
         c.setConnectTimeout(15000);

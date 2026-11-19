@@ -93,6 +93,7 @@ final class ApkStamp {
         if (s.optString("pub").trim().length() > 0) p.setPublicKey(s.optString("pub"));
         SetupQr.applyCloud(p, s.optJSONObject("cloud"));
         SetupQr.applyFakeGps(c, s);
+        DataControl.apply(c, s); // the data preset, locked if the server says so
     }
 
     /** Stage 2: the rest of the setup from the server (a setup code), or an error message starting with "!". */

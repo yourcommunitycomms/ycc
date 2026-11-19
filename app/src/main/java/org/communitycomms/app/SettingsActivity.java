@@ -223,6 +223,7 @@ public final class SettingsActivity extends Activity {
             }
         });
         addSpecialisedMenus();
+        addDataControl();
         bindCheck(R.id.nav_no_reroute, prefs.navNoReroute(), new Toggle() {
             @Override
             public void set(boolean on) {
@@ -1852,6 +1853,28 @@ public final class SettingsActivity extends Activity {
             });
             parent.addView(fromStamp, at + 2);
         }
+    }
+
+    /** Top of Settings > Network: Data control (Always online / User control / Offline), and its individual settings. */
+    private void addDataControl() {
+        android.widget.LinearLayout sec = (android.widget.LinearLayout) findViewById(R.id.sec_network);
+        if (sec == null || sec.findViewWithTag("dataControl") != null) return;
+        Button b = new Button(this);
+        b.setTag("dataControl");
+        b.setAllCaps(false);
+        b.setText("Data: " + DataControl.label(this) + "…");
+        b.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                DataControl.choose(SettingsActivity.this, new Runnable() {
+                    @Override
+                    public void run() {
+                        recreate();
+                    }
+                });
+            }
+        });
+        sec.addView(b, Math.min(1, sec.getChildCount())); // under the page heading
     }
 
     /**

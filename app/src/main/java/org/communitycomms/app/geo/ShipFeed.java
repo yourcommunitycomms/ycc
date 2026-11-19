@@ -253,6 +253,7 @@ public final class ShipFeed {
     }
 
     static List<Ship> fetch(double lat, double lon, String key) throws Exception {
+        org.communitycomms.app.DataControl.check(urlFor(lat, lon), true);
         HttpURLConnection c = (HttpURLConnection) new URL(urlFor(lat, lon)).openConnection();
         Tls12SocketFactory.apply(c); // Android 4.1-4.4: this server refuses TLS 1.0
         c.setConnectTimeout(8000);

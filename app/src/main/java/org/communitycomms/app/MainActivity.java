@@ -91,6 +91,12 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         boolean wifi = NetCheck.hasLocalNetwork(this);
         if (wifi && prefs.tunnelClientOn() && sp.getBoolean("relayViaMobile", false)) {
             sp.edit().putBoolean("relayViaMobile", false).commit();
+            if (DataControl.mobileRelay(this) == 1) { // switched automatically: switch back the same way
+                prefs.setTunnelClientOn(false);
+                rejoinIfSettingsChanged();
+                Toast.makeText(this, "WiFi is back: talking on this WiFi again", Toast.LENGTH_LONG).show();
+                return;
+            }
             relayDialog = new android.app.AlertDialog.Builder(this)
                     .setTitle("WiFi is back")
                     .setMessage("You switched to the relay over mobile data. Stop using the relay and talk on this WiFi again?")
@@ -103,7 +109,14 @@ public final class MainActivity extends Activity implements RadioService.Ui {
                     })
                     .setNegativeButton("Keep the relay", null)
                     .create();
-        } else if (!wifi && !prefs.tunnelClientOn() && NetCheck.mobileData(this)
+        } else if (!wifi && !prefs.tunnelClientOn() && NetCheck.mobileData(this) && DataControl.mobileRelay(this) == 1) {
+            // Data control: use the relay over mobile data without asking (Always online)
+            sp.edit().putBoolean("relayViaMobile", true).commit();
+            prefs.setTunnelClientOn(true);
+            rejoinIfSettingsChanged();
+            Toast.makeText(this, "No WiFi: talking through the relay over mobile data", Toast.LENGTH_LONG).show();
+            return;
+        } else if (!wifi && !prefs.tunnelClientOn() && NetCheck.mobileData(this) && DataControl.mobileRelay(this) == 0
                 && now - sp.getLong("mobileRelayPromptAt", 0) >= 15 * 60000L) {
             sp.edit().putLong("mobileRelayPromptAt", now).commit();
             relayDialog = new android.app.AlertDialog.Builder(this)
@@ -1816,6 +1829,17 @@ public final class MainActivity extends Activity implements RadioService.Ui {
                 SettingsActivity.open(MainActivity.this, "location");
             }
         });
+        stateRow(box, "Data: " + DataControl.label(this) + "  ›", new Runnable() {
+            @Override
+            public void run() {
+                DataControl.choose(MainActivity.this, new Runnable() {
+                    @Override
+                    public void run() {
+                        invalidateOptionsMenu();
+                    }
+                });
+            }
+        });
         // Servers: checked only when tapped (the window runs the checks); shows the last result.
         TextView srv = stateRow(box, ServerStatus.summary(this) + "  ›", new Runnable() {
             @Override
@@ -3038,6 +3062,44 @@ public final class MainActivity extends Activity implements RadioService.Ui {
                 }).show();
     }
 
+    /**
+     * Data control: Always online (default for simple group types), User control (default for Advanced: then the
+     * Maps question) or Offline. Skipped when the group's server set and locked it.
+     */
+    private void wizardData(boolean advanced, final Runnable next) {
+        if (DataControl.locked(this)) {
+            next.run();
+            return;
+        }
+        final float d = getResources().getDisplayMetrics().density;
+        boolean given = getSharedPreferences("settings", MODE_PRIVATE).contains("dataMode");
+        int def = given ? DataControl.mode(this) : advanced ? DataControl.USER : DataControl.ONLINE;
+        final android.widget.RadioGroup g = new android.widget.RadioGroup(this);
+        String[] text = {"User control: I choose each setting (online maps next)",
+                "Always online: online maps, update checks and live feeds, and the relay over mobile data without asking (unlimited data)",
+                "Offline: nothing from the internet; my WiFi / MANET and LAN server still work"};
+        for (int m : new int[]{DataControl.ONLINE, DataControl.USER, DataControl.OFFLINE}) {
+            android.widget.RadioButton b = new android.widget.RadioButton(this);
+            b.setId(100 + m);
+            b.setText(text[m]);
+            b.setPadding(b.getPaddingLeft(), (int) (6 * d), 0, (int) (6 * d));
+            g.addView(b);
+        }
+        g.check(100 + def);
+        new android.app.AlertDialog.Builder(this).setTitle("How should the app use mobile data?")
+                .setMessage("Change it any time: Shortcuts > Data.")
+                .setView(pad(g)).setCancelable(false)
+                .setPositiveButton("Next", new android.content.DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(android.content.DialogInterface di, int w) {
+                        int m = g.getCheckedRadioButtonId() - 100;
+                        DataControl.set(MainActivity.this, m, null);
+                        if (m == DataControl.USER) wizardMaps(next);
+                        else next.run();
+                    }
+                }).show();
+    }
+
     /** Maps: where tiles come from (the LAN cache, online when there is internet, or ask), and how to get an area offline. */
     private void wizardMaps(final Runnable next) {
         final org.communitycomms.app.geo.MapPrefs mp = new org.communitycomms.app.geo.MapPrefs(this);
@@ -3078,6 +3140,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         s.append("Profile: ").append(org.communitycomms.app.geo.QuickProfiles.NAMES[qp.profile()]).append('\n');
         s.append("Voice: ").append(prefs.burstVoice() ? "burst" : "live").append('\n');
         s.append("Anchored: ").append(prefs.anchor() ? "yes" : "no").append('\n');
+        s.append("Data: ").append(DataControl.label(this)).append('\n');
         s.append("Channel A: ").append(prefs.channel(Prefs.SLOT_A).length() > 0 ? "set" : "not set").append('\n');
         String f = prefs.menusOn();
         s.append("Advanced and Region features: ").append(f.length() > 0 ? f.replace(",", ", ") : "none");
@@ -3320,7 +3383,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
                         wizardLocation(new Runnable() {
                             @Override
                             public void run() {
-                                wizardMaps(new Runnable() {
+                                wizardData(advanced, new Runnable() {
                                     @Override
                                     public void run() {
                                         if (advanced) wizardPublicKey();

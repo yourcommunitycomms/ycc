@@ -82,6 +82,11 @@ public final class SetupQr {
                 if (x.nameLock) o.put("nameLock", true);
             }
             if (x.anchored) o.put("anchored", 1);
+            int dm = DataControl.mode(c); // the group's data preset (and its lock, if this phone has one)
+            if (dm != DataControl.USER) {
+                o.put("data", DataControl.KEYS[dm]);
+                if (DataControl.locked(c)) o.put("dataLock", 1);
+            }
         } catch (org.json.JSONException e) {
             return null;
         }
@@ -215,7 +220,7 @@ public final class SetupQr {
         final String url = o.optString("url").trim();
         final boolean hasLan = url.startsWith("http://") || url.startsWith("https://");
         boolean any = hasLan;
-        for (String k : new String[]{"tunnel", "vps", "pub", "chA", "omg", "home", "menus", "features", "role", "group", "call", "anchored", "lead", "burst", "prof", "cloud", "update", "autoLoc", "obscure", "shareLocPub", "mapsOnline", "fakeGps"}) {
+        for (String k : new String[]{"tunnel", "vps", "pub", "chA", "omg", "home", "menus", "features", "role", "group", "call", "anchored", "lead", "burst", "prof", "cloud", "update", "autoLoc", "obscure", "shareLocPub", "mapsOnline", "fakeGps", "data"}) {
             if (o.has(k) && o.optString(k).length() > 0) any = true;
         }
         if (!any) {
@@ -263,6 +268,8 @@ public final class SetupQr {
         if (o.has("shareLocPub")) sb.append("Location on Public / cloud: ").append(o.optInt("shareLocPub") == 1 ? "on" : "off").append('\n');
         if (o.has("fakeGps")) sb.append("Fake GPS: ").append(o.optInt("fakeGps") == 1 ? "on, near " + o.optString("fakeCentre") : "off").append('\n');
         if (o.has("mapsOnline")) sb.append("Online map tiles: ").append(o.optInt("mapsOnline") == 1 ? "always" : "ask first").append('\n');
+        int dm = java.util.Arrays.asList(DataControl.KEYS).indexOf(o.optString("data"));
+        if (dm >= 0) sb.append("Data: ").append(DataControl.NAMES[dm]).append(o.optInt("dataLock") == 1 ? " (locked)" : "").append('\n');
         return sb.toString().trim();
     }
     /** A team code from the Channel array: every set of settings can be left out. */
@@ -406,6 +413,7 @@ public final class SetupQr {
         if (o.has("obscure")) org.communitycomms.app.geo.FakeGps.setObscureM(a, o.optInt("obscure", org.communitycomms.app.geo.FakeGps.OBSCURE_DEFAULT_M));
         if (o.has("shareLocPub")) p.setShareLocationPublic(o.optInt("shareLocPub") == 1);
         if (o.has("mapsOnline")) new org.communitycomms.app.geo.MapPrefs(a).setOnlineEnabled(o.optInt("mapsOnline") == 1);
+        DataControl.apply(a, o); // "data" preset and "dataLock" (after mapsOnline, so the preset wins)
         String up = o.optString("update").trim(); // a personal APK's own update address
         if (up.startsWith("http://") || up.startsWith("https://")) {
             a.getSharedPreferences("settings", android.content.Context.MODE_PRIVATE).edit().putString("updateUrl", up).commit();

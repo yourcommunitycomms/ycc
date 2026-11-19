@@ -147,6 +147,7 @@ public final class ArtcRail {
             String q = LAYER + String.format(Locale.US, "?where=1%%3D1&geometry=%.5f,%.5f,%.5f,%.5f&geometryType=esriGeometryEnvelope&inSR=4326"
                     + "&spatialRel=esriSpatialRelIntersects&outFields=OBJECTID&returnGeometry=true&outSR=4326&maxAllowableOffset=0.0002"
                     + "&geometryPrecision=5&resultOffset=%d&resultRecordCount=1000&f=json", w, s, e, n, offset);
+            org.communitycomms.app.DataControl.check(q, true);
             HttpURLConnection c = (HttpURLConnection) new URL(q).openConnection();
             Tls12SocketFactory.apply(c);
             c.setConnectTimeout(8000);

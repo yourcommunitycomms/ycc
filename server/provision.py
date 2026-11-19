@@ -205,6 +205,7 @@ def _embed(st, who):
         st["fakeGps"] = int(who["fakeGps"])
         if who.get("fakeCentre"):
             st["fakeCentre"] = who["fakeCentre"]
+    st.update(_data(who))  # Data control is stage 1 too, with its lock
     return st
 
 
@@ -296,12 +297,24 @@ SETTINGS = (
                                      ("2000", "Up to 2 km"), ("5000", "Up to 5 km"), ("10000", "Up to 10 km")), ""),
     ("shareLocPub", "Location on Public / cloud", YESNO, "Share my location with Public and cloud groups."),
     ("mapsOnline", "Online map tiles", (("", "(the phone chooses)"), ("0", "Ask first"), ("1", "Always when there is internet")), ""),
+    ("data", "Data control", (("", "(the phone chooses)"), ("online", "Always online"), ("user", "User control"), ("offline", "Offline")),
+     "How the app uses mobile data. Always online: online maps, update checks, live feeds, relay over mobile data without asking. "
+     "Offline: nothing from the internet. In the APK itself (stage 1). Overrides Online map tiles."),
+    ("dataLock", "Lock data control", (("", "Locked (default when Data control is chosen)"), ("0", "Not locked")),
+     "Locked: the phone can't change Data control or the settings under it. A later setup from this server can change or unlock it."),
     ("chA", "Private channel (A)", None, "Optional: this channel instead of the one in the phone setup above. Fetched, never in the APK."),
     ("fakeGps", "Fake GPS", (("", "(the phone chooses)"), ("1", "On, near the coordinates below"), ("0", "Off")),
      "In the APK itself (stage 1): the phone uses and shares a made-up spot near these coordinates, for training or demos."),
     ("fakeCentre", "Fake GPS coordinates", None, "Latitude, longitude in decimal degrees, e.g. -37.81360, 144.96310."),
 )
-NUMERIC = ("lead", "burst", "anchored", "autoLoc", "obscure", "shareLocPub", "mapsOnline", "fakeGps")
+NUMERIC = ("lead", "burst", "anchored", "autoLoc", "obscure", "shareLocPub", "mapsOnline", "fakeGps", "dataLock")
+
+
+def _data(who):
+    """The Data control preset and its lock (locked unless the admin chose Not locked), or {} if the phone chooses."""
+    if who.get("data") not in ("online", "user", "offline"):
+        return {}
+    return {"data": who["data"], "dataLock": 0 if str(who.get("dataLock", "")) == "0" else 1}
 
 
 def _fake_check(who):
@@ -334,6 +347,8 @@ def _settings_to(o, who):
         v = str(who.get(k, "") or "")
         if v:
             o[k] = int(v) if k in NUMERIC and v.lstrip("-").isdigit() else v
+    o.pop("dataLock", None)
+    o.update(_data(who))  # Data control: the lock defaults to on when a preset is chosen
     if who.get("features"):
         o["features"] = who["features"]
         o["menus"] = who["features"]

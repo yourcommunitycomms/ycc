@@ -20,6 +20,7 @@ public final class CommsApp extends Application {
         registerActivityLifecycleCallbacks(new LightDiscipline());
         registerActivityLifecycleCallbacks(new VideoNotice()); // "X has started their video feed"
         PowerMode.load(this);
+        DataControl.load(this); // Always online / User control / Offline
         registerActivityLifecycleCallbacks(new HomeButton());
         registerActivityLifecycleCallbacks(new Orientation());
         Prefs p = new Prefs(this);

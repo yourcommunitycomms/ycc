@@ -258,6 +258,7 @@ public final class AdsbFeed {
 
     static List<Aircraft> fetch(int s, String local, double lat, double lon) throws Exception {
         String url = urlFor(s, local, lat, lon);
+        org.communitycomms.app.DataControl.check(url, true);
         HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
         Tls12SocketFactory.apply(c); // Android 4.1-4.4: these servers refuse TLS 1.0
         c.setConnectTimeout(8000);
