@@ -28,9 +28,9 @@ import java.util.List;
 /**
  * TV mode: the channel's map on a big screen with chat popping up like notifications down the
  * right-hand side (pinned announcements stay at the top) and any shared cameras in a corner. Opens
- * by itself on an Android TV with no private key (on the Public channel); with a private key the
- * TV shows the commander view instead. Remote: arrows move the map, + / − (or channel up / down, fast
- * forward / rewind) zoom, OK fits everyone, back leaves.
+ * only when chosen (the TV / display role, a setup QR code, Settings > Screen or the title bar), never
+ * because the device is a TV. Remote: arrows move the map, + / − (or channel up / down, fast forward /
+ * rewind) zoom, OK fits everyone, Menu opens the app menu, back leaves.
  */
 public final class TvActivity extends Activity {
     private static final long SHOW_MS = 90 * 1000L;
@@ -180,8 +180,9 @@ public final class TvActivity extends Activity {
         RadioEngine e = rs == null ? null : rs.engine();
         int people = 0;
         if (e != null) for (RadioEngine.Station s : e.stations()) if (!Double.isNaN(s.lat)) people++;
-        header.setText(e == null ? "Your Community Communications · not on a channel"
-                : "Your Community Communications · " + people + " on the map · OK = fit everyone");
+        header.setText((e == null ? "Your Community Communications · not on a channel"
+                : "Your Community Communications · " + people + " on the map · OK = fit everyone")
+                + " · Menu or Back = app menu");
         renderChat();
         wall.setVisibility(wall.visible().isEmpty() ? View.GONE : View.VISIBLE);
         wall.invalidate();
@@ -276,6 +277,12 @@ public final class TvActivity extends Activity {
             case KeyEvent.KEYCODE_MEDIA_REWIND:
                 moved = true;
                 map.zoomBy(-1, cx, cy);
+                return true;
+            case KeyEvent.KEYCODE_MENU: // the app's menu (Settings, Exit…) stays one key away in TV mode
+                startActivity(new android.content.Intent(this, MainActivity.class)
+                        .addFlags(android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP | android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                        .putExtra(MainActivity.EXTRA_SHOW_MENU, true));
+                finish();
                 return true;
             case KeyEvent.KEYCODE_DPAD_CENTER:
             case KeyEvent.KEYCODE_ENTER:

@@ -71,6 +71,52 @@ public final class DryadShareActivity extends Activity {
         actions.addView(air, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
         actions.addView(go, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
         root.addView(actions);
+        // The group's LAN storage server (Settings > LAN storage location): behind its login, never the public areas.
+        LinearLayout server = new LinearLayout(this);
+        Button up = new Button(this);
+        up.setText("Share to server");
+        Button down = new Button(this);
+        down.setText("Get from server");
+        server.addView(up, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        server.addView(down, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        root.addView(server);
+        up.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                final List<DryadSheet> sel = selectedSheets();
+                if (sel.isEmpty()) {
+                    Toast.makeText(DryadShareActivity.this, "Select at least one sheet", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                new android.app.AlertDialog.Builder(DryadShareActivity.this).setTitle("Share to server")
+                        .setMessage(sel.size() + " sheet(s) go to the LAN storage server's DRYAD folder, which needs the "
+                                + "server login. Anyone with that login can read them, and other phones get them with "
+                                + "\"Get from server\" (or LAN sync). Only do this on your group's own server.")
+                        .setPositiveButton("Share", new android.content.DialogInterface.OnClickListener() {
+                            @Override
+                            public void onClick(android.content.DialogInterface d, int w) {
+                                background(new java.util.concurrent.Callable<String>() {
+                                    @Override
+                                    public String call() {
+                                        return LanSync.shareDryad(DryadShareActivity.this, sel);
+                                    }
+                                });
+                            }
+                        })
+                        .setNegativeButton(android.R.string.cancel, null).show();
+            }
+        });
+        down.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                background(new java.util.concurrent.Callable<String>() {
+                    @Override
+                    public String call() {
+                        return LanSync.getDryad(DryadShareActivity.this);
+                    }
+                });
+            }
+        });
         air.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -103,6 +149,29 @@ public final class DryadShareActivity extends Activity {
             }
         });
         all.performClick();
+    }
+
+    /** Runs a server call off the main thread and shows its one-line result. */
+    private void background(final java.util.concurrent.Callable<String> job) {
+        Toast.makeText(this, "Talking to the server…", Toast.LENGTH_SHORT).show();
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                String r;
+                try {
+                    r = job.call();
+                } catch (Exception e) {
+                    r = "Failed: " + e.getMessage();
+                }
+                final String msg = r;
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        Toast.makeText(DryadShareActivity.this, msg, Toast.LENGTH_LONG).show();
+                    }
+                });
+            }
+        }).start();
     }
 
     @Override

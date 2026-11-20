@@ -101,9 +101,51 @@ final class ChannelsSwitch {
         java.util.List<Button> row2 = new java.util.ArrayList<Button>();
         if (p.menuOn("array")) row2.add(link(a, "Channel array", ChannelArrayActivity.class));
         if (p.cloudFeature()) row2.add(link(a, "Cloud group…", CloudGroupActivity.class));
-        row2.add(link(a, "Scan QR", QrScanActivity.class));
-        box.addView(FilesActivity.row(row2.toArray(new Button[0])));
+        if (!row2.isEmpty()) box.addView(FilesActivity.row(row2.toArray(new Button[0])));
+        // The same two as the Simple channels page: the same channel QR, so either page reads the other's code.
+        Button show = new Button(a);
+        show.setText("Show QR");
+        show.setAllCaps(false);
+        show.setTextSize(13);
+        show.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                pickQr(a);
+            }
+        });
+        Button scan = link(a, "Read QR", QrScanActivity.class);
+        box.addView(FilesActivity.row(new Button[]{show, scan}));
         return box;
+    }
+
+    /** Show QR on the Advanced page: which channel (only those with a key), then the same QR as the Simple page. */
+    private static void pickQr(final Activity a) {
+        Prefs p = new Prefs(a);
+        final java.util.List<Integer> slots = new java.util.ArrayList<Integer>();
+        java.util.List<String> names = new java.util.ArrayList<String>();
+        for (int s : Prefs.order()) {
+            if (s == Prefs.SLOT_OPENMANET) continue;
+            if (s != Prefs.SLOT_CLOUD && p.channel(s).length() == 0) continue;
+            if (s == Prefs.SLOT_CLOUD && !p.cloudFeature()) continue;
+            slots.add(s);
+            names.add(MainActivity.label(s));
+        }
+        if (slots.isEmpty()) {
+            android.widget.Toast.makeText(a, "No channel has a key yet", android.widget.Toast.LENGTH_SHORT).show();
+            return;
+        }
+        if (slots.size() == 1) {
+            MainActivity.showChannelQr(a, slots.get(0));
+            return;
+        }
+        AlertDialog dlg = new AlertDialog.Builder(a).setTitle("Show the QR code for")
+                .setItems(names.toArray(new String[0]), new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface di, int which) {
+                        MainActivity.showChannelQr(a, slots.get(which));
+                    }
+                }).setNegativeButton(android.R.string.cancel, null).show();
+        TvFocus.watch(dlg.getWindow());
     }
 
     private static Button link(final Activity a, String text, final Class<?> screen) {

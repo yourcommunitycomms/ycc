@@ -403,6 +403,23 @@ final class ChannelsPanel {
                 });
             }
         }
+        // The same QR codes as the Simple channels page.
+        if (slot == Prefs.SLOT_CLOUD || prefs.channel(slot).length() > 0) {
+            items.add("Show QR (share this channel)");
+            runs.add(new Runnable() {
+                @Override
+                public void run() {
+                    MainActivity.showChannelQr(a, slot);
+                }
+            });
+        }
+        items.add("Read QR (scan a channel code)");
+        runs.add(new Runnable() {
+            @Override
+            public void run() {
+                a.startActivity(new Intent(a, QrScanActivity.class));
+            }
+        });
         final boolean muted = prefs.channelMuted(slot);
         items.add(muted ? "Unmute (play out loud while listening)" : "Mute (listen quietly: saved to Chat, not played)");
         runs.add(new Runnable() {

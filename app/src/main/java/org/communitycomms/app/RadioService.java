@@ -501,8 +501,10 @@ public final class RadioService extends Service implements RadioEngine.Listener 
         AudioManager am = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
         if (am == null) return false;
         // A phone switched to silent or vibrate counts as "all the way down" too.
-        if (am.getRingerMode() != AudioManager.RINGER_MODE_NORMAL) return true;
-        int stream = mainPan != 0 ? AudioManager.STREAM_MUSIC : AudioManager.STREAM_VOICE_CALL;
+        // (A TV has no ringer: some report silent all the time, which must not mute the radio.)
+        if (!org.communitycomms.app.audio.AudioLevels.tv && am.getRingerMode() != AudioManager.RINGER_MODE_NORMAL) return true;
+        if (Build.VERSION.SDK_INT >= 21 && am.isVolumeFixed()) return false; // a TV whose volume is set on the TV itself
+        int stream = mainPan != 0 ? AudioManager.STREAM_MUSIC : org.communitycomms.app.audio.AudioLevels.voiceStream;
         int min = Build.VERSION.SDK_INT >= 28 ? am.getStreamMinVolume(stream) : stream == AudioManager.STREAM_VOICE_CALL ? 1 : 0;
         try {
             return am.getStreamVolume(stream) <= min;
@@ -1232,7 +1234,7 @@ public final class RadioService extends Service implements RadioEngine.Listener 
             return;
         }
         try {
-            final android.media.ToneGenerator tg = new android.media.ToneGenerator(AudioManager.STREAM_VOICE_CALL, 90);
+            final android.media.ToneGenerator tg = new android.media.ToneGenerator(org.communitycomms.app.audio.AudioLevels.voiceStream, 90);
             tg.startTone(tone, 600);
             main.postDelayed(new Runnable() {
                 @Override
@@ -1352,7 +1354,7 @@ public final class RadioService extends Service implements RadioEngine.Listener 
         Log.i(TAG, "say: " + text);
         if (!ttsReady || curStatus == RadioEngine.STATUS_STEALTH) return; // stealth: nothing spoken
         java.util.HashMap<String, String> p = new java.util.HashMap<String, String>();
-        p.put(android.speech.tts.TextToSpeech.Engine.KEY_PARAM_STREAM, String.valueOf(AudioManager.STREAM_VOICE_CALL));
+        p.put(android.speech.tts.TextToSpeech.Engine.KEY_PARAM_STREAM, String.valueOf(org.communitycomms.app.audio.AudioLevels.voiceStream));
         tts.speak(text, android.speech.tts.TextToSpeech.QUEUE_ADD, p);
     }
 
@@ -2975,6 +2977,7 @@ public final class RadioService extends Service implements RadioEngine.Listener 
         AudioManager am = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
         if (am == null) return;
         try {
+            if (on && org.communitycomms.app.audio.AudioLevels.tv) return; // a TV: no call path, voice plays as media
             if (on) {
                 am.setMode(AudioManager.MODE_IN_COMMUNICATION);
                 am.setSpeakerphoneOn(org.communitycomms.app.audio.AudioRoute.wantSpeaker(this, am, am.isWiredHeadsetOn()));

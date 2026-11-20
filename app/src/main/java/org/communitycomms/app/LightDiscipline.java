@@ -11,6 +11,7 @@ import android.graphics.ColorMatrixColorFilter;
 import android.graphics.Paint;
 import android.os.Build;
 import android.os.Bundle;
+import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
@@ -177,7 +178,29 @@ public final class LightDiscipline implements Application.ActivityLifecycleCallb
                 return true;
             }
         });
+        // TV remote, D-pad or keyboard: a double press of OK / Enter wakes it, like the double tap. Other keys do
+        // nothing while black (so nothing underneath is pressed), except volume; a set PTT key is handled before this.
+        cover.setFocusable(true);
+        cover.setFocusableInTouchMode(true);
+        cover.setOnKeyListener(new View.OnKeyListener() {
+            private long lastOk;
+
+            @Override
+            public boolean onKey(View v, int code, KeyEvent e) {
+                if (code == KeyEvent.KEYCODE_VOLUME_UP || code == KeyEvent.KEYCODE_VOLUME_DOWN
+                        || code == KeyEvent.KEYCODE_VOLUME_MUTE) return false;
+                boolean ok = code == KeyEvent.KEYCODE_DPAD_CENTER || code == KeyEvent.KEYCODE_ENTER
+                        || code == KeyEvent.KEYCODE_NUMPAD_ENTER || code == KeyEvent.KEYCODE_BUTTON_A;
+                if (ok && e.getAction() == KeyEvent.ACTION_UP) {
+                    if (e.getEventTime() - lastOk < 600) endBlackout(a);
+                    lastOk = e.getEventTime();
+                }
+                return true;
+            }
+        });
+        if (TvActivity.isTv(a)) hint.setText("Double-press OK on the remote to wake");
         decor.addView(cover, new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        cover.requestFocus();
     }
 
     /** The way the screen faces now, as a fixed orientation (Android 4.1 has no SCREEN_ORIENTATION_LOCKED). */

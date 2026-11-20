@@ -352,6 +352,54 @@ public final class LanSync {
         return "DRYAD: " + added + " new from the LAN, " + mine.size() + " on the LAN" + (ok ? "" : " (upload failed)");
     }
 
+    /**
+     * DRYAD share screen > Share to server: adds these sheets to the LAN storage's DRYAD/sheets.txt (behind the
+     * server login, the same file LAN sync uses), keeping what is already there. Off the main thread.
+     */
+    public static String shareDryad(Context c, List<DryadSheet> sheets) {
+        LanTiles lan = new LanTiles(c);
+        if (!lan.configured()) return "No LAN storage location set (Settings > LAN storage location)";
+        String path = prefix(c) + "DRYAD/sheets.txt";
+        StringBuilder all = new StringBuilder();
+        java.util.Set<String> have = new java.util.HashSet<String>();
+        byte[] there = lan.getPath(path);
+        try {
+            if (there != null) {
+                for (DryadSheet s : DryadSheet.parseAll(new String(there, "UTF-8"))) {
+                    String t = s.toText();
+                    if (have.add(t)) all.append(t).append('\n');
+                }
+            }
+            int added = 0;
+            for (DryadSheet s : sheets) {
+                String t = s.toText();
+                if (have.add(t)) {
+                    all.append(t).append('\n');
+                    added++;
+                }
+            }
+            boolean ok = lan.putPath(path, all.toString().getBytes("UTF-8"));
+            return ok ? (added == 0 ? "Already on the server" : added + " sheet(s) put on the server (" + have.size() + " there now)")
+                    : "Could not upload (check the LAN storage login in Settings)";
+        } catch (Exception e) {
+            return "The server's DRYAD file could not be read";
+        }
+    }
+
+    /** DRYAD share screen > Get from server: adds the server's sheets to this phone. Off the main thread. */
+    public static String getDryad(Context c) {
+        LanTiles lan = new LanTiles(c);
+        if (!lan.configured()) return "No LAN storage location set (Settings > LAN storage location)";
+        byte[] there = lan.getPath(prefix(c) + "DRYAD/sheets.txt");
+        if (there == null) return "No DRYAD sheets on the server (or the login was refused)";
+        try {
+            int added = new SheetStore(c).importAll(DryadSheet.parseAll(new String(there, "UTF-8")));
+            return added == 0 ? "Nothing new on the server" : added + " new sheet(s) from the server";
+        } catch (Exception e) {
+            return "The server's DRYAD file could not be read";
+        }
+    }
+
     // ---- config backup ----
 
     private static String uploadConfig(Context c, LanTiles lan, String me) {

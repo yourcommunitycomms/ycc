@@ -56,6 +56,20 @@ final class RoleDefaults {
      * The roles as a single-choice list in alternating colours (name in bold and gold, then what it is for),
      * so the six are easy to tell apart. Plain views: works on Android 4.1.
      */
+    /** A row colour that shows a gold frame when the row has the D-pad focus (TV remote) or is pressed. */
+    static android.graphics.drawable.Drawable focusRow(Context c, int colour) {
+        float d = c.getResources().getDisplayMetrics().density;
+        android.graphics.drawable.GradientDrawable on = new android.graphics.drawable.GradientDrawable();
+        on.setColor(0xff3a5a46);
+        on.setStroke((int) Math.max(2, 3 * d), 0xfff0c75e);
+        android.graphics.drawable.StateListDrawable s = new android.graphics.drawable.StateListDrawable();
+        s.addState(new int[]{android.R.attr.state_selected}, on);
+        s.addState(new int[]{android.R.attr.state_focused}, on);
+        s.addState(new int[]{android.R.attr.state_pressed}, on);
+        s.addState(new int[0], new android.graphics.drawable.ColorDrawable(colour));
+        return s;
+    }
+
     static android.widget.ListAdapter roleList(final Context c) {
         final CharSequence[] rows = new CharSequence[Prefs.ROLE_NAMES.length];
         for (int i = 0; i < rows.length; i++) {
@@ -70,7 +84,7 @@ final class RoleDefaults {
             @Override
             public android.view.View getView(int pos, android.view.View convert, android.view.ViewGroup parent) {
                 android.view.View v = super.getView(pos, convert, parent);
-                v.setBackgroundColor(pos % 2 == 0 ? 0xff1f3d2b : 0xff2c2c2c);
+                v.setBackgroundDrawable(focusRow(c, pos % 2 == 0 ? 0xff1f3d2b : 0xff2c2c2c));
                 int p = (int) (10 * c.getResources().getDisplayMetrics().density);
                 v.setPadding(p + p / 2, p, (int) (52 * c.getResources().getDisplayMetrics().density), p); // room for the radio button
                 // The stock row has a fixed height (Android 4.1 clips the second line): let it grow.

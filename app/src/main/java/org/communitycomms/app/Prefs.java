@@ -44,6 +44,7 @@ public final class Prefs {
     private String derivedRole() {
         if (appMode() == MODE_INTERCOM) return ROLE_INTERCOM;
         if (homeStart() == HOME_TV) return ROLE_TV;
+        if (TvActivity.isTv(ctx)) return ROLE_PHONE; // a TV starts like a phone: TV / display is only a choice
         android.content.res.Configuration c = ctx.getResources().getConfiguration();
         if (android.os.Build.VERSION.SDK_INT >= 13 && c.smallestScreenWidthDp >= 600) return ROLE_COMMANDER;
         return ROLE_PHONE;
@@ -56,7 +57,8 @@ public final class Prefs {
     /** Sets the role; the intercom role is also the intercom mode (and leaving it goes back to Advanced). */
     public void setRole(String r) {
         if (!java.util.Arrays.asList(ROLE_KEYS).contains(r)) return;
-        sp.edit().putString("role", r).commit();
+        // A new role starts on its own home view (Commander: the commander view on a wide screen such as a TV).
+        sp.edit().putString("role", r).remove("homeCommander").commit();
         if (ROLE_INTERCOM.equals(r)) {
             if (appMode() != MODE_INTERCOM) setAppMode(MODE_INTERCOM);
         } else if (appMode() == MODE_INTERCOM) {

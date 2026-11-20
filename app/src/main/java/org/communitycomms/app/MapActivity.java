@@ -275,6 +275,27 @@ public final class MapActivity extends Activity {
             }
         });
         bar.addView(home);
+        if (TvActivity.isTv(this)) {
+            // Android TV builds no title bar menu: the map's menu gets a ⋮ button (and the remote's Menu key), and
+            // both buttons take the D-pad focus with a gold frame. The bar always shows on a TV, so no ▲.
+            up.setVisibility(View.GONE);
+            home.setFocusable(true);
+            home.setBackgroundDrawable(RoleDefaults.focusRow(this, 0));
+            android.widget.ImageButton more = new android.widget.ImageButton(this);
+            more.setContentDescription("Menu");
+            more.setFocusable(true);
+            more.setBackgroundDrawable(RoleDefaults.focusRow(this, 0));
+            more.setImageDrawable(dotsIcon());
+            more.setPadding(p, p / 2, p, p / 2);
+            more.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    showTvMenu();
+                }
+            });
+            bar.addView(more);
+            MainActivity.openFocusFence(bar);
+        }
         ab.setCustomView(bar, new android.app.ActionBar.LayoutParams(android.app.ActionBar.LayoutParams.WRAP_CONTENT,
                 android.app.ActionBar.LayoutParams.MATCH_PARENT, android.view.Gravity.END | android.view.Gravity.CENTER_VERTICAL));
         ab.setDisplayShowCustomEnabled(true);
@@ -1695,6 +1716,49 @@ public final class MapActivity extends Activity {
     public boolean onPrepareOptionsMenu(android.view.Menu m) {
         AnchorButton.update(this, m);
         return super.onPrepareOptionsMenu(m);
+    }
+
+    private android.graphics.drawable.Drawable dotsIcon() {
+        float d = getResources().getDisplayMetrics().density;
+        int s = (int) (32 * d);
+        android.graphics.Bitmap bm = android.graphics.Bitmap.createBitmap(s, s, android.graphics.Bitmap.Config.ARGB_8888);
+        android.graphics.Canvas c = new android.graphics.Canvas(bm);
+        android.graphics.Paint pt = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+        pt.setColor(0xffffffff);
+        for (int i = 0; i < 3; i++) c.drawCircle(s / 2f, s * (0.2f + 0.3f * i), s * 0.09f, pt);
+        return new android.graphics.drawable.BitmapDrawable(getResources(), bm);
+    }
+
+    /** TV: the map's menu as a list (the title bar has none there). */
+    private void showTvMenu() {
+        android.view.Menu m = new android.widget.PopupMenu(this, getWindow().getDecorView()).getMenu();
+        onCreateOptionsMenu(m);
+        onPrepareOptionsMenu(m);
+        final java.util.List<android.view.MenuItem> items = new java.util.ArrayList<android.view.MenuItem>();
+        for (int i = 0; i < m.size(); i++) if (m.getItem(i).isVisible()) items.add(m.getItem(i));
+        String[] names = new String[items.size() + 1];
+        for (int i = 0; i < items.size(); i++) names[i] = String.valueOf(items.get(i).getTitle());
+        names[items.size()] = "Home (Settings, Exit and the rest)";
+        android.app.AlertDialog dlg = new android.app.AlertDialog.Builder(this).setTitle("Map menu")
+                .setItems(names, new android.content.DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(android.content.DialogInterface d, int which) {
+                        if (which < items.size()) onOptionsItemSelected(items.get(which));
+                        else startActivity(new android.content.Intent(MapActivity.this, MainActivity.class)
+                                .addFlags(android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP | android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                                .putExtra(MainActivity.EXTRA_SHOW_MENU, true));
+                    }
+                }).show();
+        TvFocus.watch(dlg.getWindow());
+    }
+
+    @Override
+    public boolean onKeyUp(int code, android.view.KeyEvent e) {
+        if (code == android.view.KeyEvent.KEYCODE_MENU && TvActivity.isTv(this)) {
+            showTvMenu();
+            return true;
+        }
+        return super.onKeyUp(code, e);
     }
 
     private android.content.BroadcastReceiver anchorWatch;

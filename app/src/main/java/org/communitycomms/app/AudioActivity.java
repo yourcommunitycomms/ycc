@@ -80,7 +80,7 @@ public final class AudioActivity extends Activity {
         showDevices();
 
         box.addView(label("Radio volume (the phone's call volume, used for radio audio)"));
-        box.addView(streamBar(AudioManager.STREAM_VOICE_CALL));
+        box.addView(streamBar(org.communitycomms.app.audio.AudioLevels.voiceStream));
         box.addView(label("Media volume (stereo dual watch, Call ring tone, recordings)"));
         box.addView(streamBar(AudioManager.STREAM_MUSIC));
 
@@ -598,7 +598,7 @@ public final class AudioActivity extends Activity {
     private void play(List<short[]> frames) {
         int rate = RadioEngine.SAMPLE_RATE;
         int min = AudioTrack.getMinBufferSize(rate, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT);
-        AudioTrack t = new AudioTrack(AudioManager.STREAM_VOICE_CALL, rate, AudioFormat.CHANNEL_OUT_MONO,
+        AudioTrack t = new AudioTrack(org.communitycomms.app.audio.AudioLevels.voiceStream, rate, AudioFormat.CHANNEL_OUT_MONO,
                 AudioFormat.ENCODING_PCM_16BIT, Math.max(min, rate), AudioTrack.MODE_STREAM);
         if (t.getState() != AudioTrack.STATE_INITIALIZED) return;
         t.play();

@@ -13,7 +13,7 @@ Kept as rules throughout:
 
 ## Decisions (2026-11-18)
 
-Ashley's answers to the first draft's questions:
+the owner's answers to the first draft's questions:
 
 | # | Decision | Effect on the plan |
 |---|---|---|
@@ -357,7 +357,7 @@ its key and can still be listened to, but has no button on the home radio row an
 | Home screen choice, orientation, invert | Settings > Home screen | Settings > Screen; **map home is the default** | Decision 11 |
 | Quick buttons (per mode) and their custom setting | Home screen; Settings > Home screen | **Shortcuts** page (all shortcuts, status strip; pick the four shown on the radio home) | Decision 12 |
 | TV mode button | Settings > Home screen | Role: TV / display, and More > Screen | Role-driven |
-| Specialised menus | Settings > Home screen and menus | Settings > **Advanced and Region features** (checklist, off by default, in the setup QR; More… for obscure items) | Ashley's name; region items grouped |
+| Specialised menus | Settings > Home screen and menus | Settings > **Advanced and Region features** (checklist, off by default, in the setup QR; More… for obscure items) | the owner's name; region items grouped |
 | Power mode, battery levels, mission mode, sleep, rest GPS, deep sleep, burst sleep, check-in windows | Settings > Power and sleep | Settings > Power and batteries | Same |
 | Anchor (mains power) | Settings > Power | Settings > Power and batteries: **Anchored (on stable power)** tick; offered in the wizard's power step | Any device can be anchored; not a role |
 | Black screen, red light | Settings > Power | Settings > Screen | It's about the screen |
@@ -408,7 +408,7 @@ update server before the next.
 
 | Phase | Change | Reversible? | Test |
 |---|---|---|---|
-| 0 | Ashley reviews this plan; answers the questions below | — | — |
+| 0 | the owner reviews this plan; answers the questions below | — | — |
 | 1 | Add a **role** setting (no UI change yet). Existing phones get one worked out: Intercom mode → Public intercom; commander view on a tablet → Commander; TV home → TV / display; else Phone radio. Add the new setup QR fields (role, lead, group, call, **nameLock**, anchored, features); the QR applies everything without asking | Yes | Upgrade from 0.1.459 keeps every setting; QR round trip; a locked callsign can't be edited, an unlocked one can |
 | 1b | **Anchored button** in the title bar (3.4): small, standalone, can ship before the rest | Yes | Plug / unplug on an emulator (dumpsys battery set ac), both icon states, the setting stays in step |
 | 1c | **Video feed** rename and "X has started their video feed" notice | Yes | Built in the build after 0.1.462161 |
@@ -436,7 +436,7 @@ Risks:
 - A locked callsign must still be changeable by a new setup QR (and by Clear everything), or a phone could be stuck.
 - Testing time grows with roles. Each phase tests only the roles it touches, plus an upgrade test.
 
-## 6. Open questions for Ashley
+## 6. Open questions for the owner
 
 1. Is the **More** screen wanted, or should the menu stay a single list, just regrouped?
 2. Which items belong in Advanced features and which under More…? (The table in 3.2 is a first guess.)

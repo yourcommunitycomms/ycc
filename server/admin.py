@@ -24,7 +24,7 @@ import qr
 import setup
 import sync
 
-VERSION = "1.1"
+VERSION = "1.2"
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
 DOCS = {"LICENSE": "LICENSE", "NOTICE": "NOTICE", "README.md": "README.md",
         "RECREATE-PROMPT.md": os.path.join("docs", "RECREATE-PROMPT.md"),
@@ -346,7 +346,7 @@ def page(query="", message="", host=""):
     out = ["<!doctype html><html><head><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'>",
            "<title>YCC Web Admin</title><style>", CSS, "</style></head><body><main>",
            "<h1>Your Community Comms: file store</h1>",
-           "<p class=sub>Signed in as %s. Disk: %s free of %s. Server %s.</p>"
+           "<p class=sub>Signed in as %s (<a href='/webadmin/logout'>Log out</a>). Disk: %s free of %s. Server %s.</p>"
            % (_e(current_user()), _size(du.free), _size(du.total), VERSION), "<nav>"]
     for key, label in TABS:
         out.append("<a href='/webadmin?tab=%s'%s>%s</a>" % (key, " class=on" if key == tab else "", label))

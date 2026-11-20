@@ -225,16 +225,9 @@ public final class MainActivity extends Activity implements RadioService.Ui {
                 doJoin();
             } else if (!startupRejoinDone) {
                 startupRejoinDone = true;
-                if (TvActivity.isTv(MainActivity.this) && prefs.channel(Prefs.SLOT_A).length() == 0) {
-                    // A TV with no private key: the Public map and chat on the big screen.
-                    if (slot != Prefs.SLOT_PUBLIC) {
-                        slot = Prefs.SLOT_PUBLIC;
-                        prefs.setActiveSlot(slot);
-                    }
-                    if (service.engine() == null) requestJoin();
-                    startActivity(new Intent(MainActivity.this, TvActivity.class));
-                    return;
-                }
+                // TV mode is never switched on by the device type: only the TV / display role (wizard or setup QR)
+                // or Settings > Screen opens it. Nothing joins (or asks for permissions) before the wizard is done.
+                if (!prefs.setupDone()) return;
                 // Left with Exit while on air: ask first.
                 if (service.engine() == null && service.compat() == null && prefs.exitSlots().length() > 0) {
                     askReconnect();
@@ -263,7 +256,8 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         super.onCreate(savedInstanceState);
         prefs = new Prefs(this);
         mapHome = wantMapHome();
-        setContentView(mapHome ? R.layout.activity_main_map : R.layout.activity_main);
+        builtCommander = mapHome && commander();
+        setContentView(builtCommander ? R.layout.activity_main_commander : mapHome ? R.layout.activity_main_map : R.layout.activity_main);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         // Phones and portrait: the short name fits; the tablet commander view keeps the full one.
         setTitle(commander() ? getString(R.string.app_name) : "Comms");
@@ -458,6 +452,10 @@ public final class MainActivity extends Activity implements RadioService.Ui {
     @Override
     protected void onNewIntent(Intent i) {
         super.onNewIntent(i);
+        if (i.getBooleanExtra(EXTRA_SHOW_MENU, false)) { // Menu key in TV mode
+            showMenuList();
+            return;
+        }
         String action = i.getStringExtra(ChannelsActivity.EXTRA_ACTION);
         if (action != null) handleChannelAction(action, i.getIntExtra(ChannelsActivity.EXTRA_SLOT, slot));
     }
@@ -535,7 +533,12 @@ public final class MainActivity extends Activity implements RadioService.Ui {
     protected void onResume() {
         super.onResume();
         anchorWatch = AnchorButton.watch(this);
+        if (wantMapHome() != mapHome || (wantMapHome() && commander()) != builtCommander) {
+            recreate(); // the role or home screen changed in Settings: the new layout at once, no restart
+            return;
+        }
         invalidateOptionsMenu();
+        refreshTvBar();
         RadioService.locationAsk = homeLocationAsk;
         TrackShare.asker = trackAsker;
         TrackShare.changed = trackRefresh;
@@ -789,6 +792,99 @@ public final class MainActivity extends Activity implements RadioService.Ui {
     // ---- hide / show the title bar (more room for the map and buttons) ----
 
     /** ▲ in the title bar hides it; a small ▼ in the top corner brings it back (and the menu with it). */
+    private android.widget.ImageButton tvShortcuts, tvBlack;
+
+    /** The TV title bar buttons (see setUpTitleToggle). */
+    private View tvBar() {
+        LinearLayout bar = new LinearLayout(this);
+        bar.setOrientation(LinearLayout.HORIZONTAL);
+        bar.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        tvShortcuts = tvButton(bar, "Shortcuts", new Runnable() {
+            @Override
+            public void run() {
+                showShortcuts();
+            }
+        });
+        tvBlack = tvButton(bar, "Black screen", new Runnable() {
+            @Override
+            public void run() {
+                if (LightDiscipline.legacyBlackout(MainActivity.this))
+                    Toast.makeText(MainActivity.this, "Double-tap to wake", Toast.LENGTH_SHORT).show();
+                LightDiscipline.blackout(MainActivity.this);
+            }
+        });
+        android.widget.ImageButton menu = tvButton(bar, "Menu", new Runnable() {
+            @Override
+            public void run() {
+                showMenuList();
+            }
+        });
+        // ⋮ (three dots), drawn so it looks the same on every TV
+        float d = getResources().getDisplayMetrics().density;
+        int s = (int) (32 * d);
+        android.graphics.Bitmap bm = android.graphics.Bitmap.createBitmap(s, s, android.graphics.Bitmap.Config.ARGB_8888);
+        android.graphics.Canvas c = new android.graphics.Canvas(bm);
+        android.graphics.Paint p = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+        p.setColor(0xffffffff);
+        for (int i = 0; i < 3; i++) c.drawCircle(s / 2f, s * (0.2f + 0.3f * i), s * 0.09f, p);
+        menu.setImageDrawable(new android.graphics.drawable.BitmapDrawable(getResources(), bm));
+        refreshTvBar();
+        // Android fences the title bar off from the arrow keys on devices that report a touchscreen (many TVs and
+        // TV boxes do): open the fence so Up from the screen reaches these buttons and Down comes back.
+        openFocusFence(bar);
+        return bar;
+    }
+
+    /** Lets the D-pad reach a title bar custom view on devices that report a touchscreen (many TVs). */
+    static void openFocusFence(View bar) {
+        bar.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener() {
+            @Override
+            public void onViewAttachedToWindow(View v) {
+                if (Build.VERSION.SDK_INT < 21) return;
+                for (android.view.ViewParent p = v.getParent(); p instanceof android.view.ViewGroup; p = p.getParent()) {
+                    android.view.ViewGroup g = (android.view.ViewGroup) p;
+                    g.setTouchscreenBlocksFocus(false);
+                    if (Build.VERSION.SDK_INT >= 26) g.setKeyboardNavigationCluster(false);
+                }
+            }
+
+            @Override
+            public void onViewDetachedFromWindow(View v) {
+            }
+        });
+    }
+
+    private android.widget.ImageButton tvButton(LinearLayout bar, String name, final Runnable tap) {
+        float d = getResources().getDisplayMetrics().density;
+        android.widget.ImageButton b = new android.widget.ImageButton(this);
+        b.setContentDescription(name);
+        b.setFocusable(true);
+        b.setScaleType(android.widget.ImageView.ScaleType.CENTER_INSIDE);
+        b.setBackgroundDrawable(RoleDefaults.focusRow(this, 0));
+        int p = (int) (8 * d);
+        b.setPadding(p, p, p, p);
+        b.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                tap.run();
+            }
+        });
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams((int) (56 * d), (int) (48 * d));
+        lp.setMargins((int) (4 * d), 0, (int) (4 * d), 0);
+        bar.addView(b, lp);
+        return b;
+    }
+
+    /** The red dots on the TV title bar icons (update available, black screen not set up). */
+    private void refreshTvBar() {
+        if (tvShortcuts == null) return;
+        tvShortcuts.setImageDrawable(shortcutsIcon(shortcutsDot()));
+        tvBlack.setImageDrawable(blackIcon(blackDot()));
+        boolean home = prefs.appMode() != Prefs.MODE_INTERCOM;
+        tvShortcuts.setVisibility(home ? View.VISIBLE : View.GONE);
+        tvBlack.setVisibility(home && prefs.blackScreenButton() ? View.VISIBLE : View.GONE);
+    }
+
     private void setUpTitleToggle() {
         final android.app.ActionBar ab = getActionBar();
         if (ab == null) return;
@@ -799,6 +895,13 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         up.setBackgroundColor(0);
         up.setTextColor(0xfff0c75e);
         up.setContentDescription("Hide the title bar");
+        if (needMenuButton()) {
+            // Android TV does not build the title bar menu (no icons, no ⋮), so on a TV the title bar gets its own
+            // buttons: Shortcuts, Black screen and ⋮ Menu (the whole list: Settings, Exit…), all reachable with the
+            // remote's arrows. The bar always shows there, so ▲ (hide it) is left out.
+            ab.setCustomView(tvBar(), new android.app.ActionBar.LayoutParams(android.app.ActionBar.LayoutParams.WRAP_CONTENT,
+                    android.app.ActionBar.LayoutParams.MATCH_PARENT, android.view.Gravity.END | android.view.Gravity.CENTER_VERTICAL));
+        } else
         ab.setCustomView(up, new android.app.ActionBar.LayoutParams((int) (48 * d),
                 android.app.ActionBar.LayoutParams.MATCH_PARENT, android.view.Gravity.END | android.view.Gravity.CENTER_VERTICAL));
         ab.setDisplayShowCustomEnabled(true);
@@ -855,12 +958,22 @@ public final class MainActivity extends Activity implements RadioService.Ui {
     private ChannelsPanel channelsPanel;
 
     /** A tablet in landscape is always the commander view (map home with the side panel). */
+    private boolean builtCommander;
+
     private boolean commander() {
         android.content.res.Configuration c = getResources().getConfiguration();
-        // A TV with a private key entered is the commander view too (layout-land-television).
-        if (TvActivity.isTv(this) && prefs.channel(Prefs.SLOT_A).length() > 0) return true;
-        return Build.VERSION.SDK_INT >= 13 && c.smallestScreenWidthDp >= 600
-                && c.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE;
+        if (Build.VERSION.SDK_INT < 13 || c.orientation != android.content.res.Configuration.ORIENTATION_LANDSCAPE) return false;
+        // Tablets in landscape; also a wide landscape screen (a TV) set to the commander view: on by default for the
+        // Commander role, and one step of the home view switch (map, buttons, commander).
+        return c.smallestScreenWidthDp >= 600 || (wideLandscape() && getSharedPreferences("settings", MODE_PRIVATE)
+                .getBoolean("homeCommander", Prefs.ROLE_COMMANDER.equals(prefs.role())));
+    }
+
+    /** Landscape, 960 dp wide or more, but not a tablet (tablets in landscape are always the commander view). */
+    private boolean wideLandscape() {
+        android.content.res.Configuration c = getResources().getConfiguration();
+        return Build.VERSION.SDK_INT >= 13 && c.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+                && c.screenWidthDp >= 960 && c.smallestScreenWidthDp < 600;
     }
 
     private boolean wantMapHome() {
@@ -1168,7 +1281,8 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         boolean two = false;
         if (row2 != null) row2.setVisibility(View.GONE);
         TextView ql = (TextView) findViewById(R.id.quick_label);
-        if (ql != null) ql.setText(prefs.simple() ? "Quick buttons" : getString(R.string.quick_poi));
+        if (ql != null) ql.setText(prefs.simple() ? "Quick buttons" : builtCommander
+                ? "Quick map point at the X (at me when the map is centred on me)" : getString(R.string.quick_poi));
         if (!mapHome) {
             List<Integer> pick = homeQuick();
             for (int i = 0; i < QUICK_IDS.length; i++) {
@@ -1317,6 +1431,15 @@ public final class MainActivity extends Activity implements RadioService.Ui {
                 .show();
     }
 
+    /** Commander view: the map's X has been moved away from me (more than 30 m), or there is no position of mine. */
+    private boolean xPlaced() {
+        if (homeMap == null || !builtCommander) return false; // the commander view (phones keep marking at me)
+        android.location.Location me = myPos == null ? null : myPos.location();
+        if (me == null) return true;
+        return org.communitycomms.app.geo.Geo.distanceM(me.getLatitude(), me.getLongitude(),
+                homeMap.centerLat(), homeMap.centerLon()) > 30;
+    }
+
     /** One tap: a map point at my GPS position (or the map's centre for "meet me there"). */
     private void quickPoi(final int q) {
         if (q < 0 || q >= quickItems.size()) return;
@@ -1330,6 +1453,12 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         }
         if (it.kind == org.communitycomms.app.geo.QuickProfiles.KIND_SHARE) {
             toggleShareUntilStopped();
+            return;
+        }
+        if (it.kind == org.communitycomms.app.geo.QuickProfiles.KIND_POINT && !it.atMapCentre && xPlaced()) {
+            // Map home / commander view with the X moved off me (or no GPS, like a TV): the point goes on the X.
+            sendQuick(it, homeMap.centerLat(), homeMap.centerLon());
+            Toast.makeText(this, it.label + ": at the X (centre the map on me first to mark at me)", Toast.LENGTH_SHORT).show();
             return;
         }
         if (it.atMapCentre) {
@@ -1677,13 +1806,10 @@ public final class MainActivity extends Activity implements RadioService.Ui {
                 .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS);
         menu.add(0, MENU_TOP_BLACK, 0, "Blackout (double-tap to wake)").setIcon(android.R.drawable.ic_lock_power_off)
                 .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS);
-        menu.add(0, MENU_VIDEOS, 5, "Video feed"); // TV mode is in Settings (and in the title bar on a TV)
-        if (TvActivity.isTv(this)) {
+        menu.add(0, MENU_VIDEOS, 5, "Video feed"); // TV mode is in Settings (and in the title bar for the TV / display role)
+        if (Prefs.ROLE_TV.equals(prefs.role()) || prefs.homeStart() == Prefs.HOME_TV) {
             menu.add(0, MENU_TV, 0, "TV mode").setIcon(android.R.drawable.ic_menu_slideshow)
-                    .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS | MenuItem.SHOW_AS_ACTION_WITH_TEXT);
-            // TVs often report a menu key and so get no overflow dots: a visible Menu button opens the list.
-            menu.add(0, MENU_TV_MENU, 0, "Menu").setIcon(android.R.drawable.ic_menu_more)
-                    .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS | MenuItem.SHOW_AS_ACTION_WITH_TEXT);
+                    .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS);
         }
         menu.add(0, MENU_NOMAD, 5, "Project NOMAD (local AI, library)");
         menu.add(0, MENU_CAST, 5, "Cast screen to TV");
@@ -1694,6 +1820,9 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         menu.add(0, MENU_EXIT, 10, "Exit (go off air and close)");
         menu.add(0, MENU_MORE, 8, "More… (everything else, grouped)");
         AnchorButton.add(this, menu); // shows while plugged in (or anchored): one tap sets or clears Anchored
+        if (needMenuButton()) { // a TV: the title bar has its own buttons and ⋮ list (tvBar), so nothing doubles up
+            for (int i = 0; i < menu.size(); i++) menu.getItem(i).setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER);
+        }
         return true;
     }
 
@@ -1902,6 +2031,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         sv.addView(box);
         shortcutsDlg = new android.app.AlertDialog.Builder(this).setTitle("Shortcuts").setView(sv)
                 .setNegativeButton("Close", null).show();
+        TvFocus.watch(shortcutsDlg.getWindow()); // its coloured rows hide the usual focus look
     }
 
     /** Shortcuts > Edit current layout: switch profile, edit the buttons (a copy you can change), pick the radio home's four. */
@@ -1983,7 +2113,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         for (int i = 0; i < secs.length; i++) if (secs[i] == prefs.blackAfterSec()) cur = i;
         final int[] pick = {cur};
         final android.widget.CheckBox btn = new android.widget.CheckBox(this);
-        btn.setText("Black screen button on the home screen");
+        btn.setText("Show the Black screen button (home screen and title bar)");
         btn.setChecked(prefs.blackScreenButton());
         new android.app.AlertDialog.Builder(this).setTitle("Black screen (double-tap to wake)")
                 .setSingleChoiceItems(names, cur, new DialogInterface.OnClickListener() {
@@ -2006,7 +2136,8 @@ public final class MainActivity extends Activity implements RadioService.Ui {
                             if (black != null) black.setVisibility(btn.isChecked() ? View.VISIBLE : View.GONE);
                         }
                         showBlackDot();
-                        invalidateOptionsMenu();
+                        invalidateOptionsMenu(); // the title bar button follows the tick too
+                        refreshTvBar();
                     }
                 })
                 .setNegativeButton(android.R.string.cancel, null).show();
@@ -2193,15 +2324,50 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         }
     }
 
-    private Menu lastMenu;    /** The whole menu as a list (TVs, where the overflow dots may not show). */
+    private Menu lastMenu;
+    static final String EXTRA_SHOW_MENU = "showMenu";
+
+    /**
+     * A TV (or TV box): it has a remote's Menu key and so no ⋮ dots in the title bar, so a ⋮ button is added and the
+     * Menu key opens the whole list. Only how the menu is reached changes: the screens and modes stay as on a phone.
+     */
+    private boolean needMenuButton() {
+        return TvActivity.isTv(this);
+    }
+
+    @Override
+    public boolean onKeyUp(int code, KeyEvent e) {
+        if (code == KeyEvent.KEYCODE_MENU && needMenuButton()) {
+            showMenuList();
+            return true;
+        }
+        return super.onKeyUp(code, e);
+    }
+
+    /** The whole menu as a list (TVs, where the overflow dots may not show). */
     private void showMenuList() {
-        final Menu m = lastMenu;
-        if (m == null) return;
+        Menu m = lastMenu;
+        if (m == null) {
+            invalidateOptionsMenu();
+            m = lastMenu;
+        }
+        if (m == null) { // the title bar menu was never built (seen on Android TV): build one just for the list
+            m = new android.widget.PopupMenu(this, getWindow().getDecorView()).getMenu();
+            onCreateOptionsMenu(m);
+        }
         onPrepareOptionsMenu(m);
         final java.util.List<MenuItem> items = new java.util.ArrayList<MenuItem>();
         for (int i = 0; i < m.size(); i++) {
             MenuItem it = m.getItem(i);
             if (it.isVisible() && it.isEnabled() && it.getItemId() != MENU_TV_MENU) items.add(it);
+        }
+        for (int i = items.size() - 1; i >= 0; i--) { // the title bar Chat and the menu Chat: once in the list
+            for (int j = 0; j < i; j++) {
+                if (String.valueOf(items.get(j).getTitle()).equals(String.valueOf(items.get(i).getTitle()))) {
+                    items.remove(i);
+                    break;
+                }
+            }
         }
         java.util.Collections.sort(items, new java.util.Comparator<MenuItem>() {
             @Override
@@ -2211,7 +2377,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         });
         String[] names = new String[items.size()];
         for (int i = 0; i < names.length; i++) names[i] = String.valueOf(items.get(i).getTitle());
-        new android.app.AlertDialog.Builder(this)
+        TvFocus.watch(new android.app.AlertDialog.Builder(this)
                 .setTitle("Menu")
                 .setItems(names, new android.content.DialogInterface.OnClickListener() {
                     @Override
@@ -2219,7 +2385,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
                         onOptionsItemSelected(items.get(which));
                     }
                 })
-                .show();
+                .show().getWindow());
     }
 
     @Override
@@ -2249,7 +2415,11 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         boolean adv = prefs.appMode() == Prefs.MODE_ADVANCED;
         MenuItem ht = menu.findItem(MENU_HOME_TOGGLE);
         // Map / buttons home: every mode with a home screen (the simple modes too), not intercom or the commander view.
-        if (ht != null) ht.setVisible(prefs.appMode() != Prefs.MODE_INTERCOM && !commander());
+        if (ht != null) {
+            ht.setVisible(prefs.appMode() != Prefs.MODE_INTERCOM && (!commander() || wideLandscape()));
+            ht.setTitle(!wideLandscape() ? "Map / buttons home" : builtCommander ? "Home view: commander (next: map)"
+                    : mapHome ? "Home view: map (next: buttons)" : "Home view: buttons (next: commander)");
+        }
         MenuItem sc = menu.findItem(MENU_SHORTCUTS);
         if (sc != null) {
             sc.setVisible(prefs.appMode() != Prefs.MODE_INTERCOM);
@@ -2262,7 +2432,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         MenuItem tc = menu.findItem(MENU_TOP_CHAT);
         if (tc != null) tc.setVisible(adv);
         // The title bar Black screen button: every mode with a home screen (not intercom).
-        if (tb != null) tb.setVisible(prefs.appMode() != Prefs.MODE_INTERCOM);
+        if (tb != null) tb.setVisible(prefs.appMode() != Prefs.MODE_INTERCOM && prefs.blackScreenButton()); // the Black screen tick hides it
         MenuItem st = menu.findItem(MENU_STREAMS);
         if (st != null) st.setVisible(prefs.streamsEnabled()); // Settings: Internet audio
         // Specialised menus: only when ticked (Settings > Advanced and Region features, or a setup QR code).
@@ -2613,7 +2783,18 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         } else if (id == MENU_NOMAD) {
             startActivity(new Intent(this, NomadActivity.class));
         } else if (id == MENU_HOME_TOGGLE) {
-            prefs.setHomeMap(!mapHome);
+            // Map home -> buttons home -> commander view (wide landscape screens such as a TV) -> map home…
+            android.content.SharedPreferences sp = getSharedPreferences("settings", MODE_PRIVATE);
+            if (builtCommander) {
+                sp.edit().putBoolean("homeCommander", false).commit();
+                prefs.setHomeMap(true);
+            } else if (mapHome) {
+                prefs.setHomeMap(false);
+            } else if (wideLandscape()) {
+                sp.edit().putBoolean("homeCommander", true).commit();
+            } else {
+                prefs.setHomeMap(true);
+            }
             recreate();
         } else if (id == MENU_MORE) {
             showMore();
@@ -2869,14 +3050,14 @@ public final class MainActivity extends Activity implements RadioService.Ui {
                     @Override
                     public void onClick(android.content.DialogInterface d, int w) {
                         prefs.setBurstVoice(true);
-                        next.run();
+                        wizardRecord(next);
                     }
                 })
                 .setNegativeButton("Use live voice", new android.content.DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(android.content.DialogInterface d, int w) {
                         prefs.setBurstVoice(false);
-                        next.run();
+                        wizardRecord(next);
                     }
                 })
                 .show();
@@ -3168,7 +3349,12 @@ public final class MainActivity extends Activity implements RadioService.Ui {
                 .setPositiveButton("Done", new android.content.DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(android.content.DialogInterface d, int w) {
-                        askBlackScreenOnce();
+                        if (wizardBlackChanged) { // the home screen's Black screen button, chosen in the wizard
+                            wizardBlackChanged = false;
+                            recreate();
+                        } else {
+                            askBlackScreenOnce();
+                        }
                     }
                 })
                 .setNeutralButton("Setup QR for the next device", new android.content.DialogInterface.OnClickListener() {
@@ -3233,6 +3419,66 @@ public final class MainActivity extends Activity implements RadioService.Ui {
     private void askRecordAllOnce() {
         final android.content.SharedPreferences sp = getSharedPreferences("settings", MODE_PRIVATE);
         if (sp.getBoolean("recordPromptShown", false) || (setupAsk != null && setupAsk.isShowing())) return;
+        recordDialog(null);
+    }
+
+    /** Setup wizard, after the voice page: Record all voice, then the black screen; nothing pops up after the wizard. */
+    private void wizardRecord(final Runnable next) {
+        recordDialog(new Runnable() {
+            @Override
+            public void run() {
+                wizardBlack(next);
+            }
+        });
+    }
+
+    private boolean wizardBlackChanged;
+
+    /** Setup wizard: the black screen question (once answered here, it is not asked again after setup). */
+    private void wizardBlack(final Runnable next) {
+        final android.content.SharedPreferences sp = getSharedPreferences("settings", MODE_PRIVATE);
+        if (sp.getBoolean("blackPromptShown", false) || prefs.appMode() == Prefs.MODE_INTERCOM) {
+            next.run();
+            return;
+        }
+        sp.edit().putBoolean("blackPromptShown", true).commit();
+        new android.app.AlertDialog.Builder(this)
+                .setTitle("Keep the app on screen (black screen)")
+                .setMessage("For live voice and messages, leave this app open on screen. The black screen turns the "
+                        + "display black with the backlight off while the app stays in front and on air; double-tap "
+                        + "to wake it.\n\nIf the app is closed, or another app is in front, Android may pause it and "
+                        + "live voice might be missed; messages are caught up when you come back.\n\nUse the black screen?")
+                .setPositiveButton("After 1 min without a touch", new android.content.DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(android.content.DialogInterface d, int w) {
+                        prefs.setBlackAfterSec(60);
+                        prefs.setBlackScreenButton(true);
+                        prefs.setBlackAccepted();
+                        wizardBlackChanged = true;
+                        next.run();
+                    }
+                })
+                .setNeutralButton("Just a button", new android.content.DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(android.content.DialogInterface d, int w) {
+                        prefs.setBlackScreenButton(true);
+                        prefs.setBlackAccepted();
+                        wizardBlackChanged = true;
+                        next.run();
+                    }
+                })
+                .setNegativeButton("Not now", new android.content.DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(android.content.DialogInterface d, int w) {
+                        next.run();
+                    }
+                })
+                .setCancelable(false)
+                .show();
+    }
+
+    private void recordDialog(final Runnable next) {
+        final android.content.SharedPreferences sp = getSharedPreferences("settings", MODE_PRIVATE);
         sp.edit().putBoolean("recordPromptShown", true).commit();
         final android.widget.CheckBox box = new android.widget.CheckBox(this);
         box.setText(R.string.record_all);
@@ -3267,7 +3513,8 @@ public final class MainActivity extends Activity implements RadioService.Ui {
                                 if (s != Prefs.SLOT_PUBLIC && s != Prefs.SLOT_OPENMANET) prefs.setChannelCatchUp(s, missed.isChecked());
                             }
                         }
-                        Toast.makeText(MainActivity.this, box.isChecked() ? "Recording all voice (Settings to change)"
+                        if (next != null) next.run();
+                        else Toast.makeText(MainActivity.this, box.isChecked() ? "Recording all voice (Settings to change)"
                                 : "Not recording all voice (Settings to change)", Toast.LENGTH_SHORT).show();
                     }
                 })
@@ -3278,7 +3525,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
     /** Role first: what this device is for. Phone radio goes on to the group type; the others have fixed homes. */
     private void wizardRole() {
         final int[] pick = {prefs.roleIndex()};
-        new android.app.AlertDialog.Builder(this)
+        keepButtons(new android.app.AlertDialog.Builder(this)
                 .setTitle("What is this device for?")
                 .setCancelable(false)
                 .setSingleChoiceItems(RoleDefaults.roleList(this), pick[0], new android.content.DialogInterface.OnClickListener() {
@@ -3317,7 +3564,31 @@ public final class MainActivity extends Activity implements RadioService.Ui {
                         }
                     }
                 })
-                .show();
+                .show());
+    }
+
+    /**
+     * A long list can push a dialog's buttons off a short, wide screen (a 1080p TV): then the list is cut down so
+     * Next shows. Where the buttons already show (phones), nothing changes.
+     */
+    static android.app.AlertDialog keepButtons(final android.app.AlertDialog dlg) {
+        final android.widget.ListView lv = dlg.getListView();
+        final android.widget.Button b = dlg.getButton(android.app.AlertDialog.BUTTON_POSITIVE);
+        if (lv == null || b == null) return dlg;
+        lv.post(new Runnable() {
+            @Override
+            public void run() {
+                int screen = dlg.getContext().getResources().getDisplayMetrics().heightPixels;
+                int[] at = new int[2];
+                b.getLocationOnScreen(at);
+                if (b.getHeight() > 0 && at[1] + b.getHeight() <= screen) return;
+                int want = Math.max(lv.getHeight() - Math.max(b.getHeight(), (int) (64 * dlg.getContext().getResources()
+                        .getDisplayMetrics().density)) - Math.max(0, at[1] + b.getHeight() - screen), screen / 3);
+                lv.getLayoutParams().height = want;
+                lv.requestLayout();
+            }
+        });
+        return dlg;
     }
 
     /** Quick button profiles offered in the wizard and their names (General first: the default). */
@@ -4059,6 +4330,19 @@ public final class MainActivity extends Activity implements RadioService.Ui {
             else if (ev.getAction() == KeyEvent.ACTION_UP) pttReleased();
             return true;
         }
+        if (tvShortcuts != null && code == KeyEvent.KEYCODE_DPAD_UP && ev.getAction() == KeyEvent.ACTION_DOWN
+                && !LightDiscipline.blackedOut(this)) {
+            // TV: Up from the top row of the screen goes to the title bar buttons.
+            View f = getCurrentFocus();
+            if (f != null && f.getParent() != tvShortcuts.getParent()) {
+                View n = f.focusSearch(View.FOCUS_UP);
+                if (n == null || n == f) {
+                    View first = tvShortcuts.getVisibility() == View.VISIBLE ? tvShortcuts
+                            : ((android.view.ViewGroup) tvShortcuts.getParent()).getChildAt(2);
+                    if (first.requestFocus()) return true;
+                }
+            }
+        }
         return super.dispatchKeyEvent(ev);
     }
 
@@ -4508,9 +4792,10 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         shownStatus = s * 2 + (vol ? 1 : 0);
         android.media.AudioManager am = (android.media.AudioManager) getSystemService(AUDIO_SERVICE);
         int ringer = am == null ? android.media.AudioManager.RINGER_MODE_NORMAL : am.getRingerMode();
+        // Turned all the way down: say why it is quiet, not a status the person never picked (tap offers volume up).
         statusButton.setText(!vol ? Contacts.statusName(s)
-                : ringer == android.media.AudioManager.RINGER_MODE_VIBRATE ? "Stealth (vibrate)"
-                : ringer == android.media.AudioManager.RINGER_MODE_SILENT ? "Stealth (silent)" : "Stealth (vol 0)");
+                : ringer == android.media.AudioManager.RINGER_MODE_VIBRATE ? "Vibrate: voice to Chat"
+                : ringer == android.media.AudioManager.RINGER_MODE_SILENT ? "Silent: voice to Chat" : "Volume 0: voice to Chat");
         statusButton.setTextColor(Contacts.statusColour(s, true));
     }
 
@@ -4519,8 +4804,27 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         final String[] names = {"Available", "Away: with the screen off the phone sleeps and checks in by itself; voice heard is also saved in Chat",
                 "Stealth: no sound, no ringing; saved in Chat" + (prefs.stealthVibrate() ? ", buzzes" : "")};
         int cur = prefs.status();
-        new android.app.AlertDialog.Builder(this)
-                .setTitle("My status (others see it in Contacts)")
+        android.app.AlertDialog.Builder b = new android.app.AlertDialog.Builder(this);
+        if (service != null && service.stealthFromVolume()) {
+            // Quiet only because the volume (or silent / vibrate) is all the way down: one tap turns it up.
+            b.setNeutralButton("Turn the volume up", new android.content.DialogInterface.OnClickListener() {
+                @Override
+                public void onClick(android.content.DialogInterface d, int w) {
+                    android.media.AudioManager am = (android.media.AudioManager) getSystemService(AUDIO_SERVICE);
+                    if (am == null) return;
+                    int st = org.communitycomms.app.audio.AudioLevels.voiceStream;
+                    try {
+                        if (am.getRingerMode() != android.media.AudioManager.RINGER_MODE_NORMAL)
+                            am.setRingerMode(android.media.AudioManager.RINGER_MODE_NORMAL);
+                    } catch (SecurityException e) { // Do not Disturb: Android keeps that for the person
+                        Toast.makeText(MainActivity.this, "Turn silent / Do not Disturb off in Android first", Toast.LENGTH_LONG).show();
+                    }
+                    int max = am.getStreamMaxVolume(st);
+                    am.setStreamVolume(st, Math.max(1, max * 2 / 3), android.media.AudioManager.FLAG_SHOW_UI);
+                }
+            });
+        }
+        b.setTitle("My status (others see it in Contacts)")
                 .setSingleChoiceItems(names, cur, new android.content.DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(android.content.DialogInterface d, int which) {

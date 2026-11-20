@@ -170,7 +170,7 @@
     <string name="page_data">Data and backups (mission, LAN storage, config backups, clearing data)…</string>
     <string name="page_tools">Tools (make a QR, scan a QR, open in browser)…</string>
     <string name="black_screen">Black screen</string>
-    <string name="black_screen_button">Show a Black screen button on the home screen</string>
+    <string name="black_screen_button">Show the Black screen button (home screen and title bar)</string>
     <string name="black_legacy">Legacy support, non zero brightness</string>
     <string name="black_legacy_note">Off: no light at all from the screen (backlight fully off, no hint text), to hide from night vision. Tick it only if double-tap does not wake an older device such as a Nexus 7: the screen is then black at the lowest backlight, so it gives off a little light.</string>
     <string name="black_screen_note">Black screen covers the whole screen in black with the backlight off, while the app stays on air. To get out of it: DOUBLE-TAP the screen, or press the power button. Hardware and Bluetooth PTT buttons keep working while it is black. The menu also has Blackout screen.</string>

@@ -239,6 +239,7 @@ final class ServerStatus {
             }
         });
         dlg.show();
+        TvFocus.watch(dlg.getWindow());
     }
 
     private static void runChecks(final Activity a, final LinearLayout rows, final TextView lan, final float d) {

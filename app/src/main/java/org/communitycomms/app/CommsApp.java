@@ -13,6 +13,10 @@ public final class CommsApp extends Application {
     public void onCreate() {
         super.onCreate();
         app = this;
+        if (TvActivity.isTv(this)) { // a TV plays voice through its speakers / HDMI (the media stream), not a call path
+            org.communitycomms.app.audio.AudioLevels.tv = true;
+            org.communitycomms.app.audio.AudioLevels.voiceStream = android.media.AudioManager.STREAM_MUSIC;
+        }
         Prefs.migrateUiReorg(this); // once: phones already set up keep their home screen; role worked out
         org.communitycomms.app.geo.FakeGps.init(this);
         Cw.restore(this); // CW mode survives a restart or a crash
@@ -37,6 +41,7 @@ public final class CommsApp extends Application {
         RadioEngine.shareLocationPublic = p.shareLocationPublic(); // off by default: no location to Public / cloud groups
         registerActivityLifecycleCallbacks(new IntercomReturn());
         registerActivityLifecycleCallbacks(new FocusCatchUp());
+        registerActivityLifecycleCallbacks(new TvFocus()); // gold frame on the remote / D-pad focus
     }
 
     /**

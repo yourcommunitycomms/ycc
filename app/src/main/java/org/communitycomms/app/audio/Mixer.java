@@ -95,7 +95,7 @@ public final class Mixer {
         int bufBytes = Math.max(min, frameSamples * 2 * 4 * (stereo ? 2 : 1));
         // Voice-call stream so the platform echo canceller sees what we play while the mic is open.
         // The call path is mono on most phones, so stereo (one channel per ear) uses the media stream.
-        AudioTrack track = new AudioTrack(stereo ? AudioManager.STREAM_MUSIC : AudioManager.STREAM_VOICE_CALL,
+        AudioTrack track = new AudioTrack(stereo ? AudioManager.STREAM_MUSIC : AudioLevels.voiceStream,
                 sampleRate, chans, AudioFormat.ENCODING_PCM_16BIT, bufBytes, AudioTrack.MODE_STREAM);
         if (track.getState() != AudioTrack.STATE_INITIALIZED) {
             Log.e(TAG, "AudioTrack failed to initialise");

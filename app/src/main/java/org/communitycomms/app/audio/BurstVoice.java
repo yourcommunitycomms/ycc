@@ -263,7 +263,7 @@ public final class BurstVoice {
     /** Two short high beeps, like an old phone's call waiting (on the call stream, quietly). */
     private static void callWaitingTone() {
         try {
-            final android.media.ToneGenerator tg = new android.media.ToneGenerator(AudioManager.STREAM_VOICE_CALL, 60);
+            final android.media.ToneGenerator tg = new android.media.ToneGenerator(AudioLevels.voiceStream, 60);
             tg.startTone(android.media.ToneGenerator.TONE_SUP_CALL_WAITING, 600);
             main.postDelayed(new Runnable() {
                 @Override
@@ -284,7 +284,7 @@ public final class BurstVoice {
         }
         try {
             MediaPlayer mp = new MediaPlayer();
-            mp.setAudioStreamType(AudioManager.STREAM_VOICE_CALL); // same path as live voice (headset, earpiece…)
+            mp.setAudioStreamType(AudioLevels.voiceStream); // same path as live voice (headset, earpiece…)
             mp.setDataSource(f.getPath());
             final File played = f;
             mp.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {

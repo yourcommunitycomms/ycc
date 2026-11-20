@@ -11,6 +11,13 @@ public final class AudioLevels {
     public static volatile boolean muted;
     /** Audio page: left and right swapped in stereo listening (headphones worn the other way, or a wiring quirk). */
     public static volatile boolean swapLeftRight;
+    /**
+     * The stream voice is played on: the in-call stream on phones (echo cancelling, earpiece or speaker), the media
+     * stream on a TV, which has no call path (the in-call stream there may sit at its lowest or go nowhere).
+     */
+    public static volatile int voiceStream = android.media.AudioManager.STREAM_VOICE_CALL;
+    /** A TV: no in-call audio mode either. */
+    public static volatile boolean tv;
 
     private AudioLevels() {
     }
