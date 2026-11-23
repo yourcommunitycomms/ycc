@@ -27,9 +27,14 @@ public final class Mixer {
         int lastSeq;
         boolean hasSeq;
         long lastHeardMs;
+        /** Adaptive buffers: this talker's current start level (grows after an underrun mid-talk). */
+        int prime;
+        long playingSinceMs;
     }
 
     private final int frameSamples;
+    /** Start level and the most it may grow to (both PRIME_FRAMES for normal channels: a fixed buffer). */
+    private final int primeMin, primeMax, maxFrames;
     private final Map<Long, Stream> streams = new HashMap<Long, Stream>();
     private final Thread thread;
     private volatile boolean running = true;
@@ -43,8 +48,20 @@ public final class Mixer {
     }
 
     public Mixer(final int sampleRate, int frameSamples, int pan) {
+        this(sampleRate, frameSamples, pan, PRIME_FRAMES, PRIME_FRAMES);
+    }
+
+    /**
+     * An adaptive buffer: each talker starts after primeMin frames; an underrun while they are still talking
+     * (the network fell behind) raises their start level towards primeMax, so a lossy, slow link (a MANET
+     * hop) trades a little delay for unbroken speech.
+     */
+    public Mixer(final int sampleRate, int frameSamples, int pan, int primeMin, int primeMax) {
         this.frameSamples = frameSamples;
         this.pan = pan;
+        this.primeMin = primeMin;
+        this.primeMax = Math.max(primeMin, primeMax);
+        this.maxFrames = Math.max(MAX_FRAMES, this.primeMax + 15);
         thread = new Thread(new Runnable() {
             @Override
             public void run() {
@@ -68,15 +85,21 @@ public final class Mixer {
             Stream s = streams.get(sender);
             if (s == null) {
                 s = new Stream();
+                s.prime = primeMin;
                 streams.put(sender, s);
             }
             if (s.hasSeq && seq - s.lastSeq <= 0) return;
             s.hasSeq = true;
             s.lastSeq = seq;
-            s.lastHeardMs = System.currentTimeMillis();
+            long now = System.currentTimeMillis();
+            if (now - s.lastHeardMs > 3000) s.prime = primeMin; // a new transmission starts from the low level again
+            s.lastHeardMs = now;
             s.frames.addLast(pcm);
-            while (s.frames.size() > MAX_FRAMES) s.frames.removeFirst();
-            if (s.frames.size() >= PRIME_FRAMES) s.primed = true;
+            while (s.frames.size() > maxFrames) s.frames.removeFirst();
+            if (!s.primed && s.frames.size() >= s.prime) {
+                s.primed = true;
+                s.playingSinceMs = now;
+            }
         }
     }
 
@@ -123,6 +146,8 @@ public final class Mixer {
                             short[] f = s.frames.pollFirst();
                             if (f == null) {
                                 s.primed = false; // underrun: rebuffer
+                                // Still talking (heard in the last half second): the buffer was too small for this link.
+                                if (now - s.lastHeardMs < 500 && s.prime < primeMax) s.prime = Math.min(primeMax, s.prime + 5);
                             } else {
                                 int n = Math.min(f.length, frameSamples);
                                 for (int i = 0; i < n; i++) acc[i] += f[i];

@@ -59,7 +59,7 @@ public final class LanTiles {
     }
 
     /**
-     * Is this tile source satellite photos? Named sets in the cache (e.g. "ATAK Home") are satellite
+     * Is this tile source satellite photos? Named sets in the cache (e.g. "TAK Home") are satellite
      * JPEGs, so they only fill in for a satellite source: on a street or topographic map they would
      * make a patchwork of two kinds of map.
      */
@@ -173,7 +173,7 @@ public final class LanTiles {
     }
 
     /**
-     * Named tile sets in the maps cache folder (e.g. "ATAK Home", a set made for ATAK or copied in), as
+     * Named tile sets in the maps cache folder (e.g. "TAK Home", a set made for TAK or copied in), as
      * opposed to the per-source folders the app fills itself (name-hash, e.g. tile.openstreetmap.org-3d0cdf)
      * and helper folders starting with _. Read from the server's folder listing; empty if it has none.
      */

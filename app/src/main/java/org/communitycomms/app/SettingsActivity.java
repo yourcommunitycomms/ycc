@@ -77,10 +77,12 @@ public final class SettingsActivity extends Activity {
         channelA.setText(prefs.channel(Prefs.SLOT_A));
         channelB.setText(prefs.channel(Prefs.SLOT_B));
         openManet.setText(prefs.channel(Prefs.SLOT_OPENMANET));
+        setupOpenManetChannel();
         port.setText(String.valueOf(prefs.port()));
         peers.setText(prefs.extraPeers());
         netMode.check(prefs.netMode() == Prefs.NET_MULTICAST ? R.id.net_multicast : R.id.net_broadcast);
         latch.setChecked(prefs.latch());
+        setupFloatPtt();
         announce.setChecked(prefs.announcePoi());
         catchUp.setChecked(prefs.catchUp());
         every.setText(String.valueOf(prefs.catchUpEveryMin()));
@@ -527,6 +529,58 @@ public final class SettingsActivity extends Activity {
         });
         final CheckBox atak = (CheckBox) findViewById(R.id.atak_on);
         final android.content.SharedPreferences sset = getSharedPreferences("settings", MODE_PRIVATE);
+        final CheckBox pos = (CheckBox) findViewById(R.id.atak_pos);
+        pos.setChecked(sset.getBoolean("atakPosition", false));
+        pos.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(CompoundButton bt, boolean on) {
+                sset.edit().putBoolean("atakPosition", on).commit();
+            }
+        });
+        final CheckBox nodes = (CheckBox) findViewById(R.id.atak_nodes);
+        nodes.setChecked(sset.getBoolean("atakNodes", false));
+        nodes.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(CompoundButton bt, boolean on) {
+                sset.edit().putBoolean("atakNodes", on).commit();
+                if (on && !sset.getBoolean("atakOn", false)) android.widget.Toast.makeText(SettingsActivity.this,
+                        "Also tick Enable TAK compatible: the nodes go out with this phone's TAK position", android.widget.Toast.LENGTH_LONG).show();
+                if (on && !MeshControllerActivity.featureOn(SettingsActivity.this)) android.widget.Toast.makeText(SettingsActivity.this,
+                        "The node list comes from the Mesh controller: scan there first", android.widget.Toast.LENGTH_LONG).show();
+            }
+        });
+        final CheckBox vx = (CheckBox) findViewById(R.id.vx_data);
+        vx.setChecked(sset.getBoolean("vxDataOn", true));
+        vx.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(CompoundButton bt, boolean on) {
+                sset.edit().putBoolean("vxDataOn", on).commit();
+                RadioService rs = RadioService.instance();
+                CompatVoice cv = rs == null ? null : rs.compat();
+                if (cv != null) { // on the OpenMANET* channel now: apply straight away
+                    if (on) {
+                        java.net.NetworkInterface ni = null;
+                        try {
+                            String n = prefs.netInterface();
+                            ni = n.length() == 0 ? null : java.net.NetworkInterface.getByName(n);
+                        } catch (Exception ignored) {
+                        }
+                        final java.net.NetworkInterface fni = ni;
+                        final String g = cv.describe();
+                        new Thread(new Runnable() {
+                            @Override
+                            public void run() {
+                                VxData.start(getApplicationContext(), g, fni);
+                            }
+                        }).start();
+                    } else {
+                        VxData.stop();
+                    }
+                }
+                if (on) android.widget.Toast.makeText(SettingsActivity.this, "TAK Vx users show by callsign on the OpenMANET* channel; "
+                        + "Vx phones see your callsign. Not encrypted.", android.widget.Toast.LENGTH_LONG).show();
+            }
+        });
         atak.setChecked(sset.getBoolean("atakOn", false));
         atak.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
             @Override
@@ -537,18 +591,19 @@ public final class SettingsActivity extends Activity {
                 }
                 if (sset.getBoolean("atakOn", false)) return;
                 new android.app.AlertDialog.Builder(SettingsActivity.this)
-                        .setTitle("ATAK compatible: not encrypted")
-                        .setMessage("This phone will talk the way ATAK does on a mesh, in plain text that anyone on the "
+                        .setTitle("TAK compatible: not encrypted")
+                        .setMessage("This phone will talk the way TAK does on a mesh, in plain text that anyone on the "
                                 + "network can read:\n\n"
-                                + "- your callsign and position go out every 30 seconds (239.2.3.1:6969)\n"
-                                + "- what you write on the Public channel goes to ATAK's All Chat Rooms (224.10.10.1:17012)\n\n"
-                                + "ATAK users then show on your map and their chat in Chat. Your private channels, voice and "
-                                + "DRYAD stay encrypted and never go to ATAK.")
+                                + "- your callsign goes out every 30 seconds (239.2.3.1:6969); your position only if you also "
+                                + "tick Share my location with TAK (OpenMANET channel settings, off by default)\n"
+                                + "- what you write on the Public channel goes to TAK's All Chat Rooms (224.10.10.1:17012)\n\n"
+                                + "TAK users then show on your map and their chat in Chat. Your private channels, voice and "
+                                + "DRYAD stay encrypted and never go to TAK.")
                         .setPositiveButton("Turn on", new android.content.DialogInterface.OnClickListener() {
                             @Override
                             public void onClick(android.content.DialogInterface d, int w) {
                                 sset.edit().putBoolean("atakOn", true).commit();
-                                prefs.burstOffFor("ATAK compatibility");
+                                prefs.burstOffFor("TAK compatibility");
                             }
                         })
                         .setNegativeButton(android.R.string.cancel, new android.content.DialogInterface.OnClickListener() {
@@ -1882,6 +1937,92 @@ public final class SettingsActivity extends Activity {
      * settable by a setup QR code, in three groups (the obscure ones behind More…), plus the Advanced setup list.
      * Ticking one that needs setting up offers its setup.
      */
+    /** Floating PTT button over other apps: Off / When not in YCC / Always; asks for "Display over other apps". */
+    private void setupFloatPtt() {
+        final android.widget.Button b = (android.widget.Button) findViewById(R.id.float_ptt);
+        if (b == null) return;
+        final Runnable show = new Runnable() {
+            @Override
+            public void run() {
+                int m = FloatingPtt.mode(SettingsActivity.this);
+                b.setText("Floating PTT button over other apps: " + FloatingPtt.MODES[m]
+                        + (m != FloatingPtt.OFF && !FloatingPtt.canDraw(SettingsActivity.this) ? " (needs Display over other apps: tap)" : ""));
+            }
+        };
+        show.run();
+        b.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                new android.app.AlertDialog.Builder(SettingsActivity.this).setTitle("Floating PTT button")
+                        .setSingleChoiceItems(FloatingPtt.MODES, FloatingPtt.mode(SettingsActivity.this), new android.content.DialogInterface.OnClickListener() {
+                            @Override
+                            public void onClick(android.content.DialogInterface d, int which) {
+                                FloatingPtt.setMode(SettingsActivity.this, which);
+                                d.dismiss();
+                                show.run();
+                                if (which != FloatingPtt.OFF && !FloatingPtt.canDraw(SettingsActivity.this)) {
+                                    android.widget.Toast.makeText(SettingsActivity.this, "Allow \"Display over other apps\" for YCC, then come back",
+                                            android.widget.Toast.LENGTH_LONG).show();
+                                    FloatingPtt.askDraw(SettingsActivity.this);
+                                }
+                            }
+                        }).setNegativeButton("Cancel", null).show();
+            }
+        });
+    }
+
+    /** OpenMANET talk group: "Change channel…" picks channel 1-32 (openmanetd's port plan), shown under the box. */
+    private void setupOpenManetChannel() {
+        final TextView label = (TextView) findViewById(R.id.openmanet_channel_label);
+        final Runnable show = new Runnable() {
+            @Override
+            public void run() {
+                String g = openManet.getText().toString().trim();
+                if (g.length() == 0) g = Prefs.OPENMANET_DEFAULT_GROUP;
+                label.setText("Now: " + CompatVoice.channelLabel(g));
+            }
+        };
+        show.run();
+        openManet.addTextChangedListener(new android.text.TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int a, int b, int c) {
+            }
+
+            @Override
+            public void onTextChanged(CharSequence s, int a, int b, int c) {
+            }
+
+            @Override
+            public void afterTextChanged(android.text.Editable e) {
+                show.run();
+            }
+        });
+        findViewById(R.id.openmanet_channel).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                final String[] items = new String[CompatVoice.CHANNELS + 2];
+                items[0] = "TAK Vx default  (" + CompatVoice.ATAK_VX_DEFAULT + ")";
+                items[1] = "Custom address:port (type it in the box)";
+                for (int n = 1; n <= CompatVoice.CHANNELS; n++) {
+                    items[n + 1] = "OpenMANET channel " + n + "  (port " + CompatVoice.portFor(n) + ")"
+                            + (n <= 5 ? "  · on OpenMANET nodes" : "");
+                }
+                new android.app.AlertDialog.Builder(SettingsActivity.this).setTitle("OpenMANET / TAK talk group")
+                        .setItems(items, new android.content.DialogInterface.OnClickListener() {
+                            @Override
+                            public void onClick(android.content.DialogInterface d, int which) {
+                                if (which == 0) openManet.setText(CompatVoice.ATAK_VX_DEFAULT);
+                                else if (which == 1) {
+                                    openManet.requestFocus();
+                                    openManet.selectAll();
+                                } else openManet.setText(CompatVoice.ADDRESS + ":" + CompatVoice.portFor(which - 1));
+                                show.run();
+                            }
+                        }).setNegativeButton("Cancel", null).show();
+            }
+        });
+    }
+
     private void addSpecialisedMenus() {
         final android.widget.LinearLayout sec = (android.widget.LinearLayout) findViewById(R.id.sec_features);
         if (sec == null || sec.findViewWithTag("specialised") != null) return;
@@ -1897,7 +2038,7 @@ public final class SettingsActivity extends Activity {
         sec.addView(note);
         Button setup = new Button(this);
         setup.setAllCaps(false);
-        setup.setText("Advanced setup (Cloud Server, cloud group, tunnel, LAN server, cameras, batteries, ATAK)…");
+        setup.setText("Advanced setup (Cloud Server, cloud group, tunnel, LAN server, cameras, batteries, TAK)…");
         setup.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {

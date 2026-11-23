@@ -248,6 +248,7 @@ final class ContactsPanel {
         if (st.length() > 0) sb.append("  ").append(st);
         sb.setSpan(new ForegroundColorSpan(Contacts.statusColour(c.status, on)), 0, sb.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
         burstBadge(sb, c, 2 + c.name.length());
+        outsideBadge(sb, c, 2 + c.name.length());
         if (c.battery >= 0) sb.append(" · ").append(String.valueOf(c.battery)).append('%');
         bluettiBadge(sb, c);
         if (c.hasFix() && me != null) {
@@ -276,6 +277,8 @@ final class ContactsPanel {
         sb.setSpan(new ForegroundColorSpan(Contacts.statusColour(c.status, on)), start, sb.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
         sb.setSpan(new RelativeSizeSpan(1.15f), start, sb.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
         burstBadge(sb, c, start + 2 + c.name.length());
+        outsideBadge(sb, c, start + 2 + c.name.length());
+        if (VxData.outside(c)) sb.append("\nNot encrypted · half duplex · voice only (tap for details)");
         sb.append("\nlast seen ").append(c.lastSeenMs == 0 ? "never" : Geo.age(now - c.lastSeenMs));
         if (c.heardOn.length() > 0) sb.append(" on ").append(c.heardOn);
         if (c.battery >= 0) sb.append(" · battery ").append(String.valueOf(c.battery)).append('%');
@@ -352,6 +355,24 @@ final class ContactsPanel {
                     : new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
             LinearLayout buttons = new LinearLayout(a);
             buttons.setGravity(android.view.Gravity.END);
+            if (VxData.outside(c)) { // TAK Vx / OpenMANET: voice on the talk group only, so no message, call or path
+                buttons.addView(small("Details", new Runnable() {
+                    @Override
+                    public void run() {
+                        details(c);
+                    }
+                }));
+                if (!small && !locked()) buttons.addView(small("Remove", new Runnable() {
+                    @Override
+                    public void run() {
+                        confirmRemove(c);
+                    }
+                }), 0);
+                row.addView(buttons, new LinearLayout.LayoutParams(small ? LinearLayout.LayoutParams.WRAP_CONTENT
+                        : LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+                row.setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);
+                return row;
+            }
             buttons.addView(small(small ? "Msg" : "Message", new Runnable() {
                 @Override
                 public void run() {
@@ -512,7 +533,32 @@ final class ContactsPanel {
                 .show();
     }
 
+    /** TAK Vx / OpenMANET contacts: an amber "!" after the name (not encrypted, half duplex, voice only). */
+    private static void outsideBadge(SpannableStringBuilder sb, Contacts.Contact c, int at) {
+        if (!VxData.outside(c) || at > sb.length()) return;
+        String b = " !";
+        sb.insert(at, b);
+        sb.setSpan(new ForegroundColorSpan(0xffffb300), at, at + b.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        sb.setSpan(new android.text.style.StyleSpan(android.graphics.Typeface.BOLD), at, at + b.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+    }
+
     private void details(final Contacts.Contact c) {
+        if (VxData.outside(c)) { // what this TAK / OpenMANET contact shares, before the usual actions
+            new android.app.AlertDialog.Builder(a).setTitle("! " + c.name)
+                    .setMessage(VxData.details(c))
+                    .setPositiveButton("OK", null)
+                    .setNeutralButton("Actions…", new android.content.DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(android.content.DialogInterface d, int w) {
+                            actions(c);
+                        }
+                    }).show();
+            return;
+        }
+        actions(c);
+    }
+
+    private void actions(final Contacts.Contact c) {
         final boolean locked = locked();
         List<String> actions = new ArrayList<String>();
         final List<Runnable> run = new ArrayList<Runnable>();

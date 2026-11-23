@@ -533,6 +533,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
     protected void onResume() {
         super.onResume();
         anchorWatch = AnchorButton.watch(this);
+        screenTimeoutHint();
         if (wantMapHome() != mapHome || (wantMapHome() && commander()) != builtCommander) {
             recreate(); // the role or home screen changed in Settings: the new layout at once, no restart
             return;
@@ -561,6 +562,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         View chal = findViewById(R.id.challenge_btn);
         if (chal != null) chal.setVisibility(prefs.appMode() == Prefs.MODE_ADVANCED ? View.VISIBLE : View.GONE);
         restartBlackTimer();
+        offerOpenManet();
         // Intercom mode: the intercom screen sits on top; this screen keeps running the radio.
         if (prefs.appMode() == Prefs.MODE_INTERCOM && !IntercomActivity.showFullRadio && prefs.setupDone()) {
             // Always on the private (intercom) channel, joined whatever "rejoin on start" says.
@@ -1290,7 +1292,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
                 final int q = i < pick.size() ? pick.get(i) : -1;
                 b.setVisibility(q < 0 ? View.INVISIBLE : View.VISIBLE);
                 boolean sharing = q >= 0 && quickItems.get(q).kind == org.communitycomms.app.geo.QuickProfiles.KIND_SHARE
-                        && service != null && service.rapidShareLeftMs() > 0;
+                        && service != null && (service.rapidShareLeftMs() > 0 || service.takSharing());
                 b.setText(sharing ? "Stop sharing" : q >= 0 ? quickItems.get(q).label : "");
                 b.setOnClickListener(new View.OnClickListener() {
                     @Override
@@ -1309,7 +1311,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
             final int q = i < direct ? i : (i == direct && more ? QUICK_MORE : -1);
             b.setVisibility(q == -1 ? (mapHome ? View.GONE : View.INVISIBLE) : View.VISIBLE);
             boolean sharing = q >= 0 && quickItems.get(q).kind == org.communitycomms.app.geo.QuickProfiles.KIND_SHARE
-                    && service != null && service.rapidShareLeftMs() > 0;
+                    && service != null && (service.rapidShareLeftMs() > 0 || service.takSharing());
             b.setText(q == QUICK_MORE ? (mapHome ? "Mark…" : "More…") : sharing ? "Stop sharing" : q >= 0 ? quickItems.get(q).label : "");
             b.setOnClickListener(new View.OnClickListener() {
                 @Override
@@ -1521,8 +1523,9 @@ public final class MainActivity extends Activity implements RadioService.Ui {
     };
 
     private void toggleRapidShare() {
+        if (ShareLocation.omTak(this)) return; // OM/TAK: to TAK, after asking
         if (service == null || service.engine() == null) {
-            Toast.makeText(this, "Join a channel first (not available on OpenMANET*)", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Join a channel first", Toast.LENGTH_SHORT).show();
             return;
         }
         if (service.rapidShareLeftMs() > 0) {
@@ -1650,7 +1653,10 @@ public final class MainActivity extends Activity implements RadioService.Ui {
     private void renderShare() {
         Button b = (Button) findViewById(R.id.share_loc);
         long left = service == null ? 0 : service.rapidShareLeftMs();
-        if (left > 24 * 3600000L) { // "until stop" (4WD, convoy), until restart, or always
+        if (service != null && service.takSharing()) { // OM/TAK: to TAK every 30 s
+            b.setText(mapHome ? "Sharing" : "Sharing location with TAK (tap to stop)");
+            b.setTextColor(0xffa5d6a7);
+        } else if (left > 24 * 3600000L) { // "until stop" (4WD, convoy), until restart, or always
             String how = service.rapidShareAlways() ? "always" : service.rapidShareUntilRestart() ? "until restart" : "on";
             b.setText(mapHome ? "Sharing" : "Sharing location: " + how + " (tap for options)");
             b.setTextColor(0xffa5d6a7);
@@ -1685,9 +1691,38 @@ public final class MainActivity extends Activity implements RadioService.Ui {
     private int slot;
     private String lastStatus = "";
 
+    private android.app.AlertDialog omOffer;
+
+    /**
+     * OpenMANET* just turned on (or given a new talk group): it is its own channel, so offer to talk there now
+     * rather than leaving the phone on Public. Asked once per talk group.
+     */
+    private void offerOpenManet() {
+        if (!prefs.setupDone() || !prefs.showOpenManet() || prefs.appMode() == Prefs.MODE_INTERCOM) return;
+        final String group = prefs.openManetGroup().trim();
+        if (group.length() == 0 || slot == Prefs.SLOT_OPENMANET || (omOffer != null && omOffer.isShowing())) return;
+        final android.content.SharedPreferences sp = getSharedPreferences("settings", MODE_PRIVATE);
+        if (group.equals(sp.getString("omOffered", ""))) return;
+        sp.edit().putString("omOffered", group).commit();
+        omOffer = new android.app.AlertDialog.Builder(this)
+                .setTitle("OM/TAK channel")
+                .setMessage("OM/TAK (OpenMANET / TAK) is on, with talk group " + group + ". It is a channel of its own (not Public): "
+                        + "voice only, not encrypted, heard by OpenMANET Comms and TAK on the same talk group.\n\n"
+                        + "Talk on the OM/TAK channel now?")
+                .setPositiveButton("Switch to OpenMANET*", new android.content.DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(android.content.DialogInterface d, int w) {
+                        handleChannelAction(ChannelsActivity.JOIN, Prefs.SLOT_OPENMANET);
+                    }
+                })
+                .setNegativeButton("Stay on " + label(slot), null)
+                .show();
+        TvFocus.watch(omOffer.getWindow());
+    }
+
     /** "Channel A", "Channel D", "Public", "OpenMANET (experimental)". */
     static String label(int slot) {
-        return slot == Prefs.SLOT_PUBLIC ? "Public" : slot == Prefs.SLOT_OPENMANET ? "OpenMANET (experimental)"
+        return slot == Prefs.SLOT_PUBLIC ? "Public" : slot == Prefs.SLOT_OPENMANET ? "OM/TAK"
                 : slot == Prefs.SLOT_CLOUD ? "Cloud group" : "Channel " + Prefs.letter(slot);
     }
 
@@ -1725,7 +1760,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
     }
 
     /**
-     * Opens the OpenMANET node's own web UI (its Comms page talks to OpenMANET/ATAK Vx voice).
+     * Opens the OpenMANET node's own web UI (its Comms page talks to OpenMANET/TAK Vx voice).
      * The node is usually the WiFi gateway; the address can be edited.
      */
     @SuppressWarnings("deprecation")
@@ -1777,7 +1812,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
     private static final int MENU_DRYAD = 1, MENU_PIGPEN = 2, MENU_CHANNEL_QR = 3, MENU_SCAN = 4, MENU_FILES = 5,
             MENU_OPENMANET = 6, MENU_BLACKOUT = 7, MENU_RED = 8, MENU_SETTINGS = 9, MENU_CHAT = 10, MENU_AUDIO = 11, MENU_ABOUT = 12, MENU_EXIT = 13,
             MENU_STREAMS = 14, MENU_INTERCOM = 15, MENU_VIDEOS = 16, MENU_TV = 17, MENU_GATEWAY = 18,
-            MENU_HOME_TOGGLE = 19, MENU_TOP_CHAT = 20, MENU_TOP_BLACK = 21, MENU_NOMAD = 22, MENU_TV_MENU = 23, MENU_TASKS = 24, MENU_ARRAY = 25, MENU_REPORT_UP = 26, MENU_CAST = 27, MENU_CALENDAR = 28, MENU_RELAY_ADMIN = 29, MENU_BLUETTI = 30, MENU_SHORTCUTS = 31, MENU_MORE = 32;
+            MENU_HOME_TOGGLE = 19, MENU_TOP_CHAT = 20, MENU_TOP_BLACK = 21, MENU_NOMAD = 22, MENU_TV_MENU = 23, MENU_TASKS = 24, MENU_ARRAY = 25, MENU_REPORT_UP = 26, MENU_CAST = 27, MENU_CALENDAR = 28, MENU_RELAY_ADMIN = 29, MENU_BLUETTI = 30, MENU_SHORTCUTS = 31, MENU_MORE = 32, MENU_MESHCTL = 33;
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
@@ -1815,6 +1850,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         menu.add(0, MENU_CAST, 5, "Cast screen to TV");
         menu.add(0, MENU_CALENDAR, 2, "Calendar and notes");
         menu.add(0, MENU_RELAY_ADMIN, 6, "Relay admin");
+        menu.add(0, MENU_MESHCTL, 6, "Mesh controller (OpenMANET)");
         menu.add(0, MENU_BLUETTI, 2, "Battery power");
         menu.add(0, MENU_GATEWAY, 6, "OpenMANET internet gateway");
         menu.add(0, MENU_EXIT, 10, "Exit (go off air and close)");
@@ -1884,6 +1920,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
     }
 
     private String shareState() {
+        if (service != null && service.takSharing()) return "with TAK";
         long left = service == null ? 0 : service.rapidShareLeftMs();
         if (left > 24 * 3600000L) return service.rapidShareAlways() ? "always" : service.rapidShareUntilRestart() ? "until restart" : "on";
         if (left > 0) {
@@ -1944,7 +1981,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         if (blackDot()) blackRow.setCompoundDrawables(null, null, redDot(), null); // not looked at yet
         String[] qn = org.communitycomms.app.audio.BurstVoice.QUALITY_NAMES;
         stateRow(box, "Voice: " + (prefs.burstVoice() ? "burst mode, quality " + qn[Math.max(0, Math.min(qn.length - 1, prefs.burstQuality()))]
-                : "live" + (prefs.burstBlocked() ? " (ATAK / OpenMANET on)" : "")) + "  ›", new Runnable() {
+                : "live" + (prefs.burstBlocked() ? " (TAK / OpenMANET on)" : "")) + "  ›", new Runnable() {
             @Override
             public void run() {
                 chooseVoice();
@@ -2074,7 +2111,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
                 .setNegativeButton("Close", null).show();
     }
 
-    /** Shortcuts > Voice: burst (with its quality) or live. Burst is not offered while ATAK or OpenMANET is on. */
+    /** Shortcuts > Voice: burst (with its quality) or live. Burst is not offered while TAK or OpenMANET is on. */
     private void chooseVoice() {
         final String[] qn = org.communitycomms.app.audio.BurstVoice.QUALITY_NAMES;
         final String[] items = new String[qn.length + 1];
@@ -2083,7 +2120,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         int cur = prefs.burstVoice() ? 1 + Math.max(0, Math.min(qn.length - 1, prefs.burstQuality())) : 0;
         if (prefs.burstBlocked()) {
             new android.app.AlertDialog.Builder(this).setTitle("Voice: live")
-                    .setMessage("Burst mode can't be used while ATAK compatibility or OpenMANET is on: they need live voice. "
+                    .setMessage("Burst mode can't be used while TAK compatibility or OpenMANET is on: they need live voice. "
                             + "Turn them off in Settings > Advanced and Region features to use burst mode.")
                     .setPositiveButton(android.R.string.ok, null).show();
             return;
@@ -2244,7 +2281,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
 
     /** Menu items that live on the More screen instead of the overflow menu. */
     private static final int[] MORE_IDS = {MENU_AUDIO, MENU_STREAMS, MENU_FILES, MENU_TASKS, MENU_CALENDAR, MENU_ARRAY, MENU_REPORT_UP,
-            MENU_VIDEOS, MENU_BLUETTI, MENU_CAST, MENU_DRYAD, MENU_RELAY_ADMIN, MENU_OPENMANET, MENU_GATEWAY, MENU_NOMAD, MENU_BLACKOUT, MENU_RED};
+            MENU_VIDEOS, MENU_BLUETTI, MENU_CAST, MENU_DRYAD, MENU_RELAY_ADMIN, MENU_OPENMANET, MENU_MESHCTL, MENU_GATEWAY, MENU_NOMAD, MENU_BLACKOUT, MENU_RED};
     private final java.util.Set<Integer> moreAllowed = new java.util.HashSet<Integer>();
 
     /** More: the rest of the menu grouped by job. Groups only show what is switched on (role, Advanced and Region features). */
@@ -2263,7 +2300,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
                 {"Cameras and power", MENU_VIDEOS, "Video feed", MENU_BLUETTI, "Battery power", MENU_CAST, "Cast screen to TV"},
                 {"Codes", MENU_DRYAD, "DRYAD sheets", "pigpen", "Pigpen", "enigma", "Enigma / CW (Morse)", "challenge", "Challenge and response"},
                 {"Network", "cloud", "Cloud group", MENU_RELAY_ADMIN, "Relay admin (Cloud Server)", MENU_OPENMANET, "OpenMANET node (browser)",
-                        MENU_GATEWAY, "OpenMANET internet gateway", MENU_NOMAD, "Project NOMAD (local AI, library)"},
+                        MENU_MESHCTL, "Mesh controller (OpenMANET channel, mesh name)", MENU_GATEWAY, "OpenMANET internet gateway", MENU_NOMAD, "Project NOMAD (local AI, library)"},
                 {"Tools", "tools", "Tools (QR codes, open in browser)", "scan", "Scan a QR code"},
                 {"Screen", MENU_BLACKOUT, "Blackout screen", MENU_RED, LightDiscipline.redMode(this) ? "Red light mode: on (tap for off)" : "Red light mode"}};
         for (Object[] g : groups) {
@@ -2436,8 +2473,8 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         MenuItem st = menu.findItem(MENU_STREAMS);
         if (st != null) st.setVisible(prefs.streamsEnabled()); // Settings: Internet audio
         // Specialised menus: only when ticked (Settings > Advanced and Region features, or a setup QR code).
-        int[] special = {MENU_ARRAY, MENU_REPORT_UP, MENU_TASKS, MENU_NOMAD, MENU_CAST, MENU_CALENDAR, MENU_RELAY_ADMIN, MENU_BLUETTI};
-        String[] keys = {"array", "report", "tasks", "nomad", "cast", "calendar", "relayadmin", "bluetti"};
+        int[] special = {MENU_ARRAY, MENU_REPORT_UP, MENU_TASKS, MENU_NOMAD, MENU_CAST, MENU_CALENDAR, MENU_RELAY_ADMIN, MENU_BLUETTI, MENU_MESHCTL};
+        String[] keys = {"array", "report", "tasks", "nomad", "cast", "calendar", "relayadmin", "bluetti", "meshctl"};
         for (int i = 0; i < special.length; i++) {
             MenuItem it = menu.findItem(special[i]);
             if (it != null && !prefs.menuOn(keys[i])) it.setVisible(false);
@@ -2456,6 +2493,39 @@ public final class MainActivity extends Activity implements RadioService.Ui {
             it.setVisible(false);
         }
         return super.onPrepareOptionsMenu(menu);
+    }
+
+    /**
+     * Once: YCC's own black screen is off and Android locks the screen quickly. YCC keeps running locked (radio,
+     * talk group reports, TAK beacons), but the screen and on-screen PTT are gone until it is unlocked.
+     */
+    private void screenTimeoutHint() {
+        final android.content.SharedPreferences sp = getSharedPreferences("settings", MODE_PRIVATE);
+        if (sp.getBoolean("timeoutHinted", false) || prefs.blackAfterSec() > 0 || !prefs.setupDone() || TvActivity.isTv(this)) return;
+        int ms;
+        try {
+            ms = android.provider.Settings.System.getInt(getContentResolver(), android.provider.Settings.System.SCREEN_OFF_TIMEOUT, 60000);
+        } catch (RuntimeException e) {
+            return;
+        }
+        if (ms <= 0 || ms > 120000) return;
+        sp.edit().putBoolean("timeoutHinted", true).commit();
+        new android.app.AlertDialog.Builder(this)
+                .setTitle("Android locks the screen after " + (ms >= 60000 ? ms / 60000 + " min" : ms / 1000 + " s"))
+                .setMessage("YCC keeps working while the phone is locked: you still hear and are heard by others, and a "
+                        + "Bluetooth or hardware PTT button still works. Only the screen and its PTT button go until you unlock.\n\n"
+                        + "To keep the screen ready but dark, use YCC's black screen instead (Settings > Screen > black screen "
+                        + "after a time), or make Android's screen timeout longer.")
+                .setPositiveButton("OK", null)
+                .setNeutralButton("Android display settings", new android.content.DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(android.content.DialogInterface d, int w) {
+                        try {
+                            startActivity(new Intent(android.provider.Settings.ACTION_DISPLAY_SETTINGS));
+                        } catch (RuntimeException ignored) {
+                        }
+                    }
+                }).show();
     }
 
     // ---- black screen after a time without a touch (Settings) ----
@@ -2679,6 +2749,8 @@ public final class MainActivity extends Activity implements RadioService.Ui {
     private void checkBlackWake() {
         RadioService s = RadioService.instance();
         if (s == null || !s.blackWakes()) return;
+        // The OpenMANET / TAK talk group never wakes it: anyone on the mesh can talk there, often and unasked.
+        if (s.compat() != null && !wokeForVoice) return;
         if (shownTalker != null && LightDiscipline.blackedOut(this)) {
             LightDiscipline.endBlackout(this);
             wokeForVoice = true;
@@ -2768,7 +2840,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
     public boolean onOptionsItemSelected(MenuItem item) {
         if (AnchorButton.onSelected(this, item)) return true;
         int id = item.getItemId();
-        if ((id == MENU_SETTINGS || id == MENU_DRYAD || id == MENU_CHANNEL_QR || id == MENU_SCAN || id == MENU_OPENMANET)
+        if ((id == MENU_SETTINGS || id == MENU_DRYAD || id == MENU_CHANNEL_QR || id == MENU_SCAN || id == MENU_OPENMANET || id == MENU_MESHCTL)
                 && blockedByLock()) {
             return true;
         }
@@ -2833,6 +2905,8 @@ public final class MainActivity extends Activity implements RadioService.Ui {
             startActivity(new Intent(this, BatteryActivity.class));
         } else if (id == MENU_RELAY_ADMIN) {
             startActivity(new Intent(this, RelayAdminActivity.class));
+        } else if (id == MENU_MESHCTL) {
+            startActivity(new Intent(this, MeshControllerActivity.class));
         } else if (id == MENU_CAST) {
             castScreen(this);
         } else if (id == MENU_TASKS) {
@@ -2968,7 +3042,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
             rb.setVisibility(View.VISIBLE);
             boolean cloudIcon = s == Prefs.SLOT_CLOUD && mapHome; // short label: a little cloud, not "Cld"
             rb.setText(cloudIcon ? "" : s == Prefs.SLOT_PUBLIC ? (mapHome ? "Pub" : "Public")
-                    : s == Prefs.SLOT_OPENMANET ? (mapHome ? "OM" : "OpenMANET*")
+                    : s == Prefs.SLOT_OPENMANET ? (mapHome ? "OM/TAK" : "OM/TAK*")
                     : s == Prefs.SLOT_CLOUD ? "Cloud"
                     : s == Prefs.SLOT_A && prefs.simple() ? "Private" : Prefs.letter(s));
             rb.setCompoundDrawables(null, null, cloudIcon
@@ -3043,7 +3117,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
                 .setMessage("Each press of PTT is recorded, squeezed small and sent as one clip when you let go. It "
                         + "arrives a moment later than live voice, but gets through more reliably, saves battery and "
                         + "works with the power saving and silence features.\n\nLive voice is heard as you speak. "
-                        + "You can change this any time in Settings > Voice and PTT. The OpenMANET / ATAK talk group always "
+                        + "You can change this any time in Settings > Voice and PTT. The OpenMANET / TAK talk group always "
                         + "uses live voice.")
                 .setCancelable(false)
                 .setPositiveButton("Keep burst (recommended)", new android.content.DialogInterface.OnClickListener() {
@@ -4079,7 +4153,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         // Between radio silence windows or during a burst nap, what is said is kept and sent at the next window.
         boolean offline = PowerMode.offline() || PowerMode.outsideWindow || PowerMode.burstNapping;
         CompatVoice cv = service == null ? null : service.compat();
-        // Burst never applies to the OpenMANET / ATAK talk group (it keeps its own live audio).
+        // Burst never applies to the OpenMANET / TAK talk group (it keeps its own live audio).
         if (cv == null && (prefs.burstNow() || offline)) {
             // Burst mode: record while held, send the recording as one file on release. Offline: keep it to send later.
             if (on && !org.communitycomms.app.audio.BurstVoice.recording()) {
@@ -4771,7 +4845,8 @@ public final class MainActivity extends Activity implements RadioService.Ui {
     private void renderWatch() {
         RadioService rs = service;
         List<Integer> w = rs == null ? new ArrayList<Integer>() : rs.watchingSlots();
-        String key = w.toString() + java.util.Arrays.toString(homeSlots);
+        int linked = rs == null ? -1 : rs.linkedSlot(); // channel link: that channel and OM/TAK show purple
+        String key = w.toString() + java.util.Arrays.toString(homeSlots) + linked;
         if (key.equals(shownWatch)) return;
         shownWatch = key;
         android.content.res.TypedArray ta = obtainStyledAttributes(new int[]{android.R.attr.listChoiceIndicatorSingle});
@@ -4779,7 +4854,13 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         ta.recycle();
         for (int i = 0; i < SLOT_IDS.length; i++) {
             android.widget.RadioButton rb = (android.widget.RadioButton) findViewById(SLOT_IDS[i]);
-            rb.setButtonDrawable(i < homeSlots.length && w.contains(homeSlots[i]) ? R.drawable.radio_listen : normal);
+            int slot = i < homeSlots.length ? homeSlots[i] : -1;
+            rb.setButtonDrawable(slot >= 0 && w.contains(slot) ? R.drawable.radio_listen : normal);
+            boolean purple = linked >= 0 && (slot == linked || slot == Prefs.SLOT_OPENMANET);
+            rb.setTextColor(purple ? 0xffce93d8 : 0xffffffff);
+            if (android.os.Build.VERSION.SDK_INT >= 21) {
+                rb.setButtonTintList(purple ? android.content.res.ColorStateList.valueOf(0xffba68c8) : null);
+            }
         }
     }
 

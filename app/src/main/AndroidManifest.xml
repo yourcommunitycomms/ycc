@@ -152,6 +152,8 @@
         <activity android:name=".TasksActivity" android:exported="false" />
         <activity android:name=".ReportUpActivity" android:exported="false" />
         <activity android:name=".RelayAdminActivity" android:exported="false" />
+        <activity android:name=".MeshControllerActivity" android:exported="false" />
+        <activity android:name=".OpenManetSettingsActivity" android:exported="false" />
         <activity android:name=".ChannelsActivity" android:exported="false" />
         <activity
             android:name=".CallAlertActivity"

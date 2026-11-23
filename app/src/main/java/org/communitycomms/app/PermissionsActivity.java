@@ -107,6 +107,38 @@ public final class PermissionsActivity extends Activity {
             row(it.title, it.why, ok);
         }
 
+        heading("Floating PTT button (over other apps)");
+        final int fm = FloatingPtt.mode(this);
+        text("A small round PTT button that floats over other apps while YCC is on air: hold to talk, tap to open YCC, "
+                + "drag to move, drag onto the X to hide. Now: " + FloatingPtt.MODES[fm] + ".", 14, 0xffcfe3d4);
+        button("Floating PTT button: " + FloatingPtt.MODES[fm] + " (tap to change)", new Runnable() {
+            @Override
+            public void run() {
+                new android.app.AlertDialog.Builder(PermissionsActivity.this).setTitle("Floating PTT button")
+                        .setSingleChoiceItems(FloatingPtt.MODES, FloatingPtt.mode(PermissionsActivity.this), new android.content.DialogInterface.OnClickListener() {
+                            @Override
+                            public void onClick(android.content.DialogInterface d, int which) {
+                                FloatingPtt.setMode(PermissionsActivity.this, which);
+                                d.dismiss();
+                                render();
+                                if (which != FloatingPtt.OFF) askFloatingPermissions();
+                            }
+                        }).setNegativeButton("Cancel", null).show();
+            }
+        });
+        if (fm != FloatingPtt.OFF) {
+            boolean draw = FloatingPtt.canDraw(this);
+            row("Display over other apps", "Needed to show the floating PTT button over other apps.", draw);
+            if (!draw) {
+                button("Allow display over other apps", new Runnable() {
+                    @Override
+                    public void run() {
+                        FloatingPtt.askDraw(PermissionsActivity.this);
+                    }
+                });
+            }
+        }
+
         heading("Keep working with the screen locked");
         if (Build.VERSION.SDK_INT >= 23) {
             boolean ignoring = ignoringBatteryOptimisation();
@@ -133,14 +165,30 @@ public final class PermissionsActivity extends Activity {
 
         heading("\"Screen overlay detected\"?");
         text("Android 6 shows that when you allow a permission while another app is drawing over the screen "
-                + "(a blue-light or dimmer app, chat bubbles, a screen recorder). It is about that other app: "
-                + "this app never draws over others. Pause that app, allow the permission here, then turn it back on.",
+                + "(a blue-light or dimmer app, chat bubbles, a screen recorder, or YCC's own floating PTT button). "
+                + "Pause that app (or set the floating PTT button to Off), allow the permission here, then turn it back on.",
                 14, 0xffcfe3d4);
 
         heading("Setting up several phones?");
         text("With Developer options and USB debugging on, whoever installs the app over USB can allow all "
                 + "of this from a computer in one go, instead of tapping through it on every phone.", 14, 0xffcfe3d4);
     }
+
+    /** Floating PTT turned on: the microphone (and notifications on Android 13+) first, then Display over other apps. */
+    private void askFloatingPermissions() {
+        List<String> need = new ArrayList<String>();
+        if (!granted(Manifest.permission.RECORD_AUDIO)) need.add(Manifest.permission.RECORD_AUDIO);
+        if (Build.VERSION.SDK_INT >= 33 && !granted("android.permission.POST_NOTIFICATIONS")) need.add("android.permission.POST_NOTIFICATIONS");
+        if (!need.isEmpty() && Build.VERSION.SDK_INT >= 23) {
+            pendingDraw = true;
+            requestAll(need);
+        } else if (!FloatingPtt.canDraw(this)) {
+            Toast.makeText(this, "Allow \"Display over other apps\" for YCC, then come back", Toast.LENGTH_LONG).show();
+            FloatingPtt.askDraw(this);
+        }
+    }
+
+    private boolean pendingDraw;
 
     @TargetApi(23)
     private void requestAll(List<String> missing) {
@@ -150,6 +198,13 @@ public final class PermissionsActivity extends Activity {
     @Override
     public void onRequestPermissionsResult(int code, String[] p, int[] r) {
         render();
+        if (pendingDraw) {
+            pendingDraw = false;
+            if (!FloatingPtt.canDraw(this)) {
+                Toast.makeText(this, "Now allow \"Display over other apps\" for YCC, then come back", Toast.LENGTH_LONG).show();
+                FloatingPtt.askDraw(this);
+            }
+        }
         // Refused with "don't ask again": only the app's own settings page can change it now.
         if (Build.VERSION.SDK_INT >= 23) {
             for (int i = 0; i < p.length && i < r.length; i++) {

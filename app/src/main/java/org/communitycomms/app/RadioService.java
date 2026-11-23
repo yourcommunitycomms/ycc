@@ -297,12 +297,15 @@ public final class RadioService extends Service implements RadioEngine.Listener 
             readBattery();
             checkStatus();
             mergeContacts();
+            CompatVoice cvr = compat;
+            if (cvr != null) cvr.tickRecorder();
+            reconcileCrossWatch(); // dual watch across OM/TAK
             if (++statusTicks % 30 == 0 && PowerMode.lanSyncOn()) LanSync.maybeRun(RadioService.this); // once a minute: due LAN sync / update check
             PowerMode.alone = Contacts.get(RadioService.this).onlineCount() == 0;
             applyPower();
             checkCallReminder();
             if (statusTicks % 5 == 0 && !PowerMode.alone && !RadioEngine.radioSilent) org.communitycomms.app.audio.BurstVoice.sendWaiting(RadioService.this);
-            AtakBridge.apply(RadioService.this); // Settings: ATAK compatible on / off
+            AtakBridge.apply(RadioService.this); // Settings: TAK compatible on / off
             checkMission();
             windowTick();
             if (statusTicks % 30 == 15) checkOverdue();
@@ -377,6 +380,17 @@ public final class RadioService extends Service implements RadioEngine.Listener 
             e.setSentSaver(all ? sentSaver(e) : null);
             if (changed) e.sendPresenceNow();
         }
+        CompatVoice cv = compat;
+        if (cv != null) { // the OpenMANET / TAK talk group: saved the same way (Record all voice, or away / stealth)
+            boolean all = new Prefs(this).recordAllVoice();
+            if (s == RadioEngine.STATUS_AVAILABLE && !all) {
+                VoiceRecorder old = cv.recorder;
+                cv.recorder = null;
+                if (old != null) old.closeAll();
+            } else if (cv.recorder == null) {
+                cv.recorder = compatRecorder();
+            }
+        }
         if (changed) {
             String why = s == RadioEngine.STATUS_STEALTH && volumeZero && new Prefs(this).status() != RadioEngine.STATUS_STEALTH
                     ? " (volume all the way down)" : "";
@@ -411,6 +425,34 @@ public final class RadioService extends Service implements RadioEngine.Listener 
                     public void run() {
                         org.communitycomms.app.msg.MessageLog.get(RadioService.this).put(en);
                         if (missed) notifyMessage(en); // heard live when Available: just logged
+                    }
+                });
+            }
+        });
+    }
+
+    /** Talk group voice saved to Chat: "Voice on OpenMANET from BRAVO1 (6 s)". */
+    private VoiceRecorder compatRecorder() {
+        return new VoiceRecorder(receivedDir(this), "OMTAK", new VoiceRecorder.Listener() {
+            @Override
+            public void onRecording(java.io.File f, final String from, final int seconds, long voiceId) {
+                final org.communitycomms.app.msg.MessageLog.Entry en = new org.communitycomms.app.msg.MessageLog.Entry();
+                en.id = voiceId;
+                en.type = org.communitycomms.app.msg.MessageLog.TYPE_FILE;
+                en.time = System.currentTimeMillis() - seconds * 1000L;
+                en.creator = from;
+                en.channelTag = Prefs.OMTAK_TAG;
+                final boolean missed = curStatus != RadioEngine.STATUS_AVAILABLE;
+                en.body = "Voice on OM/TAK from " + from + " (" + Math.max(1, seconds) + " s, not encrypted)" + (!missed ? ""
+                        : " while you were " + (curStatus == RadioEngine.STATUS_STEALTH ? "in stealth" : "away"));
+                en.path = f.getPath();
+                en.mime = "audio/wav";
+                en.local = true;
+                main.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        org.communitycomms.app.msg.MessageLog.get(RadioService.this).put(en);
+                        if (missed) notifyMessage(en);
                     }
                 });
             }
@@ -616,8 +658,25 @@ public final class RadioService extends Service implements RadioEngine.Listener 
             checkBack(e, pr);
             newcomers(e);
         }
-        CompatVoice cv = compat;
-        if (cv != null) for (CompatVoice.Talker t : cv.talkers()) cs.heard(t.label(), t.lastMs, "OpenMANET", t.address);
+        RadioEngine side = omSide; // YCC channels listened to while on OM/TAK
+        if (side != null) {
+            Prefs pr2 = new Prefs(this);
+            for (RadioEngine m : side.monitors()) cs.merge(m.stations(), letterOf(pr2, m));
+        }
+        CompatVoice cv = compat != null ? compat : omWatch; // on OM/TAK, or listening to it
+        if (cv != null) {
+            for (CompatVoice.Present p : cv.present()) {
+                boolean named = p.name != null || VxData.callsignAt(p.address) != null;
+                // Known by name now (a YCC phone's report, or a Vx beacon): drop the entry shown by its address before.
+                if (named && cs.find("OpenMANET " + p.address) != null) cs.remove("OpenMANET " + p.address);
+                if (VxData.callsignAt(p.address) == null) cs.heard(p.label(), p.lastMs, "OM/TAK", p.address); // Vx users: by callsign below
+            }
+            for (VxData.User u : VxData.users()) {
+                // Same talk group, so listed with the OpenMANET nodes (the details sheet says it is TAK Vx).
+                if (u.callsign.length() > 0) cs.heard(u.callsign, u.lastMs, "OM/TAK", u.ip);
+            }
+            for (CompatVoice.Talker t : cv.talkers()) cs.heard(t.label(), t.lastMs, "OM/TAK", t.address);
+        }
     }
 
     // ---- commander: someone back after being offline, who missed messages ----
@@ -1662,7 +1721,8 @@ public final class RadioService extends Service implements RadioEngine.Listener 
     public void setUi(Ui ui) {
         this.ui = ui;
         if (ui != null) {
-            ui.onJoinState(airWords(status), engine != null);
+            // On air on a normal channel or on the OpenMANET / TAK talk group: either way PTT must be live.
+            ui.onJoinState(airWords(status), engine != null || compat != null);
             for (String[] o : pendingOffers) ui.onDryadOffer(o[0], o[1]);
             pendingOffers.clear();
         }
@@ -1891,12 +1951,20 @@ public final class RadioService extends Service implements RadioEngine.Listener 
     /** Slots being listened to right now (listen-only engines that started), for the screens. */
     public List<Integer> watchingSlots() {
         List<Integer> out = new ArrayList<Integer>();
+        Prefs pr = new Prefs(this);
+        RadioEngine side = omSide; // on OM/TAK: the YCC channels listened to beside it
+        if (compat != null && side != null) {
+            java.util.Set<String> names = new java.util.HashSet<String>();
+            for (RadioEngine m : side.monitors()) names.add(m.channelName().trim());
+            for (int s : pr.watchSlotsBesideOmTak()) if (names.contains(pr.effectiveChannel(pr.channel(s)).trim())) out.add(s);
+            return out;
+        }
         RadioEngine e = engine;
         if (e == null) return out;
-        Prefs pr = new Prefs(this);
         java.util.Set<String> names = new java.util.HashSet<String>();
         for (RadioEngine m : e.monitors()) names.add(m.channelName().trim());
         for (int s : pr.watchSlots(pr.activeSlot())) if (names.contains(pr.effectiveChannel(pr.channel(s)).trim())) out.add(s);
+        if (omWatch != null) out.add(Prefs.SLOT_OPENMANET); // OM/TAK listened to beside this channel
         return out;
     }
 
@@ -2040,7 +2108,128 @@ public final class RadioService extends Service implements RadioEngine.Listener 
         on.addMonitor(m);
     }
 
-    // ---- experimental OpenMANET / ATAK Vx voice ----
+    // ---- dual watch across OM/TAK: listen to the talk group from a YCC channel, or YCC channels from OM/TAK ----
+
+    /** Listen-only OM/TAK talk group while on a YCC channel (dual watch, OM/TAK ticked Listen). Never transmits. */
+    private volatile CompatVoice omWatch;
+    /** While on OM/TAK: a carrier engine (its own throwaway key) whose monitors are the YCC channels listened to. */
+    private volatile RadioEngine omSide;
+    private volatile String omSideSlots = "";
+    private volatile boolean watchBusy;
+
+    public CompatVoice omWatch() {
+        return omWatch;
+    }
+
+    /** Every 2 s: starts or stops the cross listening to match the Listen ticks (no rejoin needed). */
+    private void reconcileCrossWatch() {
+        if (watchBusy) return;
+        final Prefs pr = new Prefs(this);
+        final boolean wantOm = engine != null && compat == null && pr.listenOmTak();
+        java.util.List<Integer> side = compat != null ? pr.watchSlotsBesideOmTak() : new java.util.ArrayList<Integer>();
+        final String sideKey = side.toString() + pr.callsign();
+        final boolean omChange = wantOm != (omWatch != null);
+        final boolean sideChange = !sideKey.equals(omSideSlots) || (side.isEmpty() != (omSide == null));
+        if (!omChange && !sideChange) return;
+        watchBusy = true;
+        final java.util.List<Integer> sideSlots = side;
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    String ifName = pr.netInterface();
+                    NetworkInterface iface = ifName.length() == 0 ? null : NetworkInterface.getByName(ifName);
+                    if (omChange) {
+                        CompatVoice old = omWatch;
+                        omWatch = null;
+                        if (old != null) old.stop();
+                        if (wantOm) {
+                            omWatch = new CompatVoice(pr.openManetGroup(), iface, new CompatVoice.Listener() {
+                                @Override
+                                public void onTalkersChanged() {
+                                    onRosterChanged();
+                                }
+
+                                @Override
+                                public void onTransmitChanged(boolean on) {
+                                }
+                            });
+                        }
+                    }
+                    if (sideChange) {
+                        RadioEngine old = omSide;
+                        omSide = null;
+                        watchMessages.clear();
+                        if (old != null) old.stop(true);
+                        omSideSlots = sideKey;
+                        if (!sideSlots.isEmpty() && compat != null) {
+                            // A key nobody has: the carrier only owns the socket; each listened channel is a monitor on it.
+                            byte[] r = new byte[16];
+                            new java.security.SecureRandom().nextBytes(r);
+                            RadioEngine carrier = new RadioEngine(android.util.Base64.encodeToString(r, android.util.Base64.NO_WRAP),
+                                    pr.callsign(), new RadioEngine.Listener() {
+                                @Override
+                                public void onRosterChanged() {
+                                }
+
+                                @Override
+                                public void onTransmitChanged(boolean transmitting) {
+                                }
+
+                                @Override
+                                public void onDryadReceived(String fromName, String text) {
+                                }
+
+                                @Override
+                                public void onTransmitResult(List<String> heardBy) {
+                                }
+
+                                @Override
+                                public void onPoiMessage(String fromName, byte[] payload, int off) {
+                                }
+
+                                @Override
+                                public void onCall(String fromName) {
+                                }
+
+                                @Override
+                                public void onChatMessage(String fromName, byte[] payload, int off) {
+                                }
+                            });
+                            carrier.start(pr.port(), destinations(pr.netMode(), pr.port(), pr.extraPeers(), iface),
+                                    InetAddress.getByName(UdpLink.DEFAULT_GROUP), iface);
+                            carrier.mute();
+                            for (int s : sideSlots) {
+                                try {
+                                    startWatch(carrier, pr.callsign(), pr, s);
+                                } catch (Exception ex) {
+                                    Log.w(TAG, "could not listen to " + Prefs.letter(s) + " beside OM/TAK: " + ex.getMessage());
+                                }
+                            }
+                            omSide = carrier;
+                        }
+                    }
+                } catch (Exception ex) {
+                    Log.w(TAG, "cross listening: " + ex.getMessage());
+                } finally {
+                    watchBusy = false;
+                    onRosterChanged();
+                }
+            }
+        }, "cross-watch").start();
+    }
+
+    private void stopCrossWatch() {
+        CompatVoice w = omWatch;
+        omWatch = null;
+        if (w != null) w.stop();
+        final RadioEngine s = omSide;
+        omSide = null;
+        omSideSlots = "";
+        if (s != null) s.stop(true); // silent: closes its socket before a new channel takes the port
+    }
+
+    // ---- experimental OpenMANET / TAK Vx voice ----
 
     private volatile CompatVoice compat;
 
@@ -2061,6 +2250,9 @@ public final class RadioService extends Service implements RadioEngine.Listener 
                     NetworkInterface iface = ifName.length() == 0 ? null : NetworkInterface.getByName(ifName);
                     acquireLocks();
                     setCommunicationAudio(true);
+                    CompatVoice.namer = MeshControllerActivity.namer(RadioService.this);
+                    Prefs cp = new Prefs(RadioService.this);
+                    CompatVoice.myName = cp.omCallsign() ? cp.callsign() : ""; // other YCC phones show this name
                     CompatVoice c = new CompatVoice(groupAndPort, iface, new CompatVoice.Listener() {
                         @Override
                         public void onTalkersChanged() {
@@ -2079,9 +2271,18 @@ public final class RadioService extends Service implements RadioEngine.Listener 
                         }
                         compat = c;
                     }
-                    String s = "EXPERIMENTAL OpenMANET/ATAK · " + c.describe() + " · NOT encrypted · half duplex";
+                    VxData.start(RadioService.this, c.describe(), iface); // TAK Vx callsigns, if turned on
+                    startLink(c, iface); // channel link to a YCC channel, if set
+                    main.post(new Runnable() {
+                        @Override
+                        public void run() {
+                            applyStatus(curStatus); // Record all voice / away saving on the talk group too
+                        }
+                    });
+                    String s = "talk group " + CompatVoice.channelLabel(c.describe()) + " · NOT encrypted · half duplex"
+                            + (linkNote.length() > 0 ? " · " + linkNote : "");
                     publishState(s, true);
-                    goForeground("OpenMANET talk group (experimental)");
+                    goForeground("OM/TAK talk group");
                 } catch (Exception ex) {
                     Log.e(TAG, "compat join failed", ex);
                     releaseLocks();
@@ -2091,6 +2292,282 @@ public final class RadioService extends Service implements RadioEngine.Listener 
             }
         }, "join-compat").start();
     }
+
+    // ---- channel link: the OpenMANET / TAK talk group <-> a YCC channel (Advanced, off by default) ----
+
+    public static final int LINK_TO_YCC = 0, LINK_TO_OM = 1, LINK_BOTH = 2;
+    private volatile RadioEngine linkEngine;
+    private volatile String linkLetter = "";
+    private final android.os.Handler linkTimer = new android.os.Handler(android.os.Looper.getMainLooper());
+    private volatile long relayTalker = -1, relayLastMs; // OpenMANET -> YCC: the talker being relayed now
+    private final short[] link8 = new short[RadioEngine.FRAME_SAMPLES];
+    private int link8Fill;
+    private volatile long linkHeldUntil;
+    private volatile String linkNote = "";
+
+    /** "Linked to A (both ways)", "Link held: another phone links this talk group", or "" when off. */
+    public String linkNote() {
+        return linkNote;
+    }
+
+    /** Starts the link engine on the chosen channel next to the talk group (called once the talk group is up). */
+    private void startLink(final CompatVoice c, NetworkInterface iface) {
+        stopLink();
+        Prefs p = new Prefs(this);
+        int slot = p.linkSlot();
+        if (slot < 0) return;
+        final int dir = p.linkDir();
+        try {
+            String key = p.channel(slot);
+            if (key.length() == 0) return;
+            RadioEngine e = new RadioEngine(p.effectiveChannel(key), p.callsign(), new RadioEngine.Listener() {
+                @Override
+                public void onRosterChanged() {
+                }
+
+                @Override
+                public void onTransmitChanged(boolean transmitting) {
+                }
+
+                @Override
+                public void onDryadReceived(String fromName, String text) {
+                }
+
+                @Override
+                public void onTransmitResult(List<String> heardBy) {
+                }
+
+                @Override
+                public void onPoiMessage(String fromName, byte[] payload, int off) {
+                }
+
+                @Override
+                public void onCall(String fromName) {
+                }
+
+                @Override
+                public void onChatMessage(String fromName, byte[] payload, int off) {
+                }
+            });
+            e.start(p.port(), destinations(p.netMode(), p.port(), p.extraPeers(), iface),
+                    InetAddress.getByName(UdpLink.DEFAULT_GROUP), iface);
+            e.mute(); // the talk group is what this phone plays
+            linkEngine = e;
+            linkLetter = slotName(slot);
+            linkNote = "linked to " + linkLetter + (dir == LINK_BOTH ? " (both ways)" : dir == LINK_TO_OM ? " (" + linkLetter + " → OpenMANET)" : " (OpenMANET → " + linkLetter + ")");
+            if (dir != LINK_TO_OM) {
+                c.tap = new CompatVoice.FrameTap() {
+                    @Override
+                    public void onFrame(CompatVoice.Talker t, short[] pcm48k) {
+                        relayIntoYcc(t, pcm48k);
+                    }
+                };
+            }
+            if (dir != LINK_TO_YCC) {
+                e.voiceTap = new RadioEngine.VoiceTap() {
+                    @Override
+                    public void onVoice(long sender, String name, short[] pcm) {
+                        relayOntoTalkGroup(name, pcm);
+                    }
+
+                    @Override
+                    public void onEnd(long sender) {
+                    }
+                };
+            }
+            linkTimer.post(linkTick);
+            if (dir == LINK_BOTH) announceBridge(e, linkLetter);
+        } catch (Exception ex) {
+            Log.w(TAG, "channel link not started: " + ex.getMessage());
+            linkNote = "";
+        }
+    }
+
+    /**
+     * A both-ways link: tell both sides, on the YCC channel's chat and TAK's All Chat Rooms, that this phone now
+     * bridges them (so nobody is surprised that what they say crosses over). A few seconds in, once TAK is running.
+     */
+    private void announceBridge(final RadioEngine e, final String letter) {
+        final String me = new Prefs(this).callsign();
+        final String text = me + " has bridged OM/TAK and YCC channel " + letter + " both ways: voice on either is relayed to the other "
+                + "(on OM/TAK it is NOT encrypted).";
+        main.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                if (linkEngine != e) return; // stopped meanwhile
+                new Thread(new Runnable() {
+                    @Override
+                    public void run() {
+                        new org.communitycomms.app.msg.MessageCenter(RadioService.this, new org.communitycomms.app.msg.MessageCenter.Air() {
+                            @Override
+                            public RadioEngine engine() {
+                                return e;
+                            }
+
+                            @Override
+                            public void onNewMessage(org.communitycomms.app.msg.MessageLog.Entry en) {
+                            }
+                        }).sendText(text);
+                        AtakBridge.sendChat(text);
+                        org.communitycomms.app.msg.MessageLog.Entry m = new org.communitycomms.app.msg.MessageLog.Entry();
+                        m.id = new java.util.Random().nextLong();
+                        m.type = org.communitycomms.app.msg.MessageLog.TYPE_TEXT;
+                        m.time = System.currentTimeMillis();
+                        m.creator = me;
+                        m.channelTag = Prefs.OMTAK_TAG;
+                        m.body = text;
+                        m.mine = true;
+                        org.communitycomms.app.msg.MessageLog.get(RadioService.this).put(m);
+                    }
+                }, "bridge-announce").start();
+            }
+        }, 6000);
+    }
+
+    private void stopLink() {
+        linkTimer.removeCallbacks(linkTick);
+        CompatVoice c = compat;
+        if (c != null) c.tap = null;
+        final RadioEngine e = linkEngine;
+        linkEngine = null;
+        linkNote = "";
+        relayTalker = -1;
+        if (e != null) {
+            e.voiceTap = null;
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    e.injectEnd();
+                    e.stop(true);
+                }
+            }, "link-stop").start();
+        }
+    }
+
+    private boolean linkHeld() {
+        return System.currentTimeMillis() < linkHeldUntil;
+    }
+
+    /** Another phone already links this pair: hold off for a minute (no echo, no doubled voice). */
+    private void holdLink(String why) {
+        linkHeldUntil = System.currentTimeMillis() + 60000;
+        linkNote = "link held: " + why;
+        RadioEngine e = linkEngine;
+        if (e != null) e.injectEnd();
+        relayTalker = -1;
+    }
+
+    /** OpenMANET -> YCC: one talker at a time, 48 kHz -> 8 kHz, named "via OpenMANET: X". */
+    private void relayIntoYcc(CompatVoice.Talker t, short[] f) {
+        RadioEngine e = linkEngine;
+        if (e == null || linkHeld()) return;
+        if (CompatVoice.relayed(t.ssrc)) { // another phone's relay of a YCC channel: never back into YCC
+            CompatVoice c = compat;
+            if (c != null && c.otherRelayHeard()) holdLink("another phone links this talk group");
+            return;
+        }
+        synchronized (link8) {
+            if (relayTalker != t.ssrc) {
+                if (relayTalker != -1) return; // half duplex: someone is already being relayed
+                if (!e.injectStart("via OpenMANET: " + t.label())) return; // this phone is talking on the channel
+                relayTalker = t.ssrc;
+                link8Fill = 0;
+            }
+            relayLastMs = System.currentTimeMillis();
+            for (int i = 0; i + 6 <= f.length; i += 6) {
+                int s = 0;
+                for (int k = 0; k < 6; k++) s += f[i + k];
+                link8[link8Fill++] = (short) (s / 6);
+                if (link8Fill == link8.length) {
+                    e.injectFrame(link8.clone());
+                    link8Fill = 0;
+                }
+            }
+        }
+    }
+
+    /** YCC -> OpenMANET: never relays relayed voice back; 8 kHz -> 48 kHz (linear). */
+    private void relayOntoTalkGroup(String name, short[] pcm) {
+        CompatVoice c = compat;
+        if (c == null || linkHeld()) return;
+        if (name != null && name.startsWith("via OpenMANET")) {
+            holdLink("another phone links this channel"); // its relay of the talk group: never back again
+            return;
+        }
+        short[] up = new short[pcm.length * 6];
+        for (int i = 0; i < pcm.length; i++) {
+            int a = pcm[i], b = i + 1 < pcm.length ? pcm[i + 1] : pcm[i];
+            for (int k = 0; k < 6; k++) up[i * 6 + k] = (short) (a + (b - a) * k / 6);
+        }
+        c.relay(up);
+    }
+
+    private volatile long lastLinkPosMs;
+
+    /**
+     * Every 30 s on the linking phone: positions cross too. OM/TAK -> channel: each TAK user with a position, as
+     * "CALLSIGN (TAK)", and this phone's own position when it shares with TAK. Channel -> TAK: each person on the
+     * channel with a position, as "NAME (YCC A)".
+     */
+    private void relayPositions(RadioEngine e, int dir) {
+        long now = System.currentTimeMillis();
+        if (dir != LINK_TO_OM) {
+            for (AtakBridge.Contact c : AtakBridge.contacts()) {
+                if (c.type == null || !c.type.startsWith("a-f-G") || c.callsign == null) continue;
+                if (c.uid != null && c.uid.startsWith("YCC")) continue; // YCC's own (or relayed) positions: never back in
+                e.sendLocationAs(c.callsign + " (TAK)", c.lat, c.lon, 50f, c.heardAt);
+            }
+            if (takSharing()) {
+                android.location.LocationManager lm = (android.location.LocationManager) getSystemService(Context.LOCATION_SERVICE);
+                android.location.Location l = lm == null ? null : org.communitycomms.app.geo.LocationHelper.bestKnown(lm);
+                if (l != null) e.sendLocation(l.getLatitude(), l.getLongitude(), l.getAccuracy(), l.getTime(), "");
+            }
+        }
+        if (dir != LINK_TO_YCC) {
+            for (RadioEngine.Station s : e.stations()) {
+                if (Double.isNaN(s.lat) || now - s.fixTimeMs > 10 * 60000L || s.name.startsWith("via OpenMANET") || s.name.endsWith("(TAK)")) continue;
+                AtakBridge.sendRelayed(linkLetter + "-" + s.name, s.name + " (YCC " + linkLetter + ")", s.lat, s.lon, s.accuracy);
+            }
+        }
+    }
+
+    /** The YCC channel linked to OM/TAK right now, or -1. */
+    public int linkedSlot() {
+        return linkEngine == null ? -1 : new Prefs(this).linkSlot();
+    }
+
+    /** Ends a relayed transmission into YCC once its talker has been quiet for 0.6 s. */
+    private final Runnable linkTick = new Runnable() {
+        @Override
+        public void run() {
+            RadioEngine e = linkEngine;
+            if (e == null) return;
+            synchronized (link8) {
+                if (relayTalker != -1 && System.currentTimeMillis() - relayLastMs > 600) {
+                    e.injectEnd();
+                    relayTalker = -1;
+                }
+            }
+            long nowMs = System.currentTimeMillis();
+            if (nowMs - lastLinkPosMs > 30000 && !linkHeld()) {
+                lastLinkPosMs = nowMs;
+                final int dir = new Prefs(RadioService.this).linkDir();
+                final RadioEngine le = e;
+                new Thread(new Runnable() {
+                    @Override
+                    public void run() {
+                        relayPositions(le, dir);
+                    }
+                }, "link-pos").start();
+            }
+            if (!linkHeld() && linkNote.startsWith("link held")) {
+                Prefs p = new Prefs(RadioService.this);
+                int dir = p.linkDir();
+                linkNote = "linked to " + linkLetter + (dir == LINK_BOTH ? " (both ways)" : dir == LINK_TO_OM ? " (" + linkLetter + " → OpenMANET)" : " (OpenMANET → " + linkLetter + ")");
+            }
+            linkTimer.postDelayed(this, 200);
+        }
+    };
 
     /** Bumped by every leave (and so every join): a join still starting up checks it is current. */
     private final java.util.concurrent.atomic.AtomicInteger joinGen = new java.util.concurrent.atomic.AtomicInteger();
@@ -2476,10 +2953,15 @@ public final class RadioService extends Service implements RadioEngine.Listener 
 
     /** Stops whatever radio is on air (keeps the audio mode and locks). True if one was. */
     private synchronized boolean stopRadio() {
+        stopCrossWatch();
         watchMessages.clear();
         CompatVoice c = compat;
         compat = null;
-        if (c != null) c.stop();
+        if (c != null) {
+            VxData.stop();
+            stopLink();
+            c.stop();
+        }
         RadioEngine e = engine;
         engine = null;
         if (e != null) e.stop();
@@ -2490,6 +2972,8 @@ public final class RadioService extends Service implements RadioEngine.Listener 
     public void stopSilently() {
         CompatVoice c = compat;
         compat = null;
+        VxData.stop();
+        stopLink();
         if (c != null) c.stop();
         RadioEngine e = engine;
         engine = null;
@@ -3323,6 +3807,11 @@ public final class RadioService extends Service implements RadioEngine.Listener 
 
     public boolean rapidShareUntilRestart() {
         return rapidShareSessionOnly && rapidShareUntil > System.currentTimeMillis();
+    }
+
+    /** On OM/TAK with "Share my location with TAK" on: the position goes to TAK every 30 s (the Share button lights). */
+    public boolean takSharing() {
+        return compat != null && new Prefs(this).atakPosition();
     }
 
     /** Minutes of rapid sharing left, or 0 when it is off. */

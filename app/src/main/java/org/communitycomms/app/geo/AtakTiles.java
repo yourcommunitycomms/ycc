@@ -18,11 +18,11 @@ import java.io.InputStream;
 import java.util.Locale;
 
 /**
- * Map tiles in the files ATAK, MOBAC and QGIS use: MBTiles (tiles(zoom_level, tile_column,
+ * Map tiles in the files TAK, MOBAC and QGIS use: MBTiles (tiles(zoom_level, tile_column,
  * tile_row, tile_data), rows counted from the bottom) and osmdroid SQLite (tiles(key, provider,
- * tile) with key = (((z &lt;&lt; z) + x) &lt;&lt; z) + y), which is what ATAK writes when it downloads.
+ * tile) with key = (((z &lt;&lt; z) + x) &lt;&lt; z) + y), which is what TAK writes when it downloads.
  * Import unpacks one into an offline map set (folders of z/x/y tiles, as the app's own maps use);
- * export writes an area of this phone's tiles into either format to share (drop it into ATAK's
+ * export writes an area of this phone's tiles into either format to share (drop it into TAK's
  * atak/imagery folder). Plain SQLite, so it works offline and on Android 4.1.
  */
 public final class AtakTiles {
@@ -114,9 +114,9 @@ public final class AtakTiles {
     /** "Import these map tiles?" for an MBTiles / osmdroid file (from Files or a share). */
     public static void offerImport(final Activity a, final File db) {
         String base = db.getName().replaceAll("\\.(mbtiles|sqlite|sqlitedb)$", "").replaceAll("[^A-Za-z0-9 _.()-]", "");
-        final String set = base.length() == 0 ? "ATAK tiles" : base;
+        final String set = base.length() == 0 ? "TAK tiles" : base;
         new AlertDialog.Builder(a)
-                .setTitle("Map tiles (ATAK / MBTiles)")
+                .setTitle("Map tiles (TAK / MBTiles)")
                 .setMessage("Import the tiles in " + db.getName() + " as the offline map set \"" + set + "\"?\n\n"
                         + "They show on the map without internet.")
                 .setPositiveButton("Import", new DialogInterface.OnClickListener() {
@@ -231,8 +231,8 @@ public final class AtakTiles {
     }
 
     /**
-     * An ATAK / MOBAC map source pointing at the LAN tile store's copy of a tile source. The address
-     * must work without a login (ATAK map sources have no place for one).
+     * An TAK / MOBAC map source pointing at the LAN tile store's copy of a tile source. The address
+     * must work without a login (TAK map sources have no place for one).
      */
     public static String mapSourceXml(String name, String lanBase, String sourceId, int minZoom, int maxZoom, boolean png) {
         String url = lanBase + "/" + LanTiles.FOLDER.replace(" ", "%20") + "/" + sourceId + "/{$z}/{$x}/{$y}.jpg";

@@ -27,10 +27,81 @@ final class ShareLocation {
         start(a, after, false);
     }
 
+    /**
+     * On the OM/TAK channel: the position goes to TAK (plain text), after asking when "Share my location with TAK"
+     * is off. True when this phone is on OM/TAK (handled here), false otherwise.
+     */
+    static boolean omTak(final Activity a) {
+        RadioService s = RadioService.instance();
+        if (s == null || s.compat() == null) return false;
+        if (new Prefs(a).atakPosition()) { // already sharing with TAK: stop, or send one now
+            new AlertDialog.Builder(a).setTitle("Sharing your location with TAK")
+                    .setMessage("Your location goes to TAK and OpenMANET users every 30 s while you are on OM/TAK (not encrypted).")
+                    .setPositiveButton("Stop sharing", new DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(DialogInterface d, int w) {
+                            a.getSharedPreferences("settings", Activity.MODE_PRIVATE).edit().putBoolean("atakPosition", false).commit();
+                            Toast.makeText(a, "Stopped: TAK now lists you by callsign only, without a position", Toast.LENGTH_LONG).show();
+                        }
+                    })
+                    .setNeutralButton("Send now", new DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(DialogInterface d, int w) {
+                            sendTakNow(a, true);
+                        }
+                    })
+                    .setNegativeButton("Keep sharing", null).show();
+            return true;
+        }
+        new AlertDialog.Builder(a).setTitle("Share your location on OM/TAK?")
+                .setMessage("Your location will be sent to TAK and OpenMANET users unencrypted: anyone on the mesh can see it.")
+                .setPositiveButton("Share once", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface d, int w) {
+                        sendTakNow(a, false);
+                    }
+                })
+                .setNeutralButton("Always share on OM/TAK", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface d, int w) {
+                        a.getSharedPreferences("settings", Activity.MODE_PRIVATE).edit().putBoolean("atakPosition", true).commit();
+                        sendTakNow(a, true);
+                    }
+                })
+                .setNegativeButton(android.R.string.cancel, null).show();
+        return true;
+    }
+
+    private static void sendTakNow(Activity a, boolean always) {
+        android.location.LocationManager lm = (android.location.LocationManager) a.getSystemService(android.content.Context.LOCATION_SERVICE);
+        android.location.Location l = lm == null ? null : org.communitycomms.app.geo.LocationHelper.bestKnown(lm);
+        if (l == null) {
+            Toast.makeText(a, "No GPS fix yet: try again in a moment", Toast.LENGTH_LONG).show();
+            return;
+        }
+        if (!AtakBridge.sendPositionOnce(l)) {
+            Toast.makeText(a, "Not sent: TAK is off (radio silent, or Broadcast my callsign is off in the OM/TAK settings)", Toast.LENGTH_LONG).show();
+            return;
+        }
+        // A note in the OM/TAK chat, so it is clear what went out.
+        org.communitycomms.app.msg.MessageLog.Entry m = new org.communitycomms.app.msg.MessageLog.Entry();
+        m.id = new java.util.Random().nextLong();
+        m.type = org.communitycomms.app.msg.MessageLog.TYPE_TEXT;
+        m.time = System.currentTimeMillis();
+        m.creator = new Prefs(a).callsign();
+        m.channelTag = Prefs.OMTAK_TAG;
+        m.body = "My location sent to TAK (not encrypted): " + Geo.latLon(l.getLatitude(), l.getLongitude());
+        m.mine = true;
+        m.local = true;
+        org.communitycomms.app.msg.MessageLog.get(a).put(m);
+        Toast.makeText(a, always ? "Location sent to TAK; it now goes every 30 s while on OM/TAK" : "Location sent to TAK once", Toast.LENGTH_LONG).show();
+    }
+
     private static void start(final Activity a, final Runnable after, boolean fakeAsked) {
+        if (omTak(a)) return;
         final RadioService s = RadioService.instance();
         if (s == null || s.engine() == null) {
-            Toast.makeText(a, "Join a channel first (not available on OpenMANET*)", Toast.LENGTH_SHORT).show();
+            Toast.makeText(a, "Join a channel first", Toast.LENGTH_SHORT).show();
             return;
         }
         if (s.rapidShareLeftMs() > 0) {

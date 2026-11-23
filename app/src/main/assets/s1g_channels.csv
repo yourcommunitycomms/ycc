@@ -1,0 +1,631 @@
+# Wi-Fi HaLow (S1G) channels per country: country,width MHz,channel,centre MHz,name (from the morse-regdb channel table on OpenMANET 1.8.1)
+AL,1,1,863.5,Albania
+AL,1,3,864.5,Albania
+AL,1,5,865.5,Albania
+AL,1,7,866.5,Albania
+AL,1,9,867.5,Albania
+AL,2,2,864.0,Albania
+AL,2,6,866.0,Albania
+AR,1,27,915.5,Argentina
+AR,1,29,916.5,Argentina
+AR,1,31,917.5,Argentina
+AR,1,33,918.5,Argentina
+AR,1,35,919.5,Argentina
+AR,1,37,920.5,Argentina
+AR,1,39,921.5,Argentina
+AR,1,41,922.5,Argentina
+AR,1,43,923.5,Argentina
+AR,1,45,924.5,Argentina
+AR,1,47,925.5,Argentina
+AR,1,49,926.5,Argentina
+AR,1,51,927.5,Argentina
+AR,2,30,917.0,Argentina
+AR,2,34,919.0,Argentina
+AR,2,38,921.0,Argentina
+AR,2,42,923.0,Argentina
+AR,2,46,925.0,Argentina
+AR,2,50,927.0,Argentina
+AR,4,32,918.0,Argentina
+AR,4,40,922.0,Argentina
+AR,4,48,926.0,Argentina
+AR,8,44,924.0,Argentina
+AT,1,1,863.5,Austria
+AT,1,3,864.5,Austria
+AT,1,31,916.9,Austria
+AT,1,33,917.9,Austria
+AT,1,35,918.9,Austria
+AT,1,5,865.5,Austria
+AT,1,7,866.5,Austria
+AT,1,9,867.5,Austria
+AT,2,2,864.0,Austria
+AT,2,6,866.0,Austria
+AU,1,27,915.5,Australia
+AU,1,28,916.0,Australia
+AU,1,29,916.5,Australia
+AU,1,30,917.0,Australia
+AU,1,31,917.5,Australia
+AU,1,32,918.0,Australia
+AU,1,33,918.5,Australia
+AU,1,34,919.0,Australia
+AU,1,35,919.5,Australia
+AU,1,36,920.0,Australia
+AU,1,37,920.5,Australia
+AU,1,38,921.0,Australia
+AU,1,39,921.5,Australia
+AU,1,40,922.0,Australia
+AU,1,41,922.5,Australia
+AU,1,42,923.0,Australia
+AU,1,43,923.5,Australia
+AU,1,44,924.0,Australia
+AU,1,45,924.5,Australia
+AU,1,46,925.0,Australia
+AU,1,47,925.5,Australia
+AU,1,48,926.0,Australia
+AU,1,49,926.5,Australia
+AU,1,50,927.0,Australia
+AU,1,51,927.5,Australia
+AU,2,29,916.5,Australia
+AU,2,30,917.0,Australia
+AU,2,33,918.5,Australia
+AU,2,34,919.0,Australia
+AU,2,37,920.5,Australia
+AU,2,38,921.0,Australia
+AU,2,41,922.5,Australia
+AU,2,42,923.0,Australia
+AU,2,45,924.5,Australia
+AU,2,46,925.0,Australia
+AU,2,49,926.5,Australia
+AU,2,50,927.0,Australia
+AU,4,31,917.5,Australia
+AU,4,32,918.0,Australia
+AU,4,39,921.5,Australia
+AU,4,40,922.0,Australia
+AU,4,47,925.5,Australia
+AU,4,48,926.0,Australia
+AU,4,51,919.5,Australia
+AU,4,59,923.5,Australia
+AU,8,35,919.5,Australia
+AU,8,43,923.5,Australia
+AU,8,44,924.0,Australia
+AU,8,55,921.5,Australia
+BA,1,1,863.5,Bosnia and Herzegovina
+BA,1,3,864.5,Bosnia and Herzegovina
+BA,1,5,865.5,Bosnia and Herzegovina
+BA,1,7,866.5,Bosnia and Herzegovina
+BA,1,9,867.5,Bosnia and Herzegovina
+BA,2,2,864.0,Bosnia and Herzegovina
+BA,2,6,866.0,Bosnia and Herzegovina
+BE,1,1,863.5,Belgium
+BE,1,3,864.5,Belgium
+BE,1,31,916.9,Belgium
+BE,1,33,917.9,Belgium
+BE,1,35,918.9,Belgium
+BE,1,5,865.5,Belgium
+BE,1,7,866.5,Belgium
+BE,1,9,867.5,Belgium
+BE,2,2,864.0,Belgium
+BE,2,6,866.0,Belgium
+BG,1,1,863.5,Bulgaria
+BG,1,3,864.5,Bulgaria
+BG,1,33,917.9,Bulgaria
+BG,1,35,918.9,Bulgaria
+BG,1,5,865.5,Bulgaria
+BG,1,7,866.5,Bulgaria
+BG,1,9,867.5,Bulgaria
+BG,2,2,864.0,Bulgaria
+BG,2,6,866.0,Bulgaria
+BR,1,1,902.5,Brazil
+BR,1,27,915.5,Brazil
+BR,1,29,916.5,Brazil
+BR,1,3,903.5,Brazil
+BR,1,31,917.5,Brazil
+BR,1,33,918.5,Brazil
+BR,1,35,919.5,Brazil
+BR,1,37,920.5,Brazil
+BR,1,39,921.5,Brazil
+BR,1,41,922.5,Brazil
+BR,1,43,923.5,Brazil
+BR,1,45,924.5,Brazil
+BR,1,47,925.5,Brazil
+BR,1,49,926.5,Brazil
+BR,1,5,904.5,Brazil
+BR,1,51,927.5,Brazil
+BR,1,7,905.5,Brazil
+BR,1,9,906.5,Brazil
+BR,2,2,903.0,Brazil
+BR,2,30,917.0,Brazil
+BR,2,34,919.0,Brazil
+BR,2,38,921.0,Brazil
+BR,2,42,923.0,Brazil
+BR,2,46,925.0,Brazil
+BR,2,50,927.0,Brazil
+BR,2,6,905.0,Brazil
+BR,4,32,918.0,Brazil
+BR,4,40,922.0,Brazil
+BR,4,48,926.0,Brazil
+BR,8,44,924.0,Brazil
+CA,1,1,902.5,Canada
+CA,1,11,907.5,Canada
+CA,1,13,908.5,Canada
+CA,1,15,909.5,Canada
+CA,1,17,910.5,Canada
+CA,1,19,911.5,Canada
+CA,1,21,912.5,Canada
+CA,1,23,913.5,Canada
+CA,1,25,914.5,Canada
+CA,1,27,915.5,Canada
+CA,1,29,916.5,Canada
+CA,1,3,903.5,Canada
+CA,1,31,917.5,Canada
+CA,1,33,918.5,Canada
+CA,1,35,919.5,Canada
+CA,1,37,920.5,Canada
+CA,1,39,921.5,Canada
+CA,1,41,922.5,Canada
+CA,1,43,923.5,Canada
+CA,1,45,924.5,Canada
+CA,1,47,925.5,Canada
+CA,1,49,926.5,Canada
+CA,1,5,904.5,Canada
+CA,1,51,927.5,Canada
+CA,1,7,905.5,Canada
+CA,1,9,906.5,Canada
+CA,2,10,907.0,Canada
+CA,2,14,909.0,Canada
+CA,2,18,911.0,Canada
+CA,2,2,903.0,Canada
+CA,2,22,913.0,Canada
+CA,2,26,915.0,Canada
+CA,2,30,917.0,Canada
+CA,2,34,919.0,Canada
+CA,2,38,921.0,Canada
+CA,2,42,923.0,Canada
+CA,2,46,925.0,Canada
+CA,2,50,927.0,Canada
+CA,2,6,905.0,Canada
+CA,4,16,910.0,Canada
+CA,4,24,914.0,Canada
+CA,4,32,918.0,Canada
+CA,4,40,922.0,Canada
+CA,4,48,926.0,Canada
+CA,4,8,906.0,Canada
+CA,8,12,908.0,Canada
+CA,8,28,916.0,Canada
+CA,8,44,924.0,Canada
+CH,1,1,863.5,Switzerland
+CH,1,3,864.5,Switzerland
+CH,1,5,865.5,Switzerland
+CH,1,7,866.5,Switzerland
+CH,1,9,867.5,Switzerland
+CH,2,2,864.0,Switzerland
+CH,2,6,866.0,Switzerland
+CO,1,27,915.5,Colombia
+CO,1,29,916.5,Colombia
+CO,1,31,917.5,Colombia
+CO,1,33,918.5,Colombia
+CO,1,35,919.5,Colombia
+CO,1,37,920.5,Colombia
+CO,1,39,921.5,Colombia
+CO,1,41,922.5,Colombia
+CO,1,43,923.5,Colombia
+CO,1,45,924.5,Colombia
+CO,1,47,925.5,Colombia
+CO,1,49,926.5,Colombia
+CO,1,51,927.5,Colombia
+CO,2,30,917.0,Colombia
+CO,2,34,919.0,Colombia
+CO,2,38,921.0,Colombia
+CO,2,42,923.0,Colombia
+CO,2,46,925.0,Colombia
+CO,2,50,927.0,Colombia
+CO,4,32,918.0,Colombia
+CO,4,40,922.0,Colombia
+CO,4,48,926.0,Colombia
+CO,8,44,924.0,Colombia
+CY,1,1,863.5,Cyprus
+CY,1,3,864.5,Cyprus
+CY,1,5,865.5,Cyprus
+CY,1,7,866.5,Cyprus
+CY,1,9,867.5,Cyprus
+CY,2,2,864.0,Cyprus
+CY,2,6,866.0,Cyprus
+CZ,1,1,863.5,Czech Republic
+CZ,1,3,864.5,Czech Republic
+CZ,1,5,865.5,Czech Republic
+CZ,1,7,866.5,Czech Republic
+CZ,1,9,867.5,Czech Republic
+CZ,2,2,864.0,Czech Republic
+CZ,2,6,866.0,Czech Republic
+DE,1,1,863.5,Germany
+DE,1,3,864.5,Germany
+DE,1,5,865.5,Germany
+DE,1,7,866.5,Germany
+DE,1,9,867.5,Germany
+DE,2,2,864.0,Germany
+DE,2,6,866.0,Germany
+DK,1,1,863.5,Denmark
+DK,1,3,864.5,Denmark
+DK,1,5,865.5,Denmark
+DK,1,7,866.5,Denmark
+DK,1,9,867.5,Denmark
+DK,2,2,864.0,Denmark
+DK,2,6,866.0,Denmark
+EE,1,1,863.5,Estonia
+EE,1,3,864.5,Estonia
+EE,1,5,865.5,Estonia
+EE,1,7,866.5,Estonia
+EE,1,9,867.5,Estonia
+EE,2,2,864.0,Estonia
+EE,2,6,866.0,Estonia
+ES,1,1,863.5,Spain
+ES,1,3,864.5,Spain
+ES,1,5,865.5,Spain
+ES,1,7,866.5,Spain
+ES,1,9,867.5,Spain
+ES,2,2,864.0,Spain
+ES,2,6,866.0,Spain
+EU,1,1,863.5,User assigned EU
+EU,1,3,864.5,User assigned EU
+EU,1,5,865.5,User assigned EU
+EU,1,7,866.5,User assigned EU
+EU,1,9,867.5,User assigned EU
+EU,2,2,864.0,User assigned EU
+EU,2,6,866.0,User assigned EU
+FI,1,1,863.5,Finland
+FI,1,3,864.5,Finland
+FI,1,33,917.9,Finland
+FI,1,35,918.9,Finland
+FI,1,5,865.5,Finland
+FI,1,7,866.5,Finland
+FI,1,9,867.5,Finland
+FI,2,2,864.0,Finland
+FI,2,6,866.0,Finland
+FL,1,1,863.5,Liechtenstein
+FL,1,3,864.5,Liechtenstein
+FL,1,5,865.5,Liechtenstein
+FL,1,7,866.5,Liechtenstein
+FL,1,9,867.5,Liechtenstein
+FL,2,2,864.0,Liechtenstein
+FL,2,6,866.0,Liechtenstein
+FR,1,1,863.5,France
+FR,1,3,864.5,France
+FR,1,33,917.9,France
+FR,1,35,918.9,France
+FR,1,5,865.5,France
+FR,1,7,866.5,France
+FR,1,9,867.5,France
+FR,2,2,864.0,France
+FR,2,6,866.0,France
+GB,1,1,863.5,United Kingdom
+GB,1,3,864.5,United Kingdom
+GB,1,33,917.9,United Kingdom
+GB,1,35,918.9,United Kingdom
+GB,1,5,865.5,United Kingdom
+GB,1,7,866.5,United Kingdom
+GB,1,9,867.5,United Kingdom
+GB,2,2,864.0,United Kingdom
+GB,2,6,866.0,United Kingdom
+GR,1,1,863.5,Greece
+GR,1,3,864.5,Greece
+GR,1,5,865.5,Greece
+GR,1,7,866.5,Greece
+GR,1,9,867.5,Greece
+GR,2,2,864.0,Greece
+GR,2,6,866.0,Greece
+HR,1,1,863.5,Croatia
+HR,1,3,864.5,Croatia
+HR,1,5,865.5,Croatia
+HR,1,7,866.5,Croatia
+HR,1,9,867.5,Croatia
+HR,2,2,864.0,Croatia
+HR,2,6,866.0,Croatia
+HU,1,1,863.5,Hungary
+HU,1,3,864.5,Hungary
+HU,1,5,865.5,Hungary
+HU,1,7,866.5,Hungary
+HU,1,9,867.5,Hungary
+HU,2,2,864.0,Hungary
+HU,2,6,866.0,Hungary
+IE,1,1,863.5,Ireland
+IE,1,3,864.5,Ireland
+IE,1,31,916.9,Ireland
+IE,1,33,917.9,Ireland
+IE,1,35,918.9,Ireland
+IE,1,5,865.5,Ireland
+IE,1,7,866.5,Ireland
+IE,1,9,867.5,Ireland
+IE,2,2,864.0,Ireland
+IE,2,6,866.0,Ireland
+IN,1,5,865.5,India
+IN,1,7,866.5,India
+IN,1,9,867.5,India
+IS,1,1,863.5,Iceland
+IS,1,3,864.5,Iceland
+IS,1,31,916.9,Iceland
+IS,1,33,917.9,Iceland
+IS,1,35,918.9,Iceland
+IS,1,5,865.5,Iceland
+IS,1,7,866.5,Iceland
+IS,1,9,867.5,Iceland
+IS,2,2,864.0,Iceland
+IS,2,6,866.0,Iceland
+IT,1,1,863.5,Italy
+IT,1,3,864.5,Italy
+IT,1,33,917.9,Italy
+IT,1,35,918.9,Italy
+IT,1,5,865.5,Italy
+IT,1,7,866.5,Italy
+IT,1,9,867.5,Italy
+IT,2,2,864.0,Italy
+IT,2,6,866.0,Italy
+JP,1,13,923.0,Japan
+JP,1,15,924.0,Japan
+JP,1,17,925.0,Japan
+JP,1,19,926.0,Japan
+JP,1,21,927.0,Japan
+JP,1,9,921.0,Japan
+JP,2,2,923.5,Japan
+JP,2,4,924.5,Japan
+JP,2,6,925.5,Japan
+JP,2,8,926.5,Japan
+JP,4,36,924.5,Japan
+JP,4,38,925.5,Japan
+KE,1,1,863.5,Kenya
+KE,1,3,864.5,Kenya
+KE,1,5,865.5,Kenya
+KE,1,7,866.5,Kenya
+KE,1,9,867.5,Kenya
+KR,1,1,918.0,South Korea
+KR,1,11,923.0,South Korea
+KR,1,18,926.5,South Korea
+KR,1,20,927.5,South Korea
+KR,1,22,928.5,South Korea
+KR,1,24,929.5,South Korea
+KR,1,3,919.0,South Korea
+KR,1,5,920.0,South Korea
+KR,1,7,921.0,South Korea
+KR,1,9,922.0,South Korea
+KR,2,10,922.5,South Korea
+KR,2,19,927.0,South Korea
+KR,2,2,918.5,South Korea
+KR,2,23,929.0,South Korea
+KR,2,6,920.5,South Korea
+KR,4,8,921.5,South Korea
+LT,1,1,863.5,Lithuania
+LT,1,3,864.5,Lithuania
+LT,1,31,916.9,Lithuania
+LT,1,33,917.9,Lithuania
+LT,1,35,918.9,Lithuania
+LT,1,5,865.5,Lithuania
+LT,1,7,866.5,Lithuania
+LT,1,9,867.5,Lithuania
+LT,2,2,864.0,Lithuania
+LT,2,6,866.0,Lithuania
+LU,1,1,863.5,Luxembourg
+LU,1,3,864.5,Luxembourg
+LU,1,5,865.5,Luxembourg
+LU,1,7,866.5,Luxembourg
+LU,1,9,867.5,Luxembourg
+LU,2,2,864.0,Luxembourg
+LU,2,6,866.0,Luxembourg
+LV,1,1,863.5,Latvia
+LV,1,3,864.5,Latvia
+LV,1,5,865.5,Latvia
+LV,1,7,866.5,Latvia
+LV,1,9,867.5,Latvia
+LV,2,2,864.0,Latvia
+LV,2,6,866.0,Latvia
+MD,1,1,863.5,Moldova
+MD,1,3,864.5,Moldova
+MD,1,31,916.9,Moldova
+MD,1,33,917.9,Moldova
+MD,1,35,918.9,Moldova
+MD,1,5,865.5,Moldova
+MD,1,7,866.5,Moldova
+MD,1,9,867.5,Moldova
+MD,2,2,864.0,Moldova
+MD,2,6,866.0,Moldova
+MK,1,1,863.5,North Macedonia
+MK,1,3,864.5,North Macedonia
+MK,1,31,916.9,North Macedonia
+MK,1,33,917.9,North Macedonia
+MK,1,35,918.9,North Macedonia
+MK,1,5,865.5,North Macedonia
+MK,1,7,866.5,North Macedonia
+MK,1,9,867.5,North Macedonia
+MK,2,2,864.0,North Macedonia
+MK,2,6,866.0,North Macedonia
+MT,1,1,863.5,Malta
+MT,1,3,864.5,Malta
+MT,1,5,865.5,Malta
+MT,1,7,866.5,Malta
+MT,1,9,867.5,Malta
+MT,2,2,864.0,Malta
+MT,2,6,866.0,Malta
+NL,1,1,863.5,Netherlands
+NL,1,3,864.5,Netherlands
+NL,1,5,865.5,Netherlands
+NL,1,7,866.5,Netherlands
+NL,1,9,867.5,Netherlands
+NL,2,2,864.0,Netherlands
+NL,2,6,866.0,Netherlands
+NO,1,1,863.5,Norway
+NO,1,3,864.5,Norway
+NO,1,5,865.5,Norway
+NO,1,7,866.5,Norway
+NO,1,9,867.5,Norway
+NO,2,2,864.0,Norway
+NO,2,6,866.0,Norway
+NZ,1,27,915.5,New Zealand
+NZ,1,29,916.5,New Zealand
+NZ,1,31,917.5,New Zealand
+NZ,1,33,918.5,New Zealand
+NZ,1,35,919.5,New Zealand
+NZ,1,37,920.5,New Zealand
+NZ,1,39,921.5,New Zealand
+NZ,1,41,922.5,New Zealand
+NZ,1,43,923.5,New Zealand
+NZ,1,45,924.5,New Zealand
+NZ,1,47,925.5,New Zealand
+NZ,1,49,926.5,New Zealand
+NZ,1,51,927.5,New Zealand
+NZ,2,30,917.0,New Zealand
+NZ,2,34,919.0,New Zealand
+NZ,2,38,921.0,New Zealand
+NZ,2,42,923.0,New Zealand
+NZ,2,46,925.0,New Zealand
+NZ,2,50,927.0,New Zealand
+NZ,4,32,918.0,New Zealand
+NZ,4,40,922.0,New Zealand
+NZ,4,48,926.0,New Zealand
+NZ,8,44,924.0,New Zealand
+PL,1,1,863.5,Poland
+PL,1,3,864.5,Poland
+PL,1,5,865.5,Poland
+PL,1,7,866.5,Poland
+PL,1,9,867.5,Poland
+PL,2,2,864.0,Poland
+PL,2,6,866.0,Poland
+PT,1,1,863.5,Portugal
+PT,1,3,864.5,Portugal
+PT,1,31,916.9,Portugal
+PT,1,33,917.9,Portugal
+PT,1,35,918.9,Portugal
+PT,1,5,865.5,Portugal
+PT,1,7,866.5,Portugal
+PT,1,9,867.5,Portugal
+PT,2,2,864.0,Portugal
+PT,2,6,866.0,Portugal
+RO,1,1,863.5,Romania
+RO,1,3,864.5,Romania
+RO,1,5,865.5,Romania
+RO,1,7,866.5,Romania
+RO,1,9,867.5,Romania
+RO,2,2,864.0,Romania
+RO,2,6,866.0,Romania
+SE,1,1,863.5,Sweden
+SE,1,3,864.5,Sweden
+SE,1,31,916.9,Sweden
+SE,1,33,917.9,Sweden
+SE,1,35,918.9,Sweden
+SE,1,5,865.5,Sweden
+SE,1,7,866.5,Sweden
+SE,1,9,867.5,Sweden
+SE,2,2,864.0,Sweden
+SE,2,6,866.0,Sweden
+SG,1,11,868.5,Singapore
+SG,1,37,920.5,Singapore
+SG,1,39,921.5,Singapore
+SG,1,41,922.5,Singapore
+SG,1,43,923.5,Singapore
+SG,1,45,924.5,Singapore
+SG,1,7,866.5,Singapore
+SG,1,9,867.5,Singapore
+SG,2,10,868.0,Singapore
+SG,2,38,921.0,Singapore
+SG,2,42,923.0,Singapore
+SG,4,40,922.0,Singapore
+SI,1,1,863.5,Slovenia
+SI,1,3,864.5,Slovenia
+SI,1,31,916.9,Slovenia
+SI,1,33,917.9,Slovenia
+SI,1,35,918.9,Slovenia
+SI,1,5,865.5,Slovenia
+SI,1,7,866.5,Slovenia
+SI,1,9,867.5,Slovenia
+SI,2,2,864.0,Slovenia
+SI,2,6,866.0,Slovenia
+SK,1,1,863.5,Slovakia
+SK,1,3,864.5,Slovakia
+SK,1,31,916.9,Slovakia
+SK,1,33,917.9,Slovakia
+SK,1,35,918.9,Slovakia
+SK,1,5,865.5,Slovakia
+SK,1,7,866.5,Slovakia
+SK,1,9,867.5,Slovakia
+SK,2,2,864.0,Slovakia
+SK,2,6,866.0,Slovakia
+TR,1,1,863.5,Turkey
+TR,1,3,864.5,Turkey
+TR,1,33,917.9,Turkey
+TR,1,35,918.9,Turkey
+TR,1,5,865.5,Turkey
+TR,1,7,866.5,Turkey
+TR,1,9,867.5,Turkey
+TR,2,2,864.0,Turkey
+TR,2,6,866.0,Turkey
+UG,1,1,863.5,Uganda
+UG,1,3,864.5,Uganda
+UG,1,31,916.9,Uganda
+UG,1,33,917.9,Uganda
+UG,1,35,918.9,Uganda
+UG,1,5,865.5,Uganda
+UG,1,7,866.5,Uganda
+UG,1,9,867.5,Uganda
+US,1,1,902.5,USA
+US,1,11,907.5,USA
+US,1,13,908.5,USA
+US,1,15,909.5,USA
+US,1,17,910.5,USA
+US,1,19,911.5,USA
+US,1,21,912.5,USA
+US,1,23,913.5,USA
+US,1,25,914.5,USA
+US,1,27,915.5,USA
+US,1,29,916.5,USA
+US,1,3,903.5,USA
+US,1,31,917.5,USA
+US,1,33,918.5,USA
+US,1,35,919.5,USA
+US,1,37,920.5,USA
+US,1,39,921.5,USA
+US,1,41,922.5,USA
+US,1,43,923.5,USA
+US,1,45,924.5,USA
+US,1,47,925.5,USA
+US,1,49,926.5,USA
+US,1,5,904.5,USA
+US,1,51,927.5,USA
+US,1,7,905.5,USA
+US,1,9,906.5,USA
+US,2,10,907.0,USA
+US,2,14,909.0,USA
+US,2,18,911.0,USA
+US,2,2,903.0,USA
+US,2,22,913.0,USA
+US,2,26,915.0,USA
+US,2,30,917.0,USA
+US,2,34,919.0,USA
+US,2,38,921.0,USA
+US,2,42,923.0,USA
+US,2,46,925.0,USA
+US,2,50,927.0,USA
+US,2,6,905.0,USA
+US,4,16,910.0,USA
+US,4,24,914.0,USA
+US,4,32,918.0,USA
+US,4,40,922.0,USA
+US,4,48,926.0,USA
+US,4,8,906.0,USA
+US,8,12,908.0,USA
+US,8,28,916.0,USA
+US,8,44,924.0,USA
+XA,1,29,916.5,User Assigned 1
+XA,1,31,917.5,User Assigned 1
+XA,1,33,918.5,User Assigned 1
+XA,1,35,919.5,User Assigned 1
+XA,1,37,920.5,User Assigned 1
+XA,1,39,921.5,User Assigned 1
+XA,1,41,922.5,User Assigned 1
+XA,1,43,923.5,User Assigned 1
+XA,2,30,917.0,User Assigned 1
+XA,2,34,919.0,User Assigned 1
+XA,2,38,921.0,User Assigned 1
+XA,2,42,923.0,User Assigned 1
+XA,4,32,918.0,User Assigned 1
+XA,4,40,922.0,User Assigned 1
+XA,8,36,920.0,User Assigned 1
+XB,1,5,865.5,User Assigned 2
+XB,1,7,866.5,User Assigned 2
+XB,1,9,867.5,User Assigned 2
+XB,2,6,866.0,User Assigned 2

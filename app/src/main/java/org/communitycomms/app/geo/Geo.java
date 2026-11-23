@@ -92,7 +92,7 @@ public final class Geo {
         return (s / 86400) + "d ago";
     }
 
-    // Web Mercator tile maths (same numbering as Google / OSM / ATAK imagery folders).
+    // Web Mercator tile maths (same numbering as Google / OSM / TAK imagery folders).
 
     public static double lonToX(double lon, int z) {
         return (lon + 180) / 360 * (1 << z);

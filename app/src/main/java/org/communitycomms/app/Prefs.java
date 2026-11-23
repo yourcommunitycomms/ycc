@@ -149,11 +149,43 @@ public final class Prefs {
     }
 
     public static final int SLOT_A = 0, SLOT_B = 1, SLOT_PUBLIC = 2;
-    /** Experimental OpenMANET / ATAK Vx talk group (unencrypted, half duplex). */
+    /** OpenMANET / TAK Vx talk group (unencrypted, half duplex). */
     public static final int SLOT_OPENMANET = 3;
 
+    /** The OM/TAK channel's chat (TAK All Chat Rooms and talk group voice) in Chat: its own tag, not encrypted. */
+    public static final int OMTAK_TAG = 0x4F4D5441; // "OMTA"
+
+    /** openmanetd's default talk group: channel 1 (internal/config/multicast.go). */
+    public static final String OPENMANET_DEFAULT_GROUP = "239.192.41.1:38801";
+
+    /** Channel link (Advanced, off by default): the YCC channel linked to the OpenMANET talk group, or -1. */
+    public int linkSlot() {
+        return sp.getInt("linkSlot", -1);
+    }
+
+    /** RadioService.LINK_TO_YCC (default), LINK_TO_OM or LINK_BOTH. */
+    public int linkDir() {
+        return sp.getInt("linkDir", 0);
+    }
+
+    public void setLink(int slot, int dir) {
+        sp.edit().putInt("linkSlot", slot).putInt("linkDir", dir).commit();
+    }
+
+    /** Broadcast my callsign on the OpenMANET channel (TAK Vx beacon + talk group report). On by default. */
+    public boolean omCallsign() {
+        return sp.getBoolean("vxDataOn", true);
+    }
+
+    /** Share my position with TAK (with TAK compatible on). Off by default: callsign only. */
+    public boolean atakPosition() {
+        return sp.getBoolean("atakPosition", false);
+    }
+
+    /** The talk group "address:port"; openmanetd's channel 1 when never set. */
     public String openManetGroup() {
-        return sp.getString("openmanetGroup", "");
+        String g = sp.getString("openmanetGroup", "");
+        return g.trim().length() == 0 ? OPENMANET_DEFAULT_GROUP : g;
     }
 
     public void setOpenManetGroup(String g) {
@@ -298,7 +330,7 @@ public final class Prefs {
     /** "A", "B", "Public", "OpenMANET", "C" … "H". */
     public static String letter(int slot) {
         if (slot == SLOT_PUBLIC) return "Public";
-        if (slot == SLOT_OPENMANET) return "OpenMANET";
+        if (slot == SLOT_OPENMANET) return "OM/TAK";
         if (slot == SLOT_CLOUD) return "Cloud";
         return slot <= SLOT_B ? (slot == SLOT_A ? "A" : "B") : String.valueOf((char) ('C' + slot - SLOT_C));
     }
@@ -341,6 +373,26 @@ public final class Prefs {
         int[] out = new int[HOME_MAX];
         int n = 0;
         for (int s : order()) if (n < HOME_MAX && shown(s)) out[n++] = s;
+        // OpenMANET* is its own channel: once it is on (and ticked to show), its button always makes the home
+        // screen. With all buttons taken it replaces the least needed one that is not on air: the cloud group,
+        // then an extra channel, then B (they stay on the Channels page).
+        if (shown(SLOT_OPENMANET) && n == HOME_MAX) {
+            boolean has = false;
+            for (int i = 0; i < n; i++) has |= out[i] == SLOT_OPENMANET;
+            if (!has) {
+                int[] give = {SLOT_CLOUD, 9, 8, 7, 6, 5, 4, SLOT_B};
+                outer:
+                for (int g : give) {
+                    for (int i = 0; i < n; i++) {
+                        if (out[i] == g && g != activeSlot()) {
+                            System.arraycopy(out, i + 1, out, i, n - i - 1);
+                            out[n - 1] = SLOT_OPENMANET;
+                            break outer;
+                        }
+                    }
+                }
+            }
+        }
         return java.util.Arrays.copyOf(out, n);
     }
 
@@ -566,6 +618,22 @@ public final class Prefs {
         return out;
     }
 
+    /** Dual watch while talking on OM/TAK: the YCC channels ticked Listen (or the A/B default). */
+    public java.util.List<Integer> watchSlotsBesideOmTak() {
+        java.util.List<Integer> out = new java.util.ArrayList<Integer>();
+        if (!dualWatch()) return out;
+        for (int s : order()) {
+            if (s == SLOT_OPENMANET || !listening(s) || (isExtra(s) && !extrasOn()) || (s == SLOT_CLOUD && !cloudSet())) continue;
+            if (channel(s).length() > 0) out.add(s);
+        }
+        return out;
+    }
+
+    /** Dual watch while on a YCC channel: also listen to the OM/TAK talk group (ticked Listen on its row). */
+    public boolean listenOmTak() {
+        return dualWatch() && showOpenManet() && listening(SLOT_OPENMANET);
+    }
+
     public void setDualWatchStereo(boolean on) {
         sp.edit().putBoolean("dualWatchStereo", on).commit();
     }
@@ -622,20 +690,21 @@ public final class Prefs {
      * code ("menus": the keys to turn on). Most people never need these.
      */
     public static final String[] MENU_KEYS = {"array", "report", "tasks", "nomad", "vicemergency", "trains", "stopnames", "artc", "atak", "cast", "calendar", "relayadmin", "bluetti", "trex",
-            "cloud", "openmanet", "streams"};
+            "cloud", "openmanet", "streams", "meshctl"};
     public static final String[] MENU_LABELS = {"Channel array", "Report to leaders", "Tasks and notes", "Project NOMAD",
-            "VicEmergency alerts on the map", "Melbourne trains preset (in Trains on the map)", "Load station names button (live trains)", "ARTC rail network on the map", "ATAK items in the map menu (map files, export, map source)", "Cast screen to TV (Google TV, Chromecast)", "Calendar and notes (mine, team, both; notes with pictures)",
+            "VicEmergency alerts on the map", "Melbourne trains preset (in Trains on the map)", "Load station names button (live trains)", "ARTC rail network on the map", "TAK items in the map menu (map files, export, map source)", "Cast screen to TV (Google TV, Chromecast)", "Calendar and notes (mine, team, both; notes with pictures)",
             "Relay admin (add and remove the Cloud Server's sites, remotes and cloud groups; needs its admin key)",
             "Battery power (read-only: Bluetti, Tesla Powerwall 2, Anker SOLIX*, EcoFlow*; battery and power shared on the channel; * untested)",
             "T.REX Arms Topo Map (offline topo map: Layer choice, Data import and layers, sharing through the cache server)",
             "Cloud group (a community channel like Public with its own Cloud Server)",
-            "OpenMANET / ATAK Vx talk group and OpenMANET node menus (experimental, not encrypted)",
-            "Internet audio (radio streams in the menu)"};
+            "OpenMANET / TAK Vx talk group and OpenMANET node menus (not encrypted)",
+            "Internet audio (radio streams in the menu)",
+            "Mesh controller (change every OpenMANET node's HaLow channel, mesh name and password; needs the nodes' login)"};
 
     /** Advanced and Region features, grouped (all keys are in MENU_KEYS; all off by default). */
     public static final String[] FEATURES_ADVANCED = {"array", "report", "tasks", "calendar", "bluetti", "cast", "relayadmin", "cloud", "trex"};
     public static final String[] FEATURES_REGION = {"vicemergency", "trains", "stopnames", "artc"};
-    public static final String[] FEATURES_MORE = {"nomad", "atak", "openmanet", "streams"};
+    public static final String[] FEATURES_MORE = {"nomad", "atak", "openmanet", "meshctl", "streams"};
 
     public static String menuLabel(String key) {
         int i = java.util.Arrays.asList(MENU_KEYS).indexOf(key);
@@ -1096,7 +1165,7 @@ public final class Prefs {
     }
 
     public boolean blackoutLegacy() {
-        return sp.getBoolean("blackoutLegacy", false);
+        return sp.getBoolean("blackoutLegacy", android.os.Build.VERSION.SDK_INT < 26); // see LightDiscipline.legacyBlackout
     }
 
     public void setBlackoutLegacy(boolean on) {
@@ -1299,17 +1368,17 @@ public final class Prefs {
         return sp.contains("burstVoice");
     }
 
-    /** Burst mode can't be on with ATAK compatibility or OpenMANET (they need live voice). */
+    /** Burst mode can't be on with TAK compatibility or OpenMANET (they need live voice). */
     public boolean burstBlocked() {
         return sp.getBoolean("atakOn", false) || showOpenManet();
     }
 
-    /** Burst voice on or off; on is refused (stays off) while ATAK or OpenMANET is on. */
+    /** Burst voice on or off; on is refused (stays off) while TAK or OpenMANET is on. */
     public void setBurstVoice(boolean on) {
         sp.edit().putBoolean("burstVoice", on && !burstBlocked()).commit();
     }
 
-    /** ATAK compatibility or OpenMANET was just turned on: burst mode goes off, with a short note. */
+    /** TAK compatibility or OpenMANET was just turned on: burst mode goes off, with a short note. */
     public void burstOffFor(String what) {
         if (!burstVoice()) return;
         sp.edit().putBoolean("burstVoice", false).commit();

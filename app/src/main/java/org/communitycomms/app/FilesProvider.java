@@ -38,7 +38,7 @@ public final class FilesProvider extends ContentProvider {
         return Uri.parse("content://" + AUTHORITY + "/videos/" + Uri.encode(f.getName()));
     }
 
-    /** Files made to share with other apps (ATAK map exports, map source XML). */
+    /** Files made to share with other apps (TAK map exports, map source XML). */
     public static Uri export(File f) {
         return Uri.parse("content://" + AUTHORITY + "/export/" + Uri.encode(f.getName()));
     }

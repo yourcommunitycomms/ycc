@@ -42,6 +42,7 @@ public final class CommsApp extends Application {
         registerActivityLifecycleCallbacks(new IntercomReturn());
         registerActivityLifecycleCallbacks(new FocusCatchUp());
         registerActivityLifecycleCallbacks(new TvFocus()); // gold frame on the remote / D-pad focus
+        FloatingPtt.install(this); // floating PTT button over other apps (off by default)
     }
 
     /**

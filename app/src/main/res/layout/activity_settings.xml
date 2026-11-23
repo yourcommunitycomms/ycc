@@ -58,9 +58,14 @@
             <EditText android:id="@+id/public_key" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="@string/public_key_hint" android:inputType="text" android:singleLine="true" />
             <CheckBox android:id="@+id/show_public" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/show_public" />
             <Button android:id="@+id/listen_key" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Shareable listen key for Public (read only)…" android:textAllCaps="false" />
+            <TextView style="@style/Label" android:layout_marginTop="18dp" android:text="OM/TAK channel: OpenMANET and TAK (a channel of its own, not Public)" android:textColor="#f0c75e" />
             <CheckBox android:id="@+id/show_openmanet" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/show_openmanet" />
             <TextView style="@style/Label" android:text="@string/openmanet_group" />
-            <EditText android:id="@+id/openmanet_group" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Talk group, e.g. 239.10.10.10:38801" android:inputType="textUri" android:singleLine="true" />
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical">
+                <EditText android:id="@+id/openmanet_group" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:hint="239.192.41.1:38801 (channel 1)" android:inputType="textUri" android:singleLine="true" />
+                <Button android:id="@+id/openmanet_channel" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Change channel…" android:textAllCaps="false" />
+            </LinearLayout>
+            <TextView android:id="@+id/openmanet_channel_label" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="13sp" />
             <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/openmanet_note" android:textColor="#ffb74d" android:textSize="12sp" />
             <Button android:id="@+id/key_rotation" android:layout_width="match_parent" android:layout_height="wrap_content" android:textAllCaps="false" />
             <CheckBox android:id="@+id/rejoin_on_start" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/rejoin_on_start" />
@@ -90,6 +95,7 @@
         <LinearLayout android:id="@+id/sec_audio" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical">
             <TextView style="@style/Label" android:text="@string/talking" />
             <CheckBox android:id="@+id/latch" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/latch" />
+            <Button android:id="@+id/float_ptt" android:layout_width="match_parent" android:layout_height="wrap_content" android:textAllCaps="false" />
             <CheckBox android:id="@+id/start_tone" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/start_tone" />
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical" android:orientation="horizontal">
                 <TextView android:id="@+id/key_label" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" />
@@ -190,7 +196,10 @@
                 <EditText android:id="@+id/peers" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:hint="@string/peers_hint" android:inputType="textNoSuggestions|textUri" android:singleLine="true" />
             </LinearLayout>
             <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/rejoin_note" android:textSize="12sp" />
-            <CheckBox android:id="@+id/atak_on" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Enable ATAK compatible (positions and Public chat, NOT encrypted)" />
+            <CheckBox android:id="@+id/atak_on" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Enable TAK compatible (callsign in TAK's contacts and Public chat with TAK, NOT encrypted)" />
+            <CheckBox android:id="@+id/atak_pos" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Share my location with TAK (off: TAK lists you by callsign without a position)" />
+            <CheckBox android:id="@+id/atak_nodes" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Show OpenMANET nodes in TAK (the Mesh controller's node list, as TAK contacts; needs TAK compatible; one phone is enough; NOT encrypted)" />
+            <CheckBox android:id="@+id/vx_data" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Broadcast my callsign on the OM/TAK channel (TAK Vx beacon 239.255.1.2:5000 and talk group report: your callsign, talk group and address, NOT encrypted; Vx users listed by callsign)" />
             <TextView style="@style/Label" android:text="@string/tunnel_heading" />
             <TextView android:id="@+id/tunnel_state" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="12sp" />
             <Button android:id="@+id/tunnel_client" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/tunnel_client" />

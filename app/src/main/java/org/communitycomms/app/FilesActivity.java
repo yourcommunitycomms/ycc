@@ -354,8 +354,32 @@ public final class FilesActivity extends Activity {
         });
     }
 
-    private void transmitLocation(android.location.Location l) {
+    private void transmitLocation(final android.location.Location l) {
         RadioService rs = RadioService.instance();
+        if (rs != null && rs.compat() != null) { // OM/TAK: a TAK position, plain text
+            if (new Prefs(this).atakPosition()) {
+                sendTak(l);
+                return;
+            }
+            if (isFinishing()) return;
+            new android.app.AlertDialog.Builder(this).setTitle("Share your location on OM/TAK?")
+                    .setMessage("Your location will be sent to TAK and OpenMANET users unencrypted: anyone on the mesh can see it.")
+                    .setPositiveButton("Share once", new android.content.DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(android.content.DialogInterface d, int w) {
+                            sendTak(l);
+                        }
+                    })
+                    .setNeutralButton("Always share on OM/TAK", new android.content.DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(android.content.DialogInterface d, int w) {
+                            getSharedPreferences("settings", MODE_PRIVATE).edit().putBoolean("atakPosition", true).commit();
+                            sendTak(l);
+                        }
+                    })
+                    .setNegativeButton("Cancel", null).show();
+            return;
+        }
         RadioEngine e = rs == null ? null : rs.engine();
         if (e == null) {
             here.setText("Left the channel; not sent");
@@ -368,6 +392,12 @@ public final class FilesActivity extends Activity {
         e.sendLocation(l.getLatitude(), l.getLongitude(), l.getAccuracy(), l.getTime(), "");
         here.setText("Sent: " + org.communitycomms.app.geo.Geo.latLon(l.getLatitude(), l.getLongitude())
                 + "  ±" + org.communitycomms.app.geo.Geo.distance(l.getAccuracy()));
+    }
+
+    private void sendTak(android.location.Location l) {
+        boolean ok = AtakBridge.sendPositionOnce(l);
+        here.setText(ok ? "Sent to TAK (not encrypted): " + org.communitycomms.app.geo.Geo.latLon(l.getLatitude(), l.getLongitude())
+                : "Not sent: TAK is not running (radio silent, or Broadcast my callsign is off in the OM/TAK settings)");
     }
 
     private void showCurrent() {

@@ -15,7 +15,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Sharing the T.REX Arms Topo Map through the LAN cache server, in its own folder (not the Maps cache,
- * not ATAK): "T.REX Arms Topo Map/NAME.mbtiles" (the whole file, for Download), NAME.mbtiles.info (its
+ * not TAK): "T.REX Arms Topo Map/NAME.mbtiles" (the whole file, for Download), NAME.mbtiles.info (its
  * name, zooms, bounds and credit), and tiles/z/x/y.jpg (each tile, so other phones can view the map as
  * they pan before, or without, downloading the file). One upload or download at a time, in the
  * background; the screen shows {@link #status()}.

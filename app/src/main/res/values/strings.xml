@@ -14,8 +14,8 @@
     <string name="slot_a">A</string>
     <string name="slot_b">B</string>
     <string name="slot_public">Public</string>
-    <string name="slot_openmanet">OpenMANET*</string>
-    <string name="openmanet_note">* EXPERIMENTAL: talks to OpenMANET Comms / ATAK Vx talk groups. Not encrypted, half duplex, no acks. Untested on real OpenMANET gear.</string>
+    <string name="slot_openmanet">OM/TAK*</string>
+    <string name="openmanet_note">* Talks to OpenMANET Comms / TAK Vx talk groups (tested with OpenMANET 1.8.1). Not encrypted, half duplex, no acks.</string>
     <string name="row_to_a">→ A</string>
     <string name="row_to_b">→ B</string>
     <string name="row_to_x">→ X</string>
@@ -106,7 +106,7 @@
     <string name="public_key_label">Public channel key (everyone with the same key shares Public; not private)</string>
     <string name="public_key_hint">publicchannelkey</string>
     <string name="show_public">Show the Public channel on the home screen</string>
-    <string name="show_openmanet">Show the OpenMANET* channel on the home screen</string>
+    <string name="show_openmanet">Show the OM/TAK channel (OpenMANET / TAK) on the home screen</string>
     <string name="share_config">Share these settings and DRYAD sheets with the channel…</string>
     <string name="bt_headset">Use a connected Bluetooth headset for radio audio and microphone (e.g. FalconClaw)</string>
     <string name="bt_button">Choose</string>
@@ -121,7 +121,7 @@
     <string name="loc_on_tx">Send my location when I transmit (and every 30 s while I keep talking)</string>
     <string name="auto_ack">Acknowledgement mode (range test / debug): reply \"ACK\" to every message and report received, with when it was sent and how long it took. Acks are never acked.</string>
     <string name="slot_public_short">Pub</string>
-    <string name="slot_openmanet_short">OM</string>
+    <string name="slot_openmanet_short">OM/TAK</string>
     <string name="share_loc_short">Share loc</string>
     <string name="full_map">Full map</string>
     <string name="home_screen">Home screen</string>
@@ -165,7 +165,7 @@
     <string name="page_home">Screen (home screen, orientation, map point buttons, black screen, red light, TV)…</string>
     <string name="ignore_it">Ignore it</string>
     <string name="page_power">Power and batteries (power modes, Anchored, mission mode, sleep)…</string>
-    <string name="page_network">Network (WiFi, tunnel, Cloud Server, ATAK)…</string>
+    <string name="page_network">Network (WiFi, tunnel, Cloud Server, TAK)…</string>
     <string name="page_security">Security (PIN, wipe, radio silent)…</string>
     <string name="page_data">Data and backups (mission, LAN storage, config backups, clearing data)…</string>
     <string name="page_tools">Tools (make a QR, scan a QR, open in browser)…</string>

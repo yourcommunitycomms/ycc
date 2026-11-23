@@ -22,10 +22,10 @@ import java.util.Locale;
 import java.util.Set;
 
 /**
- * "T.REX Arms Topo Map": ATAK .mbtiles files baked on the T.REX Arms Maps site (OpenStreetMap and
+ * "T.REX Arms Topo Map": TAK .mbtiles files baked on the T.REX Arms Maps site (OpenStreetMap and
  * hillshade, usually zoom 12 to 15), imported into the app's own storage (maps/_trex, copied, never
  * linked) and read straight from SQLite as a read-only offline tile source. Kept apart from the
- * offline tile sets and the ATAK imports: nothing here is unpacked, sent or synced.
+ * offline tile sets and the TAK imports: nothing here is unpacked, sent or synced.
  * MBTiles rows count from the south (TMS): y_xyz = (2^z - 1) - y_tms.
  */
 public final class TrexMaps {

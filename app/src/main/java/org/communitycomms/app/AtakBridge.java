@@ -23,8 +23,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * "ATAK compatible" (Settings, off by default): speaks ATAK's mesh defaults, which are NOT
- * encrypted. Our position goes out as Cursor on Target every 30 s on 239.2.3.1:6969 and ATAK
+ * "TAK compatible" (Settings, off by default): speaks TAK's mesh defaults, which are NOT
+ * encrypted. Our position goes out as Cursor on Target every 30 s on 239.2.3.1:6969 and TAK
  * users' positions are shown on our maps; GeoChat "All Chat Rooms" on 224.10.10.1:17012 comes into
  * Chat, and what we write on the Public channel goes to it. Private channels never leave the app.
  */
@@ -54,7 +54,11 @@ public final class AtakBridge {
 
     /** Starts or stops to match the setting (RadioService calls this every couple of seconds). */
     public static synchronized void apply(Context c) {
-        boolean want = enabled(c) && !new Prefs(c).radioSilent();
+        // TAK compatible, or on the OM/TAK channel with "Broadcast my callsign" (its chat is TAK's All Chat Rooms).
+        RadioService rs = RadioService.instance();
+        Prefs pp = new Prefs(c);
+        boolean onOmTak = rs != null && rs.compat() != null && pp.omCallsign();
+        boolean want = (enabled(c) || onOmTak) && !pp.radioSilent();
         if (want && !running) start(c);
         else if (!want && running) stop();
     }
@@ -121,13 +125,125 @@ public final class AtakBridge {
                     try {
                         DatagramPacket p = new DatagramPacket(buf, buf.length);
                         s.receive(p);
-                        handle(new String(p.getData(), 0, p.getLength(), "UTF-8"));
+                        byte[] d = p.getData();
+                        int len = p.getLength();
+                        // TAK protocol v1 on the mesh: 0xbf 0x01 0xbf, then a protobuf TakMessage (newer ATAK / WinTAK).
+                        if (len > 3 && (d[0] & 0xff) == 0xbf && (d[1] & 0xff) == 0x01 && (d[2] & 0xff) == 0xbf) {
+                            String x = protoToXml(d, 3, len);
+                            if (x != null) handle(x);
+                        } else {
+                            handle(new String(d, 0, len, "UTF-8"));
+                        }
                     } catch (Exception e) {
                         if (!running) return;
                     }
                 }
             }
         }, name).start();
+    }
+
+    // ---- TAK protocol v1 (protobuf) -> the CoT XML handle() reads ----
+
+    private static long varint(byte[] b, int[] pos, int end) {
+        long r = 0;
+        int shift = 0;
+        while (pos[0] < end && shift < 64) {
+            int c = b[pos[0]++] & 0xff;
+            r |= (long) (c & 0x7f) << shift;
+            if (c < 0x80) break;
+            shift += 7;
+        }
+        return r;
+    }
+
+    /** TakMessage { 2: CotEvent { 1 type, 5 uid, 9 how, 10 lat, 11 lon, 15 Detail { 1 xmlDetail, 2 Contact { 2 callsign } } } }. */
+    static String protoToXml(byte[] b, int off, int end) {
+        try {
+            int[] pos = {off};
+            while (pos[0] < end) {
+                long key = varint(b, pos, end);
+                int f = (int) (key >>> 3), w = (int) (key & 7);
+                if (w == 2) {
+                    int l = (int) varint(b, pos, end);
+                    if (f == 2) return cotToXml(b, pos[0], Math.min(end, pos[0] + l));
+                    pos[0] += l;
+                } else if (!skip(b, pos, end, w)) {
+                    return null;
+                }
+            }
+        } catch (RuntimeException e) {
+            android.util.Log.d("AtakBridge", "bad TAK message: " + e);
+        } catch (java.io.UnsupportedEncodingException e) {
+            return null;
+        }
+        return null;
+    }
+
+    private static boolean skip(byte[] b, int[] pos, int end, int w) {
+        if (w == 0) varint(b, pos, end);
+        else if (w == 1) pos[0] += 8;
+        else if (w == 5) pos[0] += 4;
+        else return false;
+        return true;
+    }
+
+    private static String cotToXml(byte[] b, int off, int end) throws java.io.UnsupportedEncodingException {
+        String type = "", uid = "", how = "", xmlDetail = "", callsign = "";
+        double lat = 0, lon = 0;
+        int[] pos = {off};
+        while (pos[0] < end) {
+            long key = varint(b, pos, end);
+            int f = (int) (key >>> 3), w = (int) (key & 7);
+            if (w == 2) {
+                int l = (int) varint(b, pos, end);
+                int s = pos[0];
+                pos[0] += l;
+                if (f == 1) type = new String(b, s, l, "UTF-8");
+                else if (f == 5) uid = new String(b, s, l, "UTF-8");
+                else if (f == 9) how = new String(b, s, l, "UTF-8");
+                else if (f == 15) { // Detail
+                    int[] dp = {s};
+                    int de = s + l;
+                    while (dp[0] < de) {
+                        long dk = varint(b, dp, de);
+                        int df = (int) (dk >>> 3), dw = (int) (dk & 7);
+                        if (dw != 2) {
+                            if (!skip(b, dp, de, dw)) break;
+                            continue;
+                        }
+                        int dl = (int) varint(b, dp, de);
+                        int ds = dp[0];
+                        dp[0] += dl;
+                        if (df == 1) xmlDetail = new String(b, ds, dl, "UTF-8");
+                        else if (df == 2) { // Contact { 1 endpoint, 2 callsign }
+                            int[] cp = {ds};
+                            while (cp[0] < ds + dl) {
+                                long ck = varint(b, cp, ds + dl);
+                                if ((ck & 7) != 2) {
+                                    if (!skip(b, cp, ds + dl, (int) (ck & 7))) break;
+                                    continue;
+                                }
+                                int cl = (int) varint(b, cp, ds + dl);
+                                if ((ck >>> 3) == 2) callsign = new String(b, cp[0], cl, "UTF-8");
+                                cp[0] += cl;
+                            }
+                        }
+                    }
+                }
+            } else if (w == 1) {
+                double v = Double.longBitsToDouble(java.nio.ByteBuffer.wrap(b, pos[0], 8).order(java.nio.ByteOrder.LITTLE_ENDIAN).getLong());
+                pos[0] += 8;
+                if (f == 10) lat = v;
+                else if (f == 11) lon = v;
+            } else if (!skip(b, pos, end, w)) {
+                break;
+            }
+        }
+        if (uid.length() == 0 || type.length() == 0) return null;
+        return "<event version=\"2.0\" uid=\"" + esc(uid) + "\" type=\"" + esc(type) + "\" how=\"" + esc(how) + "\">"
+                + String.format(Locale.US, "<point lat=\"%.7f\" lon=\"%.7f\"/>", lat, lon)
+                + "<detail>" + xmlDetail + (callsign.length() > 0 ? "<contact callsign=\"" + esc(callsign) + "\"/>" : "")
+                + "</detail></event>";
     }
 
     // ---- sending ----
@@ -161,12 +277,49 @@ public final class AtakBridge {
         return lm == null ? FakeGps.location(app) : LocationHelper.bestKnown(lm);
     }
 
+    /** Channel link: a YCC user's position to TAK, as its own contact (fixed id per name). */
+    public static void sendRelayed(String uidPart, String callsign, double lat, double lon, float accuracy) {
+        MulticastSocket s = saSock;
+        if (s == null || RadioEngine.radioSilent) return;
+        long now = System.currentTimeMillis();
+        String xml = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>"
+                + "<event version=\"2.0\" uid=\"YCC-link-" + esc(uidPart) + "\" type=\"a-f-G-U-C\" how=\"m-g\" time=\"" + time(now)
+                + "\" start=\"" + time(now) + "\" stale=\"" + time(now + 120000) + "\">"
+                + String.format(Locale.US, "<point lat=\"%.7f\" lon=\"%.7f\" hae=\"9999999.0\" ce=\"%.1f\" le=\"9999999.0\"/>", lat, lon, accuracy)
+                + "<detail><contact callsign=\"" + esc(callsign) + "\"/><__group name=\"Purple\" role=\"Team Member\"/>"
+                + "<remarks>Relayed by YCC (channel link)</remarks></detail></event>";
+        send(s, SA_GROUP, SA_PORT, xml);
+    }
+
+    /** "Share once" on OM/TAK: this position now, whatever Share my location with TAK says. False when not running. */
+    public static boolean sendPositionOnce(final android.location.Location l) {
+        if (saSock == null || RadioEngine.radioSilent || l == null) return false;
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                sendPositionXml(saSock, l, System.currentTimeMillis());
+            }
+        }, "tak-once").start();
+        return true;
+    }
+
     static void sendPosition() {
         MulticastSocket s = saSock;
         android.location.Location l = where();
-        if (s == null || l == null || RadioEngine.radioSilent) return;
+        if (s == null || RadioEngine.radioSilent) return;
         long now = System.currentTimeMillis();
-        final double[] ob = FakeGps.obscure(l.getLatitude(), l.getLongitude(), l.hasAccuracy() ? l.getAccuracy() : 9999999.0);
+        sendNodes(s, now);
+        // No fix yet, or position sharing off (the default: callsign only): still announce, with an unknown position
+        // (TAK lists the contact; it has nothing to put on the map).
+        if (!new Prefs(app).atakPosition()) l = null;
+        sendPositionXml(s, l, now);
+    }
+
+    /** One SA (position) message: l null = callsign only, position unknown. */
+    private static void sendPositionXml(MulticastSocket s, android.location.Location l, long now) {
+        if (s == null) return;
+        final double[] ob = l == null ? new double[]{0, 0, 9999999.0}
+                : FakeGps.obscure(l.getLatitude(), l.getLongitude(), l.hasAccuracy() ? l.getAccuracy() : 9999999.0);
         String xml = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>"
                 + "<event version=\"2.0\" uid=\"" + myUid + "\" type=\"a-f-G-U-C\" how=\"m-g\" time=\"" + time(now)
                 + "\" start=\"" + time(now) + "\" stale=\"" + time(now + 120000) + "\">"
@@ -179,7 +332,34 @@ public final class AtakBridge {
         send(s, SA_GROUP, SA_PORT, xml);
     }
 
-    /** Our Public channel message to ATAK's All Chat Rooms. */
+    /** Our Public channel message to TAK's All Chat Rooms. */
+    /**
+     * "Show OpenMANET nodes in TAK" (Settings > Network, off by default): the Mesh controller's saved nodes go to TAK
+     * as contacts, one fixed ID per node so a second phone doing the same only updates them. Plain CoT on the SA group:
+     * TAK Vx is not touched. Positions are unknown (the nodes do not report one here).
+     */
+    private static void sendNodes(MulticastSocket s, long now) {
+        if (app == null || !app.getSharedPreferences("settings", Context.MODE_PRIVATE).getBoolean("atakNodes", false)) return;
+        try {
+            org.json.JSONArray a = new org.json.JSONArray(app.getSharedPreferences("meshctl", Context.MODE_PRIVATE).getString("nodes", "[]"));
+            for (int i = 0; i < a.length(); i++) {
+                org.json.JSONObject o = a.getJSONObject(i);
+                String name = o.optString("name", ""), ip = o.optString("ip", "");
+                if (name.length() == 0) continue;
+                String xml = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>"
+                        + "<event version=\"2.0\" uid=\"OpenMANET-" + esc(name) + "\" type=\"a-f-G-U-C\" how=\"m-g\" time=\"" + time(now)
+                        + "\" start=\"" + time(now) + "\" stale=\"" + time(now + 120000) + "\">"
+                        + "<point lat=\"0\" lon=\"0\" hae=\"9999999.0\" ce=\"9999999.0\" le=\"9999999.0\"/>"
+                        + "<detail><contact callsign=\"" + esc(name + " (OpenMANET node)") + "\"/>"
+                        + "<__group name=\"Cyan\" role=\"Team Member\"/>"
+                        + "<remarks>OpenMANET node" + (ip.length() > 0 ? " at " + esc(ip) : "") + ", announced by YCC</remarks>"
+                        + "<takv device=\"OpenMANET node\" platform=\"Your Community Communications\" os=\"0\" version=\"1\"/></detail></event>";
+                send(s, SA_GROUP, SA_PORT, xml);
+            }
+        } catch (org.json.JSONException ignored) {
+        }
+    }
+
     public static void sendChat(final String text) {
         final MulticastSocket s = chatSock;
         if (s == null || RadioEngine.radioSilent) return;
@@ -197,7 +377,7 @@ public final class AtakBridge {
                         + "<detail><__chat parent=\"RootContactGroup\" groupOwner=\"false\" chatroom=\"All Chat Rooms\" id=\"All Chat Rooms\" senderCallsign=\""
                         + esc(callsign()) + "\"><chatgrp uid0=\"" + myUid + "\" uid1=\"All Chat Rooms\" id=\"All Chat Rooms\"/></__chat>"
                         + "<link uid=\"" + myUid + "\" type=\"a-f-G-U-C\" relation=\"p-p\"/>"
-                        + "<remarks source=\"BAO.F.ATAK." + myUid + "\" to=\"All Chat Rooms\" time=\"" + time(now) + "\">" + esc(text)
+                        + "<remarks source=\"BAO.F.TAK." + myUid + "\" to=\"All Chat Rooms\" time=\"" + time(now) + "\">" + esc(text)
                         + "</remarks></detail></event>";
                 send(s, CHAT_GROUP, CHAT_PORT, xml);
             }
@@ -232,9 +412,8 @@ public final class AtakBridge {
             m.id = uid.hashCode() * 31L + text.hashCode();
             m.type = MessageLog.TYPE_TEXT;
             m.time = System.currentTimeMillis();
-            m.creator = unesc(who == null ? "ATAK" : who) + " (ATAK)";
-            int tag = ChatActivity.channelOnAir();
-            m.channelTag = tag;
+            m.creator = unesc(who == null ? "TAK" : who) + " (TAK)";
+            m.channelTag = Prefs.OMTAK_TAG; // TAK chat belongs to the OM/TAK channel, whatever this phone is on
             m.body = unesc(text);
             MessageLog.get(app).put(m);
             return;
@@ -260,7 +439,7 @@ public final class AtakBridge {
         }
     }
 
-    /** ATAK users (and their markers) heard in the last 10 minutes. */
+    /** TAK users (and their markers) heard in the last 10 minutes. */
     public static List<Contact> contacts() {
         List<Contact> out = new ArrayList<Contact>();
         long now = System.currentTimeMillis();

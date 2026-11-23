@@ -100,7 +100,9 @@ public final class LightDiscipline implements Application.ActivityLifecycleCallb
 
     /** Settings > Screen: lowest backlight instead of none, for older devices where none stops the double tap. */
     public static boolean legacyBlackout(Context c) {
-        return c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean("blackoutLegacy", false);
+        // Older phones and tablets (Galaxy S5 on Android 6, Nexus 7 on 4.4) stop reading the touchscreen when the
+        // backlight is set to exactly 0, so the double tap never arrives: they get the lowest backlight instead.
+        return c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean("blackoutLegacy", Build.VERSION.SDK_INT < 26);
     }
 
     private static final int BLACKOUT_ID = 0x0b1ac0;

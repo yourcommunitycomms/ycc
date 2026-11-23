@@ -190,6 +190,7 @@ public final class ChatActivity extends Activity {
 
     static int channelOnAir() {
         RadioService s = RadioService.instance();
+        if (s != null && s.compat() != null) return Prefs.OMTAK_TAG; // OM/TAK: TAK chat and talk group voice
         RadioEngine e = s == null ? null : s.engine();
         return e == null ? 0 : e.channelTag();
     }
@@ -458,6 +459,20 @@ public final class ChatActivity extends Activity {
             String why = s == null || s.messages() == null ? "Join a channel first" : s.messages().sendPrivate(privateTo, t);
             if (why != null) Toast.makeText(this, why, Toast.LENGTH_LONG).show();
             else input.setText("");
+            return;
+        }
+        if (s != null && s.compat() != null) { // OM/TAK: goes to TAK's All Chat Rooms, in plain text
+            org.communitycomms.app.msg.MessageLog.Entry m = new org.communitycomms.app.msg.MessageLog.Entry();
+            m.id = new java.util.Random().nextLong();
+            m.type = org.communitycomms.app.msg.MessageLog.TYPE_TEXT;
+            m.time = System.currentTimeMillis();
+            m.creator = new Prefs(this).callsign();
+            m.channelTag = Prefs.OMTAK_TAG;
+            m.body = t;
+            m.mine = true;
+            org.communitycomms.app.msg.MessageLog.get(this).put(m);
+            AtakBridge.sendChat(t);
+            input.setText("");
             return;
         }
         RadioEngine on = s == null ? null : s.engine();

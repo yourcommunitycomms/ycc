@@ -1122,7 +1122,7 @@ public final class TileMapView extends View {
                 String lu = base ? lanBaseUrl : lanOvUrl;
                 String src = lu == null || lu.length() == 0 ? null : LanTiles.sourceId(lu);
                 if (b == null && (lan != null || lan2 != null) && src != null) b = fromLan(src, cacheDir, t);
-                // Then any named set in the LAN maps cache (e.g. "ATAK Home") before going online.
+                // Then any named set in the LAN maps cache (e.g. "TAK Home") before going online.
                 if (b == null && base && (lan != null || lan2 != null) && LanTiles.isImagery(lu)) {
                     for (String set : namedSets) {
                         b = fromLan(set, cacheDir, t);

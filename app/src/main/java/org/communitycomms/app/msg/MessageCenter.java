@@ -101,8 +101,7 @@ public final class MessageCenter {
         m.mine = true;
         log().put(m);
         transmit(e, m);
-        // ATAK compatible: Public channel messages also go to ATAK's All Chat Rooms (never private channels).
-        if (org.communitycomms.app.RadioService.onPublic()) org.communitycomms.app.AtakBridge.sendChat(text);
+        // TAK chat is the OM/TAK channel's chat now (ChatActivity), never Public or a private channel.
         return true;
     }
 

@@ -40,7 +40,7 @@ public final class MapActivity extends Activity {
     /** Share lit while sharing; Ask dimmed on Public and OpenMANET*. */
     private void renderShareKeys() {
         RadioService rs = RadioService.instance();
-        if (shareKey != null) shareKey.setLit(rs != null && rs.rapidShareLeftMs() > 0);
+        if (shareKey != null) shareKey.setLit(rs != null && (rs.rapidShareLeftMs() > 0 || rs.takSharing()));
         int s = new Prefs(this).activeSlot();
         if (askKey != null) askKey.setAlpha(rs != null && rs.engine() != null && RadioService.privateSlot(s) ? 1f : 0.4f);
     }
@@ -1351,7 +1351,7 @@ public final class MapActivity extends Activity {
         map.center((n + s) / 2, (e + w) / 2, z);
     }
 
-    // ---- ATAK: map files and map source ----
+    // ---- TAK: map files and map source ----
 
     private static final int REQ_MAP_FILE = 41;
 
@@ -1416,9 +1416,9 @@ public final class MapActivity extends Activity {
 
     /** Writes what this phone has for the area on screen (this zoom and 3 closer) as MBTiles or osmdroid SQLite, then shares it. */
     private void exportForAtak() {
-        final String[] kinds = {"MBTiles (.mbtiles: ATAK, QGIS, most map apps)", "osmdroid SQLite (.sqlite: ATAK's own download format)"};
+        final String[] kinds = {"MBTiles (.mbtiles: TAK, QGIS, most map apps)", "osmdroid SQLite (.sqlite: TAK's own download format)"};
         new android.app.AlertDialog.Builder(this)
-                .setTitle("Export this area for ATAK")
+                .setTitle("Export this area for TAK")
                 .setItems(kinds, new android.content.DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(android.content.DialogInterface d, final int which) {
@@ -1452,7 +1452,7 @@ public final class MapActivity extends Activity {
                                                     android.widget.Toast.LENGTH_LONG).show();
                                             return;
                                         }
-                                        shareFile(out, "application/octet-stream", fn + " tiles. In ATAK, put the file in atak/imagery (or import it).");
+                                        shareFile(out, "application/octet-stream", fn + " tiles. In TAK, put the file in atak/imagery (or import it).");
                                     }
                                 });
                             }
@@ -1478,8 +1478,8 @@ public final class MapActivity extends Activity {
     }
 
     /**
-     * An ATAK map source (MOBAC XML) for the LAN tile store's copy of this map, as a file to share and
-     * a QR code. ATAK cannot log in, so the store must let anyone on the LAN read its "Maps cache".
+     * An TAK map source (MOBAC XML) for the LAN tile store's copy of this map, as a file to share and
+     * a QR code. TAK cannot log in, so the store must let anyone on the LAN read its "Maps cache".
      */
     private void atakMapSource() {
         org.communitycomms.app.geo.LanTiles lan = new org.communitycomms.app.geo.LanTiles(this);
@@ -1501,14 +1501,14 @@ public final class MapActivity extends Activity {
             return;
         }
         new android.app.AlertDialog.Builder(this)
-                .setTitle("ATAK map source")
-                .setMessage("ATAK phones on this network can use the LAN tile store as a map. Send them this file "
+                .setTitle("TAK map source")
+                .setMessage("TAK phones on this network can use the LAN tile store as a map. Send them this file "
                         + "(they put it in atak/imagery or import it), or let them scan the QR code.\n\n"
-                        + "ATAK cannot log in, so the store must let anyone on the LAN read its \"Maps cache\" folder.")
+                        + "TAK cannot log in, so the store must let anyone on the LAN read its \"Maps cache\" folder.")
                 .setPositiveButton("Share file", new android.content.DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(android.content.DialogInterface d, int w) {
-                        shareFile(f, "text/xml", "ATAK map source");
+                        shareFile(f, "text/xml", "TAK map source");
                     }
                 })
                 .setNeutralButton("Show QR", new android.content.DialogInterface.OnClickListener() {
@@ -1516,7 +1516,7 @@ public final class MapActivity extends Activity {
                     public void onClick(android.content.DialogInterface d, int w) {
                         java.util.ArrayList<String> p = new java.util.ArrayList<String>(), t = new java.util.ArrayList<String>();
                         p.add(xml);
-                        t.add("ATAK map source (LAN tiles)");
+                        t.add("TAK map source (LAN tiles)");
                         QrShowActivity.start(MapActivity.this, p, t, null);
                     }
                 })
@@ -1704,9 +1704,9 @@ public final class MapActivity extends Activity {
         m.add(0, 9, 0, "Export points…");
         m.add(0, 11, 0, "Routes…");
         if (menus.menuOn("atak")) {
-            m.add(0, 4, 0, "Import map file (ATAK, MBTiles)…");
-            m.add(0, 5, 0, "Export this area for ATAK…");
-            m.add(0, 6, 0, "ATAK map source for the LAN tiles…");
+            m.add(0, 4, 0, "Import map file (TAK, MBTiles)…");
+            m.add(0, 5, 0, "Export this area for TAK…");
+            m.add(0, 6, 0, "TAK map source for the LAN tiles…");
         }
         AnchorButton.add(this, m);
         return true;
@@ -1775,7 +1775,7 @@ public final class MapActivity extends Activity {
             i.setType("*/*");
             i.addCategory(android.content.Intent.CATEGORY_OPENABLE);
             try {
-                startActivityForResult(android.content.Intent.createChooser(i, "MBTiles or ATAK / osmdroid SQLite file"), REQ_MAP_FILE);
+                startActivityForResult(android.content.Intent.createChooser(i, "MBTiles or TAK / osmdroid SQLite file"), REQ_MAP_FILE);
             } catch (android.content.ActivityNotFoundException e) {
                 android.widget.Toast.makeText(this, "No file picker on this phone", android.widget.Toast.LENGTH_LONG).show();
             }
@@ -2009,9 +2009,9 @@ public final class MapActivity extends Activity {
                         stale ? 0xff9e9e9e : 0xffff7043, s, s.icon));
             }
         }
-        // ATAK compatible: ATAK users heard on its mesh multicast.
+        // TAK compatible: TAK users heard on its mesh multicast.
         for (AtakBridge.Contact a : AtakBridge.contacts()) {
-            marks.add(new TileMapView.Marker(a.callsign + " (ATAK)", a.lat, a.lon, 0xff29b6f6, a, -1));
+            marks.add(new TileMapView.Marker(a.callsign + " (TAK)", a.lat, a.lon, 0xff29b6f6, a, -1));
         }
         for (org.communitycomms.app.geo.Poi p : org.communitycomms.app.geo.PoiStore.get(c).all()) {
             if (!org.communitycomms.app.geo.PoiFilter.shows(c, p)) continue; // "Points: A" etc. (full map)
@@ -2122,13 +2122,21 @@ public final class MapActivity extends Activity {
 
     private void fitAll() {
         List<RadioEngine.Station> st = withFix();
-        if (st.isEmpty() && me == null) return;
+        List<AtakBridge.Contact> tak = new ArrayList<AtakBridge.Contact>(); // TAK users with a position count as everyone too
+        for (AtakBridge.Contact c : AtakBridge.contacts()) if (c.type != null && c.type.startsWith("a-f-G")) tak.add(c);
+        if (st.isEmpty() && tak.isEmpty() && me == null) return;
         double minLat = 90, maxLat = -90, minLon = 180, maxLon = -180;
         for (RadioEngine.Station s : st) {
             minLat = Math.min(minLat, s.lat);
             maxLat = Math.max(maxLat, s.lat);
             minLon = Math.min(minLon, s.lon);
             maxLon = Math.max(maxLon, s.lon);
+        }
+        for (AtakBridge.Contact c : tak) {
+            minLat = Math.min(minLat, c.lat);
+            maxLat = Math.max(maxLat, c.lat);
+            minLon = Math.min(minLon, c.lon);
+            maxLon = Math.max(maxLon, c.lon);
         }
         if (me != null) {
             minLat = Math.min(minLat, me.getLatitude());

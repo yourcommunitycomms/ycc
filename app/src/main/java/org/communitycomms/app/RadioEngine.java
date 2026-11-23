@@ -175,7 +175,7 @@ public final class RadioEngine {
                 acks.put(id, new ArrayList<String>());
             }
         }
-        byte[] p = namePayload(4);
+        byte[] p = voicePayload(4);
         putTx(p, p.length - 4, id);
         RadioEngine only = onlyOn;
         final List<RadioEngine> sentAlso;
@@ -318,6 +318,9 @@ public final class RadioEngine {
         public String address;
         int rxTx;
         boolean rxHasTx, rxAcked;
+        /** The transmission that last ended (VOICE_END heard): its late frames are ignored, not a new "talk". */
+        int endedTx;
+        boolean hasEnded;
         int rxFrames;
         /** Last advertised position (NaN until they send one). */
         public double lat = Double.NaN, lon = Double.NaN;
@@ -539,7 +542,10 @@ public final class RadioEngine {
     private byte[] sealSigned(ChannelCrypto c, org.communitycomms.app.crypto.ListenKey lk, int type, byte[] payload, int len)
             throws GeneralSecurityException {
         int s = nextSeq();
-        if (lk == null) return Packet.seal(c, type, myId, s, payload, len);
+        // Channel link: relayed voice carries its own sender id, so it is its own station ("via OpenMANET: X")
+        // on other phones, never renaming this phone's.
+        long id = sendAsId != 0 && (type == Packet.TYPE_VOICE || type == Packet.TYPE_VOICE_END) ? sendAsId : myId;
+        if (lk == null) return Packet.seal(c, type, id, s, payload, len);
         if (!lk.canSend()) return null;
         byte[] sig = lk.sign(signedPart(type, myId, s, c.channelTag, payload, len));
         byte[] p = new byte[len + sig.length];
@@ -845,10 +851,102 @@ public final class RadioEngine {
         toneLeft--;
     }
 
+    // ---- channel link (OpenMANET talk group <-> this channel) ----
+
+    /** Voice heard on this channel, decoded (8 kHz, one frame at a time), for the channel link. */
+    public interface VoiceTap {
+        void onVoice(long sender, String name, short[] pcm);
+
+        void onEnd(long sender);
+    }
+
+    public volatile VoiceTap voiceTap;
+
+    /** While relaying: the name the relayed voice carries ("via OpenMANET: BRAVO1"); null = this phone's own. */
+    private volatile String voiceName;
+    private volatile boolean injecting;
+
+    private volatile long sendAsId;
+
+    /** A stable sender id for a relayed name on this channel (not this phone's own id). */
+    private long idFor(String name) {
+        return myId ^ (name.hashCode() * 0x9E3779B97F4A7C15L) ^ 0x5943L;
+    }
+
+    /**
+     * Channel link: a position for someone else (a TAK user, "BRAVO1 (TAK)"), as their own station on this
+     * channel. Not for Public / listen-key channels.
+     */
+    public void sendLocationAs(String name, double lat, double lon, float accuracy, long fixTime) {
+        UdpLink l = link;
+        if (l == null || radioSilent || listenKey != null || publicLike) return;
+        byte[] n = name.getBytes(UTF8);
+        int nl = Math.min(n.length, 32);
+        java.nio.ByteBuffer b = java.nio.ByteBuffer.allocate(1 + nl + 29 + 2);
+        b.put((byte) nl).put(n, 0, nl);
+        b.putDouble(lat).putDouble(lon).putFloat(accuracy).putLong(Math.max(0, System.currentTimeMillis() - fixTime)).put((byte) 0);
+        b.put((byte) 255).put((byte) 0);
+        byte[] p = b.array();
+        try {
+            byte[] sealed = Packet.seal(crypto, Packet.TYPE_LOCATION, idFor(name), nextSeq(), p, p.length);
+            l.send(sealed);
+            l.send(sealed);
+        } catch (GeneralSecurityException e) {
+            Log.e(TAG, "seal failed", e);
+        }
+    }
+
+    /** Starts relaying a transmission into this channel. False when this phone is already talking here. */
+    public synchronized boolean injectStart(String name) {
+        if (transmitting || injecting || radioSilent || cwMode) return false;
+        sendAsId = idFor(name);
+        voiceName = name;
+        txId = random.nextInt();
+        toneLeft = 0;
+        injecting = true;
+        transmitting = true;
+        return true;
+    }
+
+    /** One 8 kHz frame (FRAME_SAMPLES) of relayed voice. */
+    public void injectFrame(short[] pcm) {
+        if (injecting) sendVoice(pcm, FRAME_SAMPLES);
+    }
+
+    public synchronized void injectEnd() {
+        if (!injecting) return;
+        endTransmission(false);
+        injecting = false;
+        voiceName = null;
+        sendAsId = 0;
+    }
+
+    public boolean injecting() {
+        return injecting;
+    }
+
+    /** No sound from this engine (the channel link's engine: it carries voice, the talk group is what is heard). */
+    public void mute() {
+        Mixer m = mixer;
+        mixer = null;
+        if (m != null) m.close();
+    }
+
+    private byte[] voicePayload(int extra) {
+        String vn = voiceName;
+        if (vn == null) return namePayload(extra);
+        byte[] n = vn.getBytes(UTF8);
+        int nl = Math.min(n.length, 32);
+        byte[] p = new byte[1 + nl + extra];
+        p[0] = (byte) nl;
+        System.arraycopy(n, 0, p, 1, nl);
+        return p;
+    }
+
     private void sendVoice(short[] pcm, int samples) {
         if (toneLeft > 0) toneInto(pcm, samples);
         int enc = ImaAdpcm.encodedSize(samples);
-        byte[] p = namePayload(4 + enc);
+        byte[] p = voicePayload(4 + enc);
         int off = p.length - enc;
         putTx(p, off - 4, txId);
         encoder.encode(pcm, samples, p, off);
@@ -1326,8 +1424,10 @@ public final class RadioEngine {
             if (rs != null) Contacts.get(rs).gone(name);
             if (had) listener.onRosterChanged();
             return;
-        }        long now = System.currentTimeMillis();
+        }
+        long now = System.currentTimeMillis();
         boolean changed;
+        boolean lateVoice = false; // a frame of a transmission that already ended (mesh reorder / re-flood)
         synchronized (stations) {
             Station s = stations.get(p.sender);
             changed = s == null || !s.name.equals(name);
@@ -1374,6 +1474,9 @@ public final class RadioEngine {
                     if ((mu > 0) != (s.missionUntilMs > now)) changed = true;
                     s.missionUntilMs = mu;
                 }
+            } else if (p.type == Packet.TYPE_VOICE && p.payload.length - off >= 7 && s.hasEnded
+                    && getTx(p.payload, off) == s.endedTx) {
+                lateVoice = true; // after its VOICE_END: no talking indicator, no playback, no new recording
             } else if (p.type == Packet.TYPE_VOICE && p.payload.length - off >= 7) {
                 changed |= !s.isTalking(now);
                 s.lastVoiceMs = now;
@@ -1389,6 +1492,10 @@ public final class RadioEngine {
             } else if (p.type == Packet.TYPE_VOICE_END) {
                 s.lastVoiceMs = 0;
                 changed = true;
+                if (p.payload.length - off >= 4) {
+                    s.endedTx = getTx(p.payload, off);
+                    s.hasEnded = true;
+                }
                 if (p.payload.length - off >= 4 && s.rxHasTx && getTx(p.payload, off) == s.rxTx) sendAck(s);
             } else if (p.type == Packet.TYPE_LOCATION && p.payload.length - off >= 29) {
                 java.nio.ByteBuffer b = java.nio.ByteBuffer.wrap(p.payload, off, p.payload.length - off);
@@ -1422,7 +1529,9 @@ public final class RadioEngine {
                 }
             }
         }
-        if (p.type == Packet.TYPE_VOICE) {
+        if (p.type == Packet.TYPE_VOICE && lateVoice) {
+            return;
+        } else if (p.type == Packet.TYPE_VOICE) {
             int off = 1 + nl + 4;
             short[] pcm = new short[FRAME_SAMPLES];
             if (p.payload.length - off >= 3) {
@@ -1431,10 +1540,14 @@ public final class RadioEngine {
                 if (mx != null) mx.push(p.sender, p.seq, pcm);
                 VoiceRecorder r = recorder;
                 if (r != null) r.frame(p.sender, name, p.seq, pcm, voiceId(p.sender, getTx(p.payload, 1 + nl)));
+                VoiceTap vt = voiceTap;
+                if (vt != null) vt.onVoice(p.sender, name, pcm);
             }
         } else if (p.type == Packet.TYPE_VOICE_END) {
             Mixer mx = mixer;
             if (mx != null) mx.end(p.sender);
+            VoiceTap vt = voiceTap;
+            if (vt != null) vt.onEnd(p.sender);
             VoiceRecorder r = recorder;
             if (r != null) r.end(p.sender);
         } else if (p.type == Packet.TYPE_VIDEO) {

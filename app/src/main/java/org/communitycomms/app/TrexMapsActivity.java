@@ -69,7 +69,7 @@ public final class TrexMapsActivity extends Activity {
         scroll.addView(root);
 
         root.addView(head(TrexMaps.NAME));
-        root.addView(note("An offline topographic map (OpenStreetMap with hill shading, zoom 12 to 15) baked as an ATAK "
+        root.addView(note("An offline topographic map (OpenStreetMap with hill shading, zoom 12 to 15) baked as an TAK "
                 + ".mbtiles file on the T.REX Arms Maps site. Choose it under Layer on the map (" + TrexMaps.NAME
                 + "); outside its area the usual map shows."));
         LinearLayout r1 = row(root);
@@ -113,7 +113,7 @@ public final class TrexMapsActivity extends Activity {
         credit.setTextSize(12);
         root.addView(credit);
         root.addView(note("\nImported files are also sent to the cache server (Settings > LAN storage location) in its folder \""
-                + TrexShare.FOLDER + "\", apart from the ATAK imports and offline map sets. Other phones can view the map "
+                + TrexShare.FOLDER + "\", apart from the TAK imports and offline map sets. Other phones can view the map "
                 + "from there as they pan, or Download it to keep it for offline use."));
         setContentView(scroll);
         render();
@@ -258,7 +258,7 @@ public final class TrexMapsActivity extends Activity {
                         + "1. Tap Open maps site (maps.trex-arms.com opens in the browser).\n"
                         + "2. Move the map to your area and pick the area to bake. About 11,000 tiles (zoom 12 to 15) "
                         + "covers a city region; bigger areas make bigger files.\n"
-                        + "3. Bake it as an ATAK .mbtiles file and download it. On a phone it lands in Download; "
+                        + "3. Bake it as an TAK .mbtiles file and download it. On a phone it lands in Download; "
                         + "on a PC, copy it to the phone (USB, LAN storage or a memory card).\n"
                         + "4. Come back here, tap Import .mbtiles file and pick it. The app copies it into its own "
                         + "folder (you can delete the download afterwards) and sends it to the cache server for the other phones.\n\n"

@@ -303,21 +303,29 @@ final class ChannelsPanel {
                     more(slot);
                 }
             }));
+        } else { // the OpenMANET / TAK talk group's own settings: talk group, callsign, TAK, channel link
+            top.addView(icon(R.drawable.ic_more, "OpenMANET settings", new Runnable() {
+                @Override
+                public void run() {
+                    a.startActivity(new Intent(a, OpenManetSettingsActivity.class));
+                }
+            }));
         }
         row.addView(top);
 
         LinearLayout buttons = new LinearLayout(a);
         buttons.setGravity(Gravity.END);
-        if (prefs.dualWatch() && slot != Prefs.SLOT_OPENMANET && !talking && air != Prefs.SLOT_OPENMANET) {
-            final boolean on = listening || willListen;
-            Button l = button(on ? "Listening ✓" : "Listen", new Runnable() {
+        // Dual watch: any channel can be listened to beside the one on air, OM/TAK included (both ways).
+        if (prefs.dualWatch() && !talking) {
+            final boolean on = slot == Prefs.SLOT_OPENMANET || air == Prefs.SLOT_OPENMANET ? prefs.listening(slot) : listening || willListen;
+            Button l = button(on ? "Listening ✓" : "Listen here", new Runnable() {
                 @Override
                 public void run() {
                     toggleListen(slot, !on);
                 }
             });
             l.setEnabled(set);
-            buttons.addView(l, new LinearLayout.LayoutParams(dp(130), dp(48)));
+            buttons.addView(l, new LinearLayout.LayoutParams(dp(140), dp(48)));
         }
         Button jl = button(talking ? "Leave" : "Talk here", new Runnable() {
             @Override

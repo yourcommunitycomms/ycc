@@ -7,7 +7,7 @@ import android.content.Intent;
 
 /**
  * Advanced setup: short guided setups for the things that need more than a tick (Cloud Server, cloud group,
- * tunnel, LAN storage server, cameras, batteries, ATAK and OpenMANET, channel array). Each one says what it is
+ * tunnel, LAN storage server, cameras, batteries, TAK and OpenMANET, channel array). Each one says what it is
  * and what happens next, then opens the screen or steps that do it. Reached from the list (Settings > Advanced
  * and Region features > Advanced setup), when a feature that needs setting up is ticked, and from the roles.
  */
@@ -18,7 +18,7 @@ final class AdvancedSetup {
     static final String[] KEYS = {"cloudserver", "joincloud", "cloud", "tunnel", "lan", "cameras", "bluetti", "atak", "array"};
     static final String[] NAMES = {"Cloud Server and Relay admin", "Join the Cloud Server", "Cloud group: create or join",
             "Internet tunnel through the LAN bridge", "LAN storage server (NOMAD / Raspberry Pi)", "Cameras (Reolink)",
-            "Batteries (power stations)", "ATAK and OpenMANET", "Channel array for leaders"};
+            "Batteries (power stations)", "TAK and OpenMANET", "Channel array for leaders"};
     private static final String[] TEXTS = {
             "For the person who runs the Cloud Server (the internet relay on a small cloud server).\n\n"
                     + "1. Install it on a small cloud server with the release's install-relay.sh.\n"
@@ -45,8 +45,8 @@ final class AdvancedSetup {
                     + "(motion, person, vehicle, offline) go to the channel.",
             "Read-only battery monitoring: Bluetti over Bluetooth, Tesla Powerwall 2, Anker SOLIX and EcoFlow.\n\n"
                     + "Add a battery, then choose whether its level and alerts go to the channel.",
-            "ATAK compatible: positions and Public chat that ATAK and WinTAK show (NOT encrypted).\n"
-                    + "OpenMANET: the OpenMANET / ATAK Vx talk group and the node menus (experimental, not encrypted).\n\n"
+            "TAK compatible: positions and Public chat that TAK and WinTAK show (NOT encrypted).\n"
+                    + "OpenMANET: the OpenMANET / TAK Vx talk group and the node menus (not encrypted).\n\n"
                     + "Both are off by default. Turn them on only if your group uses them.",
             "For team leaders: teams AA to ZZ, each with its own key, printed cards and team setup QR codes.\n\n"
                     + "Fill in the teams, then print the cards or show each team's QR code."};
@@ -132,13 +132,13 @@ final class AdvancedSetup {
         }
     }
 
-    /** ATAK and OpenMANET: two ticks; ATAK's own warning is in Settings > Network, so it opens there. */
+    /** TAK and OpenMANET: two ticks; TAK's own warning is in Settings > Network, so it opens there. */
     private static void atak(final Activity a) {
         final Prefs p = new Prefs(a);
         final boolean[] on = {p.menuOn("openmanet"), false};
-        new AlertDialog.Builder(a).setTitle("ATAK and OpenMANET")
-                .setMultiChoiceItems(new String[]{"OpenMANET / ATAK Vx talk group and node menus",
-                        "ATAK compatible positions and chat (opens Settings > Network)"}, on.clone(), new DialogInterface.OnMultiChoiceClickListener() {
+        new AlertDialog.Builder(a).setTitle("TAK and OpenMANET")
+                .setMultiChoiceItems(new String[]{"OpenMANET / TAK Vx talk group and node menus",
+                        "TAK compatible positions and chat (opens Settings > Network)"}, on.clone(), new DialogInterface.OnMultiChoiceClickListener() {
                     @Override
                     public void onClick(DialogInterface d, int which, boolean checked) {
                         on[which] = checked;

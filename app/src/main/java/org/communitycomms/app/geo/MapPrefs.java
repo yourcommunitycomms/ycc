@@ -9,7 +9,7 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * Map picker options. Offline tile sets are folders of z/x/y.jpg|png (the layout ATAK's imagery
+ * Map picker options. Offline tile sets are folders of z/x/y.jpg|png (the layout TAK's imagery
  * downloader and most tile tools produce) under the app's own storage, so no storage permission
  * is needed: Android/data/org.communitycomms.app/files/maps/NAME/z/x/y.jpg
  */
