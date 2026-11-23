@@ -1238,6 +1238,16 @@ public final class Prefs {
         sp.edit().putInt("blackAfterSec", Math.max(0, s)).commit();
     }
 
+    /** OM/TAK settings: markers shared in TAK become YCC map points (on by default). */
+    public boolean takMarkers() {
+        return sp.getBoolean("takMarkers", true);
+    }
+
+    /** OM/TAK settings: YCC's map points go to TAK as markers (off by default: not encrypted). */
+    public boolean yccPoisToTak() {
+        return sp.getBoolean("yccPoisToTak", false);
+    }
+
     /** Keep the screen awake: ScreenAwake.OFF (default), BLACK or LIT. */
     public int screenAwake() {
         return sp.getInt("screenAwake", 0);

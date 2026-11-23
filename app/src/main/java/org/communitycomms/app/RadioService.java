@@ -126,6 +126,7 @@ public final class RadioService extends Service implements RadioEngine.Listener 
             if (org.communitycomms.app.geo.PoiStore.get(this).apply(p)) {
                 logPoi(p, false);
                 announcePoi(p, wasNew);
+                AtakBridge.poisChanged();
                 Runnable r = poiUi;
                 if (r != null) main.post(r);
             }
@@ -971,6 +972,7 @@ public final class RadioService extends Service implements RadioEngine.Listener 
     public boolean sendPoi(org.communitycomms.app.geo.Poi p) {
         RadioEngine e = engine;
         org.communitycomms.app.geo.PoiStore.get(this).apply(p);
+        AtakBridge.poisChanged();
         if (org.communitycomms.app.geo.Poi.isPersonal(p.note)) return true; // this phone only: never on air
         logPoi(p, true);
         if (e == null) return false;
@@ -1036,6 +1038,61 @@ public final class RadioService extends Service implements RadioEngine.Listener 
                 }
             }
         }, "poi-public").start();
+    }
+
+    /**
+     * A marker shared in TAK (AtakBridge): stored as a YCC map point on layer "TAK", logged in the OM/TAK chat,
+     * announced like any new point, and, with a channel link towards YCC, sent on the linked channel too.
+     */
+    public void onTakPoi(org.communitycomms.app.geo.Poi p) {
+        org.communitycomms.app.geo.Poi old = null;
+        for (org.communitycomms.app.geo.Poi q : org.communitycomms.app.geo.PoiStore.get(this).all()) if (q.id == p.id) old = q;
+        if (old != null) {
+            if (TakPoi.same(old, p)) return;
+            p.version = old.version + 1;
+        }
+        storeTakPoi(p, old == null);
+    }
+
+    /** A TAK delete for a marker we hold: the point is removed (and on the linked channel). */
+    public void onTakPoiDeleted(long id) {
+        org.communitycomms.app.geo.Poi old = null;
+        for (org.communitycomms.app.geo.Poi q : org.communitycomms.app.geo.PoiStore.get(this).all()) if (q.id == id) old = q;
+        if (old == null) return;
+        org.communitycomms.app.geo.Poi gone = org.communitycomms.app.geo.Poi.fromLine(old.toLine());
+        if (gone == null) return;
+        gone.version = old.version + 1;
+        gone.expiresAt = System.currentTimeMillis() - 1; // expired = removed
+        storeTakPoi(gone, false);
+    }
+
+    private void storeTakPoi(final org.communitycomms.app.geo.Poi p, boolean wasNew) {
+        if (!org.communitycomms.app.geo.PoiStore.get(this).apply(p)) return;
+        org.communitycomms.app.msg.MessageLog.Entry m = new org.communitycomms.app.msg.MessageLog.Entry();
+        m.id = p.id;
+        m.type = org.communitycomms.app.msg.MessageLog.TYPE_POI;
+        m.version = p.version;
+        m.time = System.currentTimeMillis();
+        m.creator = p.creator;
+        m.channelTag = Prefs.OMTAK_TAG;
+        String readable = org.communitycomms.app.geo.Poi.readable(p.note);
+        m.body = (readable.length() == 0 ? org.communitycomms.app.geo.Poi.ICON_NAMES[p.icon] : readable)
+                + "  (" + org.communitycomms.app.geo.Geo.latLon(p.lat, p.lon) + ")";
+        m.removed = p.expired(System.currentTimeMillis());
+        org.communitycomms.app.msg.MessageLog.get(this).put(m);
+        announcePoi(p, wasNew);
+        Runnable r = poiUi;
+        if (r != null) main.post(r);
+        // Channel link towards YCC: the linked channel gets the point too.
+        final RadioEngine le = linkEngine;
+        if (le != null && new Prefs(this).linkDir() != LINK_TO_OM) {
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    le.sendPoiBody(p.encode());
+                }
+            }, "tak-poi-link").start();
+        }
     }
 
     private boolean hasPoi(long id) {

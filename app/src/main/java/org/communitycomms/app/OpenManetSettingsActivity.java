@@ -84,6 +84,15 @@ public final class OpenManetSettingsActivity extends Activity {
         });
         check("Share my location with TAK (needs TAK compatible; off: TAK lists you without a position)", "atakPosition", false, null);
         check("Show OpenMANET nodes in TAK (the Mesh controller's node list; one phone is enough)", "atakNodes", false, null);
+        check("TAK markers on the YCC map (markers and drawings shared in TAK become map points on layer TAK; "
+                + "with a channel link towards YCC they go on the linked channel too)", "takMarkers", true, null);
+        check("YCC map points in TAK (NOT encrypted: every map point on this phone, from any channel, goes to everyone on the mesh "
+                + "with TAK as a marker named \"name (YCC A)\"; edits and removals follow)", "yccPoisToTak", false, new Runnable() {
+            @Override
+            public void run() {
+                AtakBridge.poisChanged();
+            }
+        });
 
         heading("Channel link (Advanced)");
         int slot = prefs.linkSlot();

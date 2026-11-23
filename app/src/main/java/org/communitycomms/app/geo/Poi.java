@@ -52,7 +52,7 @@ public final class Poi {
     /** The note as people should read it (without the photo link, aim, shape, public or quiet marks). */
     public static String readable(String note) {
         return LAYER_TAG.matcher(POSE_TAG.matcher(AIM_TAG.matcher(SHAPE_TAG.matcher(PHOTO_TAG.matcher(note).replaceAll("")).replaceAll(""))
-                .replaceAll("")).replaceAll("")).replaceAll("").replace(QUIET_TAG, "").replace(PUBLIC_TAG, "").replace(PERSONAL_TAG, "").replace(FENCE_ME, "").replace(FENCE_CHANNEL, "").trim();
+                .replaceAll("")).replaceAll("")).replaceAll("").replaceAll("\\[tak:[^\\]\\n]{1,120}\\]", "").replace(QUIET_TAG, "").replace(PUBLIC_TAG, "").replace(PERSONAL_TAG, "").replace(FENCE_ME, "").replace(FENCE_CHANNEL, "").trim();
     }
 
     // ---- layer: a group of points (e.g. one bulk import) that the map can show on its own ----

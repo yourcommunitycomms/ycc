@@ -309,10 +309,72 @@ public final class AtakBridge {
         if (s == null || RadioEngine.radioSilent) return;
         long now = System.currentTimeMillis();
         sendNodes(s, now);
+        if (++poiRound % 10 == 1) sendPois(s, now); // every 5 minutes (changes go at once: poisChanged)
         // No fix yet, or position sharing off (the default: callsign only): still announce, with an unknown position
         // (TAK lists the contact; it has nothing to put on the map).
         if (!new Prefs(app).atakPosition()) l = null;
         sendPositionXml(s, l, now);
+    }
+
+    private static int poiRound;
+    private static final java.util.Set<Long> poisSent = new java.util.HashSet<Long>();
+
+    /**
+     * "YCC map points in TAK" (OM/TAK settings, off by default: NOT encrypted): YCC's map points go to TAK as live
+     * markers named "name (YCC A)", stale at the point's time to live, sent at once when one changes and again every
+     * 5 minutes for TAK users who join later. A point removed in YCC is deleted in TAK. Points that came from TAK,
+     * personal points and expired ones are never sent; at most the 150 newest go.
+     */
+    private static void sendPois(MulticastSocket s, long now) {
+        if (!new Prefs(app).yccPoisToTak()) { // turned off: take back what was sent
+            for (Long gone : poisSent) send(s, SA_GROUP, SA_PORT, TakPoi.deleteCot(gone, now));
+            poisSent.clear();
+            return;
+        }
+        java.util.List<org.communitycomms.app.geo.Poi> all = org.communitycomms.app.geo.PoiStore.get(app).all();
+        java.util.Set<Long> live = new java.util.HashSet<Long>();
+        int n = 0;
+        for (int i = all.size() - 1; i >= 0 && n < 150; i--) {
+            org.communitycomms.app.geo.Poi p = all.get(i);
+            if (TakPoi.takUid(p.note) != null || org.communitycomms.app.geo.Poi.isPersonal(p.note) || p.expired(now)) continue;
+            String xml = TakPoi.toCot(p, myUid, callsign(), now, channelOf(p.id));
+            if (xml == null) continue;
+            send(s, SA_GROUP, SA_PORT, xml);
+            live.add(p.id);
+            n++;
+            try {
+                Thread.sleep(20);
+            } catch (InterruptedException e) {
+                return;
+            }
+        }
+        for (Long gone : poisSent) if (!live.contains(gone)) send(s, SA_GROUP, SA_PORT, TakPoi.deleteCot(gone, now));
+        poisSent.clear();
+        poisSent.addAll(live);
+    }
+
+    /** "A", "B", "Public"...: the YCC channel a point was logged on, or "" when not known. */
+    private static String channelOf(long id) {
+        org.communitycomms.app.msg.MessageLog.Entry m = org.communitycomms.app.msg.MessageLog.get(app).find(id);
+        if (m == null || m.channelTag == 0) return "";
+        int[] slots = {Prefs.SLOT_A, Prefs.SLOT_B, Prefs.SLOT_PUBLIC};
+        for (int s : slots) {
+            Integer t = org.communitycomms.app.geo.PoiFilter.tag(app, s);
+            if (t != null && t == m.channelTag) return Prefs.letter(s);
+        }
+        return "";
+    }
+
+    /** A YCC point changed or was removed: send it to TAK now instead of at the next round. */
+    public static void poisChanged() {
+        final MulticastSocket s = saSock;
+        if (s == null || app == null || RadioEngine.radioSilent || (!new Prefs(app).yccPoisToTak() && poisSent.isEmpty())) return;
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                sendPois(s, System.currentTimeMillis());
+            }
+        }, "tak-pois").start();
     }
 
     /** One SA (position) message: l null = callsign only, position unknown. */
@@ -405,6 +467,7 @@ public final class AtakBridge {
     static void handle(String xml) {
         String uid = find(UID, xml), type = find(TYPE, xml);
         if (uid == null || type == null || uid.equals(myUid) || uid.contains(myUid)) return; // our own, looped back
+        if (!type.startsWith("a-f-G-U-C") && !uid.startsWith("YCC")) android.util.Log.d("AtakBridge", "CoT in: " + type + " " + uid);
         if (type.startsWith("b-t-f")) {
             String text = find(REMARKS, xml), who = find(SENDER, xml);
             if (text == null) return;
@@ -416,6 +479,21 @@ public final class AtakBridge {
             m.channelTag = Prefs.OMTAK_TAG; // TAK chat belongs to the OM/TAK channel, whatever this phone is on
             m.body = unesc(text);
             MessageLog.get(app).put(m);
+            return;
+        }
+        // Shared markers and drawings -> YCC map points (and their deletes).
+        if (TakPoi.isDelete(type) || TakPoi.isMarker(type, xml)) {
+            if (uid.startsWith("YCC") || uid.contains(".YCC-")) return; // one of ours relayed back
+            if (!new Prefs(app).takMarkers()) return;
+            android.util.Log.d("AtakBridge", "TAK marker " + type + ": " + (xml.length() > 600 ? xml.substring(0, 600) : xml));
+            RadioService rs = RadioService.instance();
+            if (TakPoi.isDelete(type)) {
+                String gone = TakPoi.deletedUid(xml);
+                if (gone != null && rs != null) rs.onTakPoiDeleted(TakPoi.idFor(gone));
+                return;
+            }
+            org.communitycomms.app.geo.Poi p = TakPoi.toPoi(uid, type, xml);
+            if (p != null && rs != null) rs.onTakPoi(p);
             return;
         }
         if (!type.startsWith("a-")) return;
