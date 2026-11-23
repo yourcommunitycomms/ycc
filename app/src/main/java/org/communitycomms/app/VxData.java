@@ -343,7 +343,9 @@ public final class VxData {
         User u = byCallsign(c.name);
         boolean vx = u != null || "TAK Vx".equals(c.heardOn);
         s.append("Source: ").append(vx ? "TAK Vx (voice plugin)" : "OpenMANET (Comms web page or node)").append('\n');
-        s.append("Not encrypted, half duplex (one talker at a time), voice only: no chat, calls, acks or DRYAD.\n\n");
+        s.append(vx ? "Not encrypted, half duplex (one talker at a time). Voice through TAK Vx; chat and positions through TAK "
+                + "(OM/TAK settings: TAK compatible). No calls, acks or DRYAD.\n\n"
+                : "Not encrypted, half duplex (one talker at a time), voice only: no chat, calls, acks or DRYAD.\n\n");
         if (u != null) {
             s.append("Callsign: ").append(u.callsign).append('\n');
             s.append("Device ID: ").append(u.id).append('\n');

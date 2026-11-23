@@ -278,7 +278,7 @@ final class ContactsPanel {
         sb.setSpan(new RelativeSizeSpan(1.15f), start, sb.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
         burstBadge(sb, c, start + 2 + c.name.length());
         outsideBadge(sb, c, start + 2 + c.name.length());
-        if (VxData.outside(c)) sb.append("\nNot encrypted · half duplex · voice only (tap for details)");
+        if (VxData.outside(c)) sb.append("\nNot encrypted · half duplex (tap for details)");
         sb.append("\nlast seen ").append(c.lastSeenMs == 0 ? "never" : Geo.age(now - c.lastSeenMs));
         if (c.heardOn.length() > 0) sb.append(" on ").append(c.heardOn);
         if (c.battery >= 0) sb.append(" · battery ").append(String.valueOf(c.battery)).append('%');
@@ -300,7 +300,24 @@ final class ContactsPanel {
             }
             sb.append("  (").append(c.fake ? "fake " : "").append("position ").append(Geo.age(now - c.fixTimeMs)).append(')');
         } else {
-            sb.append("\nno position shared");
+            // A TAK Vx user's position comes separately, as TAK position reports (shown on the map as "NAME (TAK)").
+            AtakBridge.Contact tak = null;
+            if (VxData.outside(c))
+                for (AtakBridge.Contact t : AtakBridge.contacts())
+                    if (t.callsign != null && t.callsign.equalsIgnoreCase(c.name) && !Double.isNaN(t.lat) && (t.lat != 0 || t.lon != 0)) tak = t;
+            if (tak != null) {
+                sb.append('\n');
+                if (me != null) {
+                    double brg = Geo.bearing(me.getLatitude(), me.getLongitude(), tak.lat, tak.lon);
+                    sb.append(Geo.arrow(brg)).append(' ').append(Geo.distance(Geo.distanceM(me.getLatitude(), me.getLongitude(), tak.lat, tak.lon)))
+                            .append(' ').append(Geo.compass(brg)).append(' ').append(String.valueOf(Math.round(brg))).append('°');
+                } else {
+                    sb.append(Geo.latLon(tak.lat, tak.lon));
+                }
+                sb.append("  (TAK position ").append(Geo.age(now - tak.heardAt)).append(')');
+            } else {
+                sb.append("\nno position shared");
+            }
         }
         if (!locked()) {
             String note = Contacts.get(a).note(c.name);

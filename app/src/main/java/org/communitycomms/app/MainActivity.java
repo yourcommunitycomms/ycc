@@ -550,7 +550,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
             recreate(); // home screen style changed in Settings
             return;
         }
-        if (PowerMode.letScreenSleep()) getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        if (PowerMode.letScreenSleep() && !ScreenAwake.on()) getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         else getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         View black = findViewById(R.id.black_screen);
         if (black != null) black.setVisibility(prefs.blackScreenButton() ? View.VISIBLE : View.GONE);
@@ -1707,7 +1707,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         omOffer = new android.app.AlertDialog.Builder(this)
                 .setTitle("OM/TAK channel")
                 .setMessage("OM/TAK (OpenMANET / TAK) is on, with talk group " + group + ". It is a channel of its own (not Public): "
-                        + "voice only, not encrypted, heard by OpenMANET Comms and TAK on the same talk group.\n\n"
+                        + "not encrypted, heard by OpenMANET Comms and TAK on the same talk group (voice; chat and positions with TAK too).\n\n"
                         + "Talk on the OM/TAK channel now?")
                 .setPositiveButton("Switch to OpenMANET*", new android.content.DialogInterface.OnClickListener() {
                     @Override
@@ -2144,37 +2144,68 @@ public final class MainActivity extends Activity implements RadioService.Ui {
 
     /** Shortcuts > Black screen: after how long without a touch, and the button on the home screen. */
     private void chooseBlackScreen() {
+        blackScreenDialog(this);
+    }
+
+    /** After a black screen change: the home screen's timer, button and title bar follow it. */
+    private void blackScreenChanged() {
+        restartBlackTimer();
+        View black = findViewById(R.id.black_screen);
+        if (black != null) black.setVisibility(prefs.blackScreenButton() ? View.VISIBLE : View.GONE);
+        showBlackDot();
+        invalidateOptionsMenu(); // the title bar button follows the tick too
+        refreshTvBar();
+    }
+
+    /** "After 30 s", "Off" etc.: the black screen setting in a few words (the Anchored dialog's button). */
+    static String blackScreenShort(Prefs p) {
+        int s = p.blackAfterSec();
+        return s == 0 ? "off" : s < 60 ? s + " s" : (s / 60) + " min";
+    }
+
+    /** The black screen choice, from the home screen (Shortcuts) or any page's Anchored dialog. */
+    static void blackScreenDialog(final android.app.Activity a) {
+        final Prefs p = new Prefs(a);
         final int[] secs = {0, 30, 60, 120, 300, 600};
         String[] names = {"Never by itself", "After 30 s", "After 1 min", "After 2 min", "After 5 min", "After 10 min"};
         int cur = 0;
-        for (int i = 0; i < secs.length; i++) if (secs[i] == prefs.blackAfterSec()) cur = i;
+        for (int i = 0; i < secs.length; i++) if (secs[i] == p.blackAfterSec()) cur = i;
         final int[] pick = {cur};
-        final android.widget.CheckBox btn = new android.widget.CheckBox(this);
+        final android.widget.CheckBox btn = new android.widget.CheckBox(a);
         btn.setText("Show the Black screen button (home screen and title bar)");
-        btn.setChecked(prefs.blackScreenButton());
-        new android.app.AlertDialog.Builder(this).setTitle("Black screen (double-tap to wake)")
+        btn.setChecked(p.blackScreenButton());
+        int pd = (int) (20 * a.getResources().getDisplayMetrics().density);
+        LinearLayout box = new LinearLayout(a);
+        box.setPadding(pd, pd / 2, pd, 0);
+        box.addView(btn, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        final Runnable changed = new Runnable() {
+            @Override
+            public void run() {
+                if (a instanceof MainActivity) ((MainActivity) a).blackScreenChanged();
+                else a.invalidateOptionsMenu();
+            }
+        };
+        new android.app.AlertDialog.Builder(a).setTitle("Black screen (double-tap to wake)")
                 .setSingleChoiceItems(names, cur, new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface d, int which) {
                         pick[0] = which;
                     }
                 })
-                .setView(pad(btn))
+                .setView(box)
                 .setPositiveButton(android.R.string.ok, new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface d, int w) {
-                        prefs.setBlackAfterSec(secs[pick[0]]);
-                        boolean changed = btn.isChecked() != prefs.blackScreenButton();
-                        prefs.setBlackScreenButton(btn.isChecked());
-                        prefs.setBlackAccepted();
-                        restartBlackTimer();
-                        if (changed) {
-                            View black = findViewById(R.id.black_screen);
-                            if (black != null) black.setVisibility(btn.isChecked() ? View.VISIBLE : View.GONE);
-                        }
-                        showBlackDot();
-                        invalidateOptionsMenu(); // the title bar button follows the tick too
-                        refreshTvBar();
+                        p.setBlackAfterSec(secs[pick[0]]);
+                        p.setBlackScreenButton(btn.isChecked());
+                        p.setBlackAccepted();
+                        changed.run();
+                    }
+                })
+                .setNeutralButton("Never sleep…", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface d, int w) {
+                        ScreenAwake.choose(a, changed);
                     }
                 })
                 .setNegativeButton(android.R.string.cancel, null).show();
@@ -2501,7 +2532,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
      */
     private void screenTimeoutHint() {
         final android.content.SharedPreferences sp = getSharedPreferences("settings", MODE_PRIVATE);
-        if (sp.getBoolean("timeoutHinted", false) || prefs.blackAfterSec() > 0 || !prefs.setupDone() || TvActivity.isTv(this)) return;
+        if (sp.getBoolean("timeoutHinted", false) || ScreenAwake.on() || prefs.blackAfterSec() > 0 || !prefs.setupDone() || TvActivity.isTv(this)) return;
         int ms;
         try {
             ms = android.provider.Settings.System.getInt(getContentResolver(), android.provider.Settings.System.SCREEN_OFF_TIMEOUT, 60000);
@@ -2737,7 +2768,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
                     @Override
                     public void onClick(DialogInterface d, int w) {
                         PowerMode.set(MainActivity.this, want);
-                        getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+                        if (!ScreenAwake.on()) getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
                     }
                 })
                 .setNegativeButton("Not now", null).show();

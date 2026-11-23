@@ -345,6 +345,16 @@ final class ChannelsPanel {
             }), new LinearLayout.LayoutParams(dp(150), dp(48)));
         }
         buttons.addView(jl, new LinearLayout.LayoutParams(dp(130), dp(48)));
+        if (buttons.getChildCount() > 2) {
+            // Three buttons (Listen here, Cloud group…, Talk here) don't fit a narrow phone at fixed widths:
+            // share the row, two lines of text allowed.
+            for (int i = 0; i < buttons.getChildCount(); i++) {
+                View b = buttons.getChildAt(i);
+                b.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+                b.setMinimumHeight(dp(48));
+            }
+            buttons.setBaselineAligned(false);
+        }
         if (slot != Prefs.SLOT_OPENMANET) {
             // Ask the others for what was missed on this channel (Public off by default).
             CheckBox cu = new CheckBox(a);

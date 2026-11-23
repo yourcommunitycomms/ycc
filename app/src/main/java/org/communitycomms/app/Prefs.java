@@ -1238,6 +1238,15 @@ public final class Prefs {
         sp.edit().putInt("blackAfterSec", Math.max(0, s)).commit();
     }
 
+    /** Keep the screen awake: ScreenAwake.OFF (default), BLACK or LIT. */
+    public int screenAwake() {
+        return sp.getInt("screenAwake", 0);
+    }
+
+    public void setScreenAwake(int m) {
+        sp.edit().putInt("screenAwake", m).commit();
+    }
+
     // ---- app mode: the full radio, a simple activity mode, or the wall intercom ----
 
     public static final int MODE_ADVANCED = 0, MODE_INTERCOM = 1, MODE_SCOUTS = 2, MODE_STAFF = 3, MODE_4WD = 4,

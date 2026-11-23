@@ -62,11 +62,39 @@ final class AnchorButton {
     /** Asks, then sets or clears Anchored (the title bar button and the Shortcuts page). */
     static void ask(final Activity a, final Runnable after) {
         final boolean anchored = new Prefs(a).anchor();
-        new AlertDialog.Builder(a)
+        // Two shortcuts side by side, each showing what it is now: Black screen and Never sleep.
+        final AlertDialog[] dlg = new AlertDialog[1];
+        float dp = a.getResources().getDisplayMetrics().density;
+        android.widget.LinearLayout row = new android.widget.LinearLayout(a);
+        row.setPadding((int) (16 * dp), (int) (4 * dp), (int) (16 * dp), 0);
+        row.setBaselineAligned(false);
+        android.widget.Button black = new android.widget.Button(a);
+        black.setText("Black screen:\n" + MainActivity.blackScreenShort(new Prefs(a)));
+        black.setOnClickListener(new android.view.View.OnClickListener() {
+            @Override
+            public void onClick(android.view.View v) {
+                if (dlg[0] != null) dlg[0].dismiss();
+                MainActivity.blackScreenDialog(a);
+            }
+        });
+        android.widget.Button awake = new android.widget.Button(a);
+        int m = ScreenAwake.mode();
+        awake.setText("Never sleep:\n" + (m == ScreenAwake.BLACK ? "on, black" : m == ScreenAwake.LIT ? "on, lit" : "off"));
+        awake.setOnClickListener(new android.view.View.OnClickListener() {
+            @Override
+            public void onClick(android.view.View v) {
+                if (dlg[0] != null) dlg[0].dismiss();
+                ScreenAwake.choose(a, after);
+            }
+        });
+        row.addView(black, new android.widget.LinearLayout.LayoutParams(0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        row.addView(awake, new android.widget.LinearLayout.LayoutParams(0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        dlg[0] = new AlertDialog.Builder(a)
                 .setTitle(anchored ? "Stop being anchored?" : "Anchor this device?")
                 .setMessage(anchored
                         ? "It will no longer stay awake to hold messages for sleeping phones, and the channel is no longer told if its power is lost."
                         : "Anchored means on stable power (mains, not a power bank). It stays awake, holds what sleeping phones miss, and tells the channel if its power is lost for 10 minutes.")
+                .setView(row)
                 .setPositiveButton(anchored ? "Stop" : "Anchor", new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface d, int w) {

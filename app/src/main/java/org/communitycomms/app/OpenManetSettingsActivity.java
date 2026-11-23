@@ -47,8 +47,8 @@ public final class OpenManetSettingsActivity extends Activity {
 
     private void render() {
         box.removeAllViews();
-        note("NOT encrypted · half duplex (one talker at a time) · voice only. Anyone on the mesh with OpenMANET Comms, "
-                + "TAK Vx or YCC on the same talk group hears it. Changes apply the next time you join the OM/TAK channel.", 0xffffb74d);
+        note("NOT encrypted · half duplex (one talker at a time). Voice with OpenMANET Comms and TAK Vx; chat and positions with TAK "
+                + "(TAK compatible, below). Anyone on the mesh on the same talk group hears it. Changes apply the next time you join the OM/TAK channel.", 0xffffb74d);
 
         heading("Talk group");
         final TextView now = text("Now: " + CompatVoice.channelLabel(prefs.openManetGroup()));

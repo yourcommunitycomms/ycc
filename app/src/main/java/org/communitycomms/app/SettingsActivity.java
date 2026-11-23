@@ -1658,8 +1658,24 @@ public final class SettingsActivity extends Activity {
         } catch (Exception e) {
             phoneMs = -1;
         }
-        if (s == 0) {
-            t.setText("Off. Double-tap the screen to get out of black screen.");
+        t.setOnClickListener(new android.view.View.OnClickListener() {
+            @Override
+            public void onClick(android.view.View v) {
+                ScreenAwake.choose(SettingsActivity.this, new Runnable() {
+                    @Override
+                    public void run() {
+                        ((TextView) findViewById(R.id.black_after)).setText(String.valueOf(prefs.blackAfterSec()));
+                        renderBlackAfter();
+                    }
+                });
+            }
+        });
+        String awake = "\nScreen: " + ScreenAwake.label(ScreenAwake.mode()) + " (tap here to change: Never sleep)";
+        if (ScreenAwake.on()) {
+            t.setText((s == 0 ? "Black screen: not by itself." : "After " + s + " s without a touch the home screen goes black (double-tap to wake).") + awake);
+            t.setTextColor(0xffcfe3d4);
+        } else if (s == 0) {
+            t.setText("Off. Double-tap the screen to get out of black screen." + awake);
             t.setTextColor(0xffcfe3d4);
         } else if (phoneMs > 0 && s * 1000L >= phoneMs) {
             t.setText("Warning: the phone switches its screen off after " + phoneMs / 1000 + " s (Android display settings), "

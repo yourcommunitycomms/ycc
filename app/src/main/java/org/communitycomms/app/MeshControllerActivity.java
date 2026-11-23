@@ -68,6 +68,8 @@ public final class MeshControllerActivity extends Activity {
         String radio;
         JSONObject settings; // as read from the node (no password)
         String channel = "", meshId = "", country = "";
+        String enc = ""; // security as the node reports it (the mesh password itself is never readable)
+        long readAt; // when channel/meshId/country were last read from the node (saved, so they show before a scan)
         String run = ""; // "", "sent", "done", "failed", "skipped"
         String user, pass; // a different login for this node (memory only)
         boolean selected = true;
@@ -315,6 +317,11 @@ public final class MeshControllerActivity extends Activity {
                 n.mac = o.optString("mac", "");
                 n.self = false;
                 n.selected = o.optBoolean("on", true);
+                n.channel = o.optString("ch", "");
+                n.meshId = o.optString("mesh", "");
+                n.country = o.optString("country", "");
+                n.enc = o.optString("enc", "");
+                n.readAt = o.optLong("readAt", 0);
                 nodes.add(n);
             }
         } catch (JSONException ignored) {
@@ -331,6 +338,13 @@ public final class MeshControllerActivity extends Activity {
                 o.put("ip", n.ip);
                 o.put("mac", n.mac);
                 o.put("on", n.selected);
+                if (n.readAt > 0) { // the last settings read (no password: nodes never report it)
+                    o.put("ch", n.channel);
+                    o.put("mesh", n.meshId);
+                    o.put("country", n.country);
+                    o.put("enc", n.enc);
+                    o.put("readAt", n.readAt);
+                }
             } catch (JSONException ignored) {
             }
             a.put(o);
@@ -348,6 +362,8 @@ public final class MeshControllerActivity extends Activity {
             list.addView(t);
             return;
         }
+        TextView now = meshNow();
+        if (now != null) list.addView(now);
         TextView head = new TextView(this);
         head.setText("Change order (top first). The node this phone is on should be last.");
         head.setTextSize(12);
@@ -372,6 +388,11 @@ public final class MeshControllerActivity extends Activity {
             if (n.hops >= 0) s.append(n.hops == 0 ? " · this phone's node" : " · " + n.hops + (n.hops == 1 ? " hop" : " hops"));
             if (n.gateway) s.append(" · gateway");
             if (n.detail.length() > 0) s.append('\n').append(n.detail);
+            else if (n.readAt > 0) { // saved from an earlier scan
+                String fw = freqWidth(n.country, n.channel);
+                s.append('\n').append("ch ").append(n.channel).append(fw != null ? fw : "").append(" · mesh ").append(n.meshId)
+                        .append(" (read ").append(ago(n.readAt)).append(")");
+            }
             if (n.run.length() > 0) s.append('\n').append(runText(n.run));
             t.setText(s.toString());
             t.setOnClickListener(new View.OnClickListener() {
@@ -408,6 +429,64 @@ public final class MeshControllerActivity extends Activity {
             r.addView(down, new LinearLayout.LayoutParams((int) (48 * d), LinearLayout.LayoutParams.WRAP_CONTENT));
             list.addView(r);
         }
+    }
+
+    /**
+     * The mesh's current settings at the top of the list: what most nodes reported at their last read
+     * (saved, so it shows before a scan), plus any node that differs. The mesh password can't be shown:
+     * the nodes never report it and this phone never stores it.
+     */
+    private TextView meshNow() {
+        Map<String, Integer> votes = new HashMap<String, Integer>();
+        Node best = null;
+        int bestVotes = 0, read = 0;
+        long newest = 0;
+        for (Node n : nodes) {
+            if (n.readAt <= 0) continue;
+            read++;
+            newest = Math.max(newest, n.readAt);
+            String k = n.channel + "|" + n.meshId + "|" + n.country;
+            int v = (votes.containsKey(k) ? votes.get(k) : 0) + 1;
+            votes.put(k, v);
+            if (v > bestVotes) {
+                bestVotes = v;
+                best = n;
+            }
+        }
+        if (best == null) return null;
+        StringBuilder s = new StringBuilder();
+        s.append("Mesh now (read ").append(ago(newest)).append(", ").append(bestVotes).append(" of ").append(read)
+                .append(read == 1 ? " node" : " nodes").append(")\n");
+        s.append("Mesh name: ").append(best.meshId.length() > 0 ? best.meshId : "?").append('\n');
+        String fw = freqWidth(best.country, best.channel);
+        s.append("Channel ").append(best.channel);
+        if (fw != null) s.append(fw).append(" wide");
+        s.append('\n');
+        s.append("Country: ").append(best.country.length() > 0 ? best.country : "?");
+        for (Node n : nodes) {
+            if (n.readAt <= 0 || n == best) continue;
+            if (!n.channel.equals(best.channel) || !n.meshId.equals(best.meshId) || !n.country.equals(best.country))
+                s.append("\nDiffers: ").append(n.label()).append(" is on ch ").append(n.channel).append(", mesh ").append(n.meshId)
+                        .append(n.country.equals(best.country) ? "" : ", country " + n.country);
+        }
+        TextView t = new TextView(this);
+        t.setText(s.toString());
+        t.setTextColor(Color.WHITE);
+        t.setBackgroundColor(Color.rgb(31, 61, 43));
+        int p = (int) (8 * d);
+        t.setPadding(p, p, p, p);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        lp.bottomMargin = (int) (6 * d);
+        t.setLayoutParams(lp);
+        return t;
+    }
+
+    private static String ago(long t) {
+        long m = (System.currentTimeMillis() - t) / 60000;
+        if (m < 1) return "just now";
+        if (m < 60) return m + " min ago";
+        if (m < 48 * 60) return (m / 60) + " h ago";
+        return (m / 1440) + " days ago";
     }
 
     private static String runText(String run) {
@@ -1116,6 +1195,9 @@ public final class MeshControllerActivity extends Activity {
             // Frequency and width from the HaLow channel table (the live status reports a 20 MHz width for HaLow).
             String fw = freqWidth(n.country, n.channel);
             n.detail = "ch " + n.channel + (fw != null ? fw : extra) + " · mesh " + n.meshId + (n.country.length() > 0 ? " · " + n.country : "");
+            n.enc = n.settings.optString("encryption", "");
+            n.readAt = System.currentTimeMillis();
+            saveNodes();
             return true;
         } catch (OpenManetApi.ApiException e) {
             if (e.loginFailed()) {
