@@ -762,6 +762,25 @@ public final class MapActivity extends Activity {
         // Over the map: fold the panel below away (▼ / ▲) and add a point at the + straight away.
         android.widget.FrameLayout mapBox = new android.widget.FrameLayout(this);
         mapBox.addView(map);
+        // Mesh testing: the Mapping walk's status strip over the top of the map (tap it to stop), and tappable trail dots.
+        walkStrip = new TextView(this);
+        walkStrip.setTextColor(0xffffffff);
+        walkStrip.setTextSize(14);
+        float wsd = getResources().getDisplayMetrics().density;
+        walkStrip.setPadding((int) (10 * wsd), (int) (6 * wsd), (int) (10 * wsd), (int) (6 * wsd));
+        walkStrip.setVisibility(View.GONE);
+        walkStrip.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                WalkUi.fromMap(MapActivity.this);
+            }
+        });
+        map.setOnDotTap(new TileMapView.OnDotTap() {
+            @Override
+            public void onDotTap(TileMapView.Dot d) {
+                WalkUi.dotTapped(MapActivity.this, d);
+            }
+        });
         // Map controls (arrows, zoom, centre on me) for a TV remote, a mouse or gloves.
         mapPad = org.communitycomms.app.geo.MapPad.attach(mapBox, map, new Runnable() {
             @Override
@@ -966,6 +985,7 @@ public final class MapActivity extends Activity {
             sideRow.addView(mapSide, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1));
         }
         mapSide.addView(mapBox, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, land ? 1 : 3));
+        mapSide.addView(walkStrip, mapSide.indexOfChild(mapBox)); // mesh testing walk status, just above the map
         final LinearLayout panel = new LinearLayout(this);
         panel.setOrientation(LinearLayout.VERTICAL);
         final android.content.SharedPreferences ui = getSharedPreferences("settings", MODE_PRIVATE);
@@ -1289,6 +1309,7 @@ public final class MapActivity extends Activity {
         }
     };
     /** Once a second: the bar's clock, and the path line. */
+    private TextView walkStrip;
     private final Runnable trackTick = new Runnable() {
         @Override
         public void run() {
@@ -1299,6 +1320,21 @@ public final class MapActivity extends Activity {
                 trackPause.setText(t.paused() ? "Resume" : "Pause");
             }
             map.setTracks(TrackUi.lines());
+            map.setDots(MeshMap.mainMapDots()); // mesh testing: Map mesh layer (null when off)
+            if (walkStrip != null) {
+                boolean w = MeshWalk.running();
+                walkStrip.setVisibility(w ? View.VISIBLE : View.GONE);
+                if (w) {
+                    walkStrip.setText(MeshWalk.stripText() + "   [ tap to stop ]");
+                    walkStrip.setBackgroundColor((MeshWalk.statusColour() & 0x00ffffff) | 0xe0000000);
+                }
+                WalkUi.showPendingSummary(MapActivity.this);
+                double[] fo = MeshWalk.focus;
+                if (fo != null) {
+                    MeshWalk.focus = null;
+                    map.center(fo[0], fo[1], 17);
+                }
+            }
             handler.postDelayed(this, 1000);
         }
     };
@@ -1697,6 +1733,7 @@ public final class MapActivity extends Activity {
         if (org.communitycomms.app.geo.TrexMaps.menuOn(this)) m.add(0, 13, 0, "Data import and layers…");
         m.add(0, 1, 0, "Aircraft (ADS-B)…");
         m.add(0, 3, 0, "Ships (AIS)…");
+        if (WalkUi.available(this)) m.add(0, 7711, 0, "Mapping walk…"); // mesh testing
         Prefs menus = new Prefs(this);
         m.add(0, 12, 0, "Trains (live)…");
         if (menus.menuOn("vicemergency")) m.add(0, 7, 0, "Emergency alerts (CAP)…");
@@ -1766,6 +1803,10 @@ public final class MapActivity extends Activity {
     @Override
     public boolean onOptionsItemSelected(android.view.MenuItem item) {
         if (AnchorButton.onSelected(this, item)) return true;
+        if (item.getItemId() == 7711) {
+            WalkUi.fromMap(this);
+            return true;
+        }
         if (item.getItemId() == 2) {
             tilePrompt.choose();
             return true;

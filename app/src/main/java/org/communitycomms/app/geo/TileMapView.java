@@ -358,6 +358,13 @@ public final class TileMapView extends View {
                 }
                 Marker m = markerAt(e.getX(), e.getY());
                 if (m != null && onMarkerTap != null) onMarkerTap.onMarkerTap(m);
+                if (m == null && onDotTap != null) {
+                    Dot d = dotAt(e.getX(), e.getY());
+                    if (d != null && d.tag != null) {
+                        onDotTap.onDotTap(d);
+                        return true;
+                    }
+                }
                 return m != null;
             }
         });
@@ -514,6 +521,7 @@ public final class TileMapView extends View {
         if (railLines != null && !railLines.isEmpty()) drawRail(c);
         if (route != null) drawRoute(c);
         drawTracks(c);
+        drawDots(c);
         if (routeBlocked != null || routeVias != null) drawRouteMarks(c, getResources().getDisplayMetrics().density);
         for (Marker m : markers) {
             float mx = sx(Geo.lonToX(m.lon, z)), my = sy(Geo.latToY(m.lat, z));
@@ -744,6 +752,106 @@ public final class TileMapView extends View {
     public void setTracks(List<TrackLine> t) {
         tracks = t;
         invalidate();
+    }
+
+    /** A small coverage dot (mesh testing: Map mesh, Mapping walk). */
+    public static final class Dot {
+        public static final int FILLED = 0, RING = 1, STATION = 2, SQUARE = 3;
+        public final double lat, lon;
+        public final int colour, style;
+        /** What the dot stands for (tapping a dot with a tag calls OnDotTap), or null. */
+        public Object tag;
+
+        public Dot(double lat, double lon, int colour, int style) {
+            this.lat = lat;
+            this.lon = lon;
+            this.colour = colour;
+            this.style = style;
+        }
+
+        public Dot tag(Object t) {
+            tag = t;
+            return this;
+        }
+    }
+
+    public interface OnDotTap {
+        void onDotTap(Dot d);
+    }
+
+    private OnDotTap onDotTap;
+
+    public void setOnDotTap(OnDotTap l) {
+        onDotTap = l;
+    }
+
+    /** The tagged dot nearest a tap (within about 16 dp), newest first when they overlap. */
+    private Dot dotAt(float x, float y) {
+        List<Dot> all = dots;
+        if (all == null) return null;
+        float lim = 16 * getResources().getDisplayMetrics().density;
+        Dot best = null;
+        float bestD = lim * lim;
+        for (int i = all.size() - 1; i >= 0; i--) {
+            Dot p = all.get(i);
+            if (p.tag == null) continue;
+            float dx = sx(Geo.lonToX(p.lon, z)) - x, dy = sy(Geo.latToY(p.lat, z)) - y;
+            float dd = dx * dx + dy * dy;
+            if (dd < bestD) {
+                bestD = dd;
+                best = p;
+            }
+        }
+        return best;
+    }
+
+    private volatile List<Dot> dots;
+    private final Paint dotPaint = new Paint(Paint.ANTI_ALIAS_FLAG), dotEdge = new Paint(Paint.ANTI_ALIAS_FLAG);
+
+    /** Coverage dots drawn over tracks (null or empty = none). Only those on screen are drawn. */
+    public void setDots(List<Dot> d) {
+        if (d == dots) return;
+        dots = d;
+        invalidate();
+    }
+
+    private void drawDots(Canvas c) {
+        List<Dot> all = dots;
+        if (all == null || all.isEmpty()) return;
+        float d = getResources().getDisplayMetrics().density;
+        float r = (z >= 16 ? 5 : z >= 13 ? 4 : 3) * d;
+        int w = getWidth(), h = getHeight();
+        dotEdge.setStyle(Paint.Style.STROKE);
+        dotEdge.setColor(0xc0000000);
+        dotEdge.setStrokeWidth(1.2f * d);
+        for (Dot p : all) {
+            float x = sx(Geo.lonToX(p.lon, z)), y = sy(Geo.latToY(p.lat, z));
+            if (x < -20 || y < -20 || x > w + 20 || y > h + 20) continue;
+            dotPaint.setColor(p.colour);
+            if (p.style == Dot.RING) {
+                dotPaint.setStyle(Paint.Style.STROKE);
+                dotPaint.setStrokeWidth(2.2f * d);
+                c.drawCircle(x, y, r, dotEdge);
+                c.drawCircle(x, y, r, dotPaint);
+            } else if (p.style == Dot.STATION) {
+                dotPaint.setStyle(Paint.Style.FILL);
+                c.drawCircle(x, y, r * 2.4f, dotEdge);
+                dotPaint.setColor(0xffffffff);
+                c.drawCircle(x, y, r * 2.4f, dotPaint);
+                dotPaint.setColor(p.colour);
+                c.drawCircle(x, y, r * 1.6f, dotPaint);
+                c.drawLine(x - r * 3.4f, y, x + r * 3.4f, y, dotEdge);
+                c.drawLine(x, y - r * 3.4f, x, y + r * 3.4f, dotEdge);
+            } else if (p.style == Dot.SQUARE) {
+                dotPaint.setStyle(Paint.Style.FILL);
+                c.drawRect(x - r, y - r, x + r, y + r, dotPaint);
+                c.drawRect(x - r, y - r, x + r, y + r, dotEdge);
+            } else {
+                dotPaint.setStyle(Paint.Style.FILL);
+                c.drawCircle(x, y, r, dotPaint);
+                c.drawCircle(x, y, r, dotEdge);
+            }
+        }
     }
 
     private void drawTracks(Canvas c) {

@@ -16,6 +16,7 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Permissions screen: ask to be left out of battery optimisation so the radio keeps hearing when locked. -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
@@ -117,6 +118,7 @@
         <activity android:name=".StreamsActivity" android:exported="false" />
         <activity android:name=".KeysActivity" android:exported="false" />
         <service android:name=".TrackService" android:exported="false" android:foregroundServiceType="location" />
+        <service android:name=".CaptureService" android:exported="false" android:foregroundServiceType="mediaProjection" />
         <service android:name=".TilePrefetchService" android:exported="false" android:foregroundServiceType="dataSync" />
         <service android:name=".CameraShareService" android:exported="false" android:foregroundServiceType="camera|microphone|dataSync" />
         <activity android:name=".CwSettingsActivity" android:exported="false" />
@@ -153,6 +155,7 @@
         <activity android:name=".ReportUpActivity" android:exported="false" />
         <activity android:name=".RelayAdminActivity" android:exported="false" />
         <activity android:name=".MeshControllerActivity" android:exported="false" />
+        <activity android:name=".MeshTestingActivity" android:exported="false" android:windowSoftInputMode="stateHidden" />
         <activity android:name=".OpenManetSettingsActivity" android:exported="false" />
         <activity android:name=".ChannelsActivity" android:exported="false" />
         <activity

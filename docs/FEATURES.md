@@ -633,6 +633,68 @@ the APK installs and updates like the plain one (Android 4.1 and newer).
 - **Missed live voice:** phones with Record all voice send their recordings to a phone that comes back
   (one announces, the others leave those out); they arrive unread in Chat.
 
+## Mesh testing (Settings > Advanced and Region features > Mesh testing; all off by default)
+Four tools for testing a mesh, on the **Mesh testing** page (More > Network, Settings, or the Shortcuts row).
+**Play audio to channel works on private channels only**: never on Public, the cloud group or OM/TAK (no tick,
+no setup QR can allow it; switching to one while it plays stops it). Echo Test, Map mesh and Mapping walk are for
+private channels too, but each can be allowed on public ones with "Allow on public channels", and then warns every
+time (everyone on the channel hears it and it uses airtime for all). The Play audio page shows only the chosen
+source's controls (stream address and recent addresses; playlist with up / down / remove and loop; or the phone
+speaker output notes), with volume, auto-stop and monitor shared below.
+While test audio, Echo Test or a walk runs, a red banner on the home screen says so; tap it for **Stop all**.
+The ticks travel in the phone setup QR like the other Advanced features.
+- **Play audio to channel**: an internet radio stream (plain HTTP/HTTPS MP3 or AAC, Icecast, Shoutcast,
+  .m3u / .pls) or audio files picked on the phone (a playlist, optional loop) decoded on the phone and sent
+  as live voice from it, as if PTT were held: normal encrypted voice on YCC channels, the standard Opus
+  48 kHz 20 ms stream on the OM/TAK talk group. Volume / gain, auto-stop (10 min by default), now playing
+  line (the stream's title when it sends one). Nothing plays on the sending phone unless "monitor" is ticked.
+  PTT waits while it plays. Not supported: Ogg/Opus/FLAC streams and HLS (.m3u8).
+  **Phone speaker output** (Android 10 or newer; greyed out on older phones): whatever another app plays (music,
+  a radio app, a browser) goes over the channel. Start the other app, tap Start and allow Android's "start
+  recording or casting" prompt (a notification shows while it runs). Media, game and unknown audio is captured;
+  YCC's own sounds never are (no loops). The phone still plays it out loud unless its media volume is turned
+  down. Some apps block sharing (protected music, some streaming apps): then silence is sent and the page says
+  "No audio captured" after 8 s.
+- **Echo Test**: the phone also shows as a contact called ECHO TEST (editable). Talk to it: it records the
+  transmission (direct, or through a relay, the internet relay, a cloud group or a channel link: "Answer relayed and
+  remote tests", on by default, untick for direct-only mesh tests; never another Echo Test or itself), then
+  2 s after you let go posts "Echo Test: received from you", 3 s later a link report as a text-as-voice
+  message (read aloud on the phones and shown in chat) that says how it arrived, e.g. "Received a test from ALPHA121, via internet relay. 312 packets,
+  38 lost, 4 late, 2 duplicates, duration 6.2 seconds, average jitter 45 milliseconds, signal fair", then
+  plays your test back exactly as it arrived (lost frames left as gaps). Longest recording 30 s, 5 s between
+  echoes, others wait in a queue. Optionally answers chat messages saying "echo" or "@ECHO TEST" with the
+  recent link figures, and shows itself on the map. YCC channels only (not OM/TAK).
+- **Map mesh** (coverage map): on a phone ticked "This phone is fixed here" (its GPS or a long-pressed map
+  point), records every position it hears from other phones straight off the network, never through a relay,
+  tunnel or the internet, with time, callsign, channel (A/B/Public, never the channel name), hops, the
+  sender's recent loss and jitter, and with the fixed node polled, signal and throughput. Dots: filled =
+  direct (green good, amber fair, red poor; or by signal), blue ring = 2 hops, purple ring = 3+, square =
+  hops unknown, the fixed station as a cross. Filters by callsign, time and hops; Export CSV / GPX (saved in
+  Data / files and offered to share); Clear; up to 20,000 points kept (oldest dropped); also a layer on the
+  full map. Works offline.
+- **The fixed station's node**: the fixed phone can poll its own OpenMANET node (normally the Raspberry Pi
+  base), read only, every 5 s or slower: its neighbours (name, signal, throughput) and hops to every node.
+  Only the fixed phone polls and only that one node, so the walkers' small Heltec nodes are never asked.
+  The node login is held in memory unless "Remember" is ticked.
+- **Mapping walk**: the moving phone picks the fixed station from its contacts and probes it every 5 s
+  (2-60). The fixed station answers each probe with what it measured. Big status: green **Direct link OK**,
+  blue **Working via relay (N hops)**, amber **Weak / losing packets** (20% of probes lost, high loss at the
+  fixed end, over 1.5 s round trip or high jitter), red **No link to fixed station** (3 probes unanswered),
+  with loss, round trip, jitter, hops, the walker's node signal and throughput, and the time since the last
+  answer. The walker picks **My mesh node** from the list the fixed station sends, so it can tell direct from
+  relayed. A coloured trail of the walk; the fixed station plots the probes on its Map mesh layer too.
+  Optional gentle vibration on status changes (no sound). Walk CSV / GPX.
+  **From the full map:** menu > Mapping walk starts a walk (pick the fixed station), shows a status strip above
+  the map (colour, status, loss, round trip, hops, last answer; tap it to stop) and draws the trail live. Leaving
+  the map or the Mesh testing page never stops the walk. Every probe is stored with its status colour (green
+  direct, blue via relay with hops, amber weak, red no link); tap a trail or Map mesh dot for its figures.
+  **When the walk stops** a summary is shown and saved with the walk: start and end, duration, distance walked,
+  probes sent and answered, count and share of time per colour, average and worst loss, average and max round
+  trip and jitter, signal range, the longest no-link outage and where it began, the furthest direct point from
+  the fixed station, and the hop breakdown. Share it as text, CSV or GPX (with the status colour per point), or
+  view it on the map. Past walks are listed (Mesh testing page or the map menu) and can be reopened. "Post the
+  walk summary to the channel chat" is off by default.
+
 ## More comms features
 - **Burst voice** (Audio page): record while PTT is held, sent as one file on release, plays by
   itself on arrival (quality from AMR 4.75k to AAC 48k). For weak links. A burst that arrives while the channel is busy

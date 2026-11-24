@@ -2083,6 +2083,17 @@ public final class SettingsActivity extends Activity {
         sec.addView(moreBtn);
         featureGroup(more, null, Prefs.FEATURES_MORE);
         sec.addView(more);
+        featureGroup(sec, "Mesh testing", Prefs.FEATURES_MESHTEST);
+        Button mt = new Button(this);
+        mt.setAllCaps(false);
+        mt.setText("Mesh testing (test audio, Echo Test, Map mesh, Mapping walk)…");
+        mt.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                startActivity(new android.content.Intent(SettingsActivity.this, MeshTestingActivity.class));
+            }
+        });
+        sec.addView(mt);
     }
 
     private void featureGroup(android.widget.LinearLayout into, String title, String[] keys) {

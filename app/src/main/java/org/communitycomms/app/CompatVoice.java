@@ -394,6 +394,7 @@ public final class CompatVoice {
 
     /** Returns false if the channel is busy (half duplex). */
     public synchronized boolean setTransmit(boolean on) {
+        if (testing) return !on; // mesh test audio is on air: PTT waits until it stops
         if (on == transmitting) return true;
         if (on) {
             if (busy()) return false;
@@ -519,6 +520,70 @@ public final class CompatVoice {
             }
             rec.release();
         }
+    }
+
+    // ---- mesh testing: audio from a file or stream sent as this phone's own talk (standard Opus 48 kHz 20 ms RTP) ----
+
+    private volatile boolean testing;
+    private OpusEncoder testEnc;
+    private final short[] testBuf = new short[FRAME];
+    private int testFill;
+
+    /** Starts sending test audio as this phone. False when this phone talks, someone else is on air, or radio silent. */
+    public synchronized boolean testStart() {
+        if (transmitting || testing || busy() || RadioEngine.radioSilent) return false;
+        try {
+            if (testEnc == null) {
+                testEnc = new OpusEncoder(RATE, 1, OpusApplication.OPUS_APPLICATION_AUDIO);
+                testEnc.setBitrate(32000);
+                testEnc.setUseInbandFEC(true);
+                testEnc.setPacketLossPercent(20);
+                testEnc.setUseDTX(false);
+                testEnc.setComplexity(3);
+            }
+        } catch (org.concentus.OpusException e) {
+            Log.e(TAG, "test encoder", e);
+            return false;
+        }
+        testFill = 0;
+        testing = true;
+        transmitting = true; // half duplex, as when talking
+        listener.onTransmitChanged(true);
+        return true;
+    }
+
+    /** 48 kHz mono audio (any length): sent in 20 ms Opus frames with this phone's own RTP stream. */
+    public synchronized void testAudio(short[] pcm48, int n) {
+        if (!testing) return;
+        byte[] pkt = new byte[1400];
+        try {
+            for (int i = 0; i < n; i++) {
+                testBuf[testFill++] = pcm48[i];
+                if (testFill < FRAME) continue;
+                testFill = 0;
+                int len = testEnc.encode(testBuf, 0, FRAME, pkt, 12, pkt.length - 12);
+                writeRtpHeader(pkt);
+                if (RadioEngine.radioSilent) return;
+                socket.send(new DatagramPacket(pkt, 12 + len, group, port));
+                sentPackets++;
+                sentOctets += len;
+                seq = (seq + 1) & 0xffff;
+                timestamp = (timestamp + FRAME) & 0xffffffffL;
+            }
+        } catch (Exception e) {
+            Log.d(TAG, "test audio: " + e.getMessage());
+        }
+    }
+
+    public synchronized void testEnd() {
+        if (!testing) return;
+        testing = false;
+        transmitting = false;
+        listener.onTransmitChanged(false);
+    }
+
+    public boolean testing() {
+        return testing;
     }
 
     private void writeRtpHeader(byte[] b) {

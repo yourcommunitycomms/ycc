@@ -543,7 +543,7 @@ below are what follows it.
 |---|---|---|
 | 1 | VOICE | txId(4) + one IMA-ADPCM frame (section 4) |
 | 2 | VOICE_END | txId(4). Sent 3 times when the talker releases PTT |
-| 3 | PRESENCE | status(1: 0 available, 1 away, 2 stealth, 3 gone: a goodbye, sent twice when the phone exits or leaves the channel, so receivers drop the person at once; older phones ignore it and time them out) battery(1: 0-100 %, 255 unknown) checkin(1: time between presences when slower than normal: 0 = normal, 1-180 = tens of seconds, 181-210 = 31-60 minutes; older phones send none) flags(1, optional: bit0 burst voice, bit1 Mission mode, bit2 mains power anchor) missionLeft(2, only with bit1: whole minutes the Mission mode has left; receivers stay out of deep sleep while a mission phone heard in the last 10 minutes has time left); every 5 s while on a channel and at once when the status changes. Old phones sent nothing here: treat a missing status as unknown |
+| 3 | PRESENCE | status(1: 0 available, 1 away, 2 stealth, 3 gone: a goodbye, sent twice when the phone exits or leaves the channel, so receivers drop the person at once; older phones ignore it and time them out) battery(1: 0-100 %, 255 unknown) checkin(1: time between presences when slower than normal: 0 = normal, 1-180 = tens of seconds, 181-210 = 31-60 minutes; older phones send none) flags(1, optional: bit0 burst voice, bit1 Mission mode, bit2 mains power anchor, bit3 an Echo Test station: never echo it, never answer it) missionLeft(2, only with bit1: whole minutes the Mission mode has left; receivers stay out of deep sleep while a mission phone heard in the last 10 minutes has time left); every 5 s while on a channel and at once when the status changes. Old phones sent nothing here: treat a missing status as unknown |
 | 4 | ACK | txId(4) targetSenderId(8) framesHeard(2) |
 | 20 | UP | report for leaders on a signed Public channel, not signed: R(33, compressed P-256) iv(16) AES-256-CTR(JSON) HMAC-SHA256[16]. Secret = x of k·Q; enc key SHA-256("enc"||secret), mac key SHA-256("mac"||secret). JSON k kind, id, c code, n name, t text, at, b, la, lo. Code = ID "-" base32(SHA-256("member|ID|"||d)[5]). Team keys starting YCCT1- use SHA-512(name||"|communitycomms/v1") instead of PBKDF2. |
 | 10 | CHAT | (text starting "[say] " is read aloud by receivers; "[task] " is a task; "[cal] " + JSON {id, t title, s start ms, d minutes, ad all day, n note, r remind, rm minutes before, v buzz, rev, del} is a team calendar entry (newest rev of an id from its first author wins; not shown in chat); "[up-ack:" confirms a report; a last line starting "[route] " is a shared route: ";"-separated m mode (0 car, 1 foot), n name, p start|points|destination as lat,lon, x closed roads lat,lon[,ms], and optional t route notes, k kind per point (0 via, 1 waypoint, 2 rest stop), wn / wo / wt / wm name, note, time, minutes per point ("|"-separated; text URL-encoded); unknown keys are ignored) | messages, reports, catch-up sync, private messages (section 6) |
@@ -559,7 +559,15 @@ below are what follows it.
 
 **LOCATION extensions:** after the label, newer phones append an **icon** byte (the map icon index
 others see them as, 255 = a plain dot) and a **flags** byte (bit 0 = a fake GPS position: show
-"NAME (Fake)"). Older phones stop reading after the label, so both are optional.
+"NAME (Fake)"; bit 1 = relayed by a YCC phone, e.g. a TAK position sent on by a channel link). With
+bit 1 set a **hops** byte follows (2 = the sender, the relaying phone, then this network). Older phones
+stop reading after the label, so all of these are optional.
+
+**Stations run under another name** (Echo Test, channel link relays) use their own sender id,
+`phoneSenderId XOR (nameHash * 0x9E3779B97F4A7C15) XOR 0x5943` (Java `String.hashCode` of the name).
+A phone drops any packet whose sender id is that value for the packet's own name: its own stations
+coming back to it. An Echo Test station sends PRESENCE (flag bit 3) every 10 s and a goodbye when it
+stops; its chat posts carry the station's name as the creator.
 
 Unknown types must be ignored (newer phones may add types).
 
@@ -634,7 +642,22 @@ A station whose app restarts gets a new senderId; replace the old entry with the
                       then count x { lat(4, deg x 1e6) lon(4) ageSec(4) newSegment(1) }  (<=60 per body)
             2 REQUEST "show me your path" (the receiver is asked before anything is sent)
             3 REPLY   code(1): 1 declined, 2 not tracking and did not start
+30 PROBE    ver(1)=1 probeSeq(4) sentAt(8, walker's clock ms) lat(8, double, NaN = no fix) lon(8)
+            accuracy(4, float) interval(1, s) flags(1, bit0 = send me the node list)
+            targetLen(1) target callsign  nodeLen(1) walker's mesh node name   (Mapping walk, sent once)
+31 PROBEACK ver(1)=1 probeSeq(4) sentAt(8, copied back) walkerLen(1) walker callsign
+            hops(1, signed: 1 direct, 2, 3.., -1 unknown, -2 through a relay / the internet)
+            lossPermille(2, 0xffff unknown) jitterMs(2, 0xffff unknown) window(1, probes measured)
+            signalDbm(1, signed, 127 unknown) throughputKbps(4, -1 unknown) fixedLat(8) fixedLon(8)
+            fixedNodeLen(1) fixed node name  listLen(2) node names joined by ',' (<=300 bytes)
 ```
+- **Mapping walk (kinds 30, 31):** private channels unless the user allows public ones. Only the phone
+  named as target (its callsign, or its Echo Test name) answers, at most about once a second per
+  walker; loss is over the walker's last 20 probe numbers, jitter is RFC 3550 style against the
+  walker's send times. Hops come from the fixed station's own OpenMANET node (openmanetd
+  MeshTopologyService/GetMeshTopology `hopsFromSelf` and MeshNeighborService/ListMeshNeighbors, read
+  only): the walker's node is the fixed node or a direct neighbour = 1, otherwise its hop count. Phones
+  without these kinds ignore them. Receivers never pass kinds 30 and 31 to the chat.
 - **Path tracking (kind 9):** sent only on a private channel (never Public). A phone that is not named in
   `to` (its callsign or "team callsign") drops the body. POINTS go when sharing starts (everything recorded,
   at most the last 2000 points), then live every 15 s at most (one point of overlap so the line joins), and
@@ -1046,7 +1069,7 @@ Each of these happened in the original build. Check for them in yours.
 **Not yet tested on real equipment:** scanning a phone setup QR code with a real camera, Bluetooth PTT buttons (e.g. FalconClaw "BLU-PTT"; the signal it
 sends is unknown, so the app shows the last raw value in Settings), OpenMANET / ATAK Vx voice, USB,
 network and intercom cameras, the possible-gunshots alert, crash detection, tunnel comms over a real
-router and the internet, internet radio streams, Reolink live video, sound and multi-camera alerts (tested against tools/fake-reolink only); cloud groups and the internet relay on a real server; Tesla Powerwall 2, Anker SOLIX and EcoFlow readers on real units; a real baked T.REX Arms map file; scanning QR codes with a real phone camera (Tools, cloud group Scan QR); spoken route stop announcements and protected meeting reminders going off on a real phone.
+router and the internet, internet radio streams, Reolink live video, sound and multi-camera alerts (tested against tools/fake-reolink only); cloud groups and the internet relay on a real server; Tesla Powerwall 2, Anker SOLIX and EcoFlow readers on real units; a real baked T.REX Arms map file; scanning QR codes with a real phone camera (Tools, cloud group Scan QR); spoken route stop announcements and protected meeting reminders going off on a real phone. Mesh testing (2026-11-24): Play audio, Echo Test, Map mesh and Mapping walk on real phones and a real mesh, real radio stream audio quality, and ListMeshNeighbors on a real node (field names read from the openmanetd 1.4.0 binary, emulators tested against a stand-in node).
 
 
 ==== UPDATES SINCE ====
@@ -1180,3 +1203,16 @@ Release 1 came out on 2026-10-28. Release 2 (2026-11-16, version 0.1.459170 and 
 - 2026-11-23: Anchored dialog: two shortcut buttons side by side, **Black screen** (shows the time, e.g. 30 s) and **Never sleep** (off / on, black / on, lit). The Black screen choice now opens from any page with the anchor button.
 - 2026-11-24: **TAK markers to YCC**: markers and drawings shared in TAK (spot markers, waypoints, checkpoints, hostile/friendly/unknown/neutral point-dropper markers, circles, rectangles, freehand lines) become YCC map points on layer "TAK" (nearest icon, name and remarks as the note); moving or renaming in TAK updates the same point, deleting removes it. They show in the OM/TAK chat and are announced; with a channel link towards YCC they go on the linked channel too. OM/TAK settings: "TAK markers on the YCC map" (on by default). Markers are no longer mistaken for TAK users.
 - 2026-11-24: **YCC map points in TAK** (OM/TAK settings, off by default, NOT encrypted): YCC's map points go to TAK as live markers named "name (YCC A)", note as remarks, nearest TAK type (hostile/friendly/unknown/neutral, checkpoint, waypoint, coloured spot marker; circles, rectangles and lines as drawings), stale at the point's time to live. Edits update the same marker, removals (and turning it off) delete them, resent every 5 minutes for late joiners; points that came from TAK are never sent back.
+
+- 2026-11-24: **Mesh testing** (Settings > Advanced and Region features > Mesh testing, all off by default, carried in the setup QR; page in More > Network and a Shortcuts row): Play audio to channel, Echo Test, Map mesh and Mapping walk. Private channels only unless "Allow on public channels" is ticked (with a warning each time). A red home banner shows while test audio, Echo Test or a walk runs, with Stop all.
+- 2026-11-24: **Play audio to channel**: a radio stream (HTTP/HTTPS MP3 or AAC, Icecast, Shoutcast, .m3u/.pls) or audio files decoded on the phone (MediaCodec) and sent as live voice as if PTT were held (encrypted 8 kHz voice on YCC channels, standard Opus 48 kHz 20 ms on OM/TAK). Gain, loop, auto-stop (10 min), now playing (stream titles), monitor off by default; PTT waits while it plays.
+- 2026-11-24: **Echo Test**: the phone shows as an extra contact (ECHO TEST, editable); talk to it and it answers with "received from you", a link report (packets, lost, late, duplicates, duration, jitter, signal good/fair/poor) as text-as-voice and chat, then plays the test back as it arrived (gaps kept). Never echoes relayed voice, another Echo Test or itself; 30 s max, 5 s apart, queued; optional chat echo and map position.
+- 2026-11-24: **Map mesh**: a fixed phone records positions heard straight off the network (never relayed or via the internet) with hops (direct / 2 / 3+ / unknown), loss, jitter and signal; coloured dots and rings, filters, CSV/GPX export, 20,000 points, full map layer. The fixed phone can poll its own OpenMANET node (read only, every 5 s or slower) for neighbours, signal and hops.
+- 2026-11-24: **Mapping walk**: the moving phone probes the fixed station every few seconds and shows Direct link OK / Working via relay (N hops) / Weak / No link, with loss, round trip, jitter, hops and its node's signal; coloured trail, walk CSV/GPX, optional gentle vibration.
+- 2026-11-24: Positions relayed by a channel link now carry a relayed flag and hop count (older phones ignore them); a phone ignores its own relayed stations coming back to it; relayed voice on a signed Public channel is signed under its own sender id.
+- 2026-11-25: Mesh testing: the Map mesh map opens centred on the fixed station at street level, and the fake GPS test walk is a 150 m circle (easier to read than out and back).
+- 2026-11-25: Mesh testing > Play audio to channel: new source **Phone speaker output** (Android 10+, greyed out on older phones): whatever another app plays (music, radio app, browser) goes over the channel as live voice, after Android's recording/casting prompt. YCC's own sounds are never captured; some apps block sharing, and then the page says no audio is being captured.
+- 2026-11-25: Mesh testing > Play audio to channel is now **private channels only** (stream, files and phone audio): never on Public, the cloud group or OM/TAK, with no tick to allow it, and it stops if the channel changes to one. Echo Test, Map mesh and Mapping walk keep their Allow on public channels tick and warning. The Play audio section shows only the chosen source's controls (stream address with recent addresses; playlist with up / down / remove and loop; phone audio notes), with volume, auto-stop and monitor shared below; the last source is remembered.
+- 2026-11-25: Echo Test now answers relayed and remote callers too (Extra peers / relays, the internet relay and tunnel, cloud groups, channel link from OM/TAK), replying on the same channel so it goes back the same way. The report says how the test arrived (direct, via N mesh hops, via a relay, via internet relay, relayed from the OpenMANET talk group) and that loss covers the whole path. New tick "Answer relayed and remote tests" (on by default; untick for direct-only mesh tests). Echo Tests are still never echoed, even when relayed under another name.
+- 2026-11-25: Mapping walk: start, watch and stop it from the full map (menu > Mapping walk, a status strip above the map, live trail; leaving the map does not stop it). Every probe point keeps its status colour (green / blue / amber / red), shown on the trail and in CSV and GPX; tap a dot for its figures. Stopping a walk shows and saves a summary (times, distance, probes, time per colour, loss, round trip, jitter, signal, longest outage and where, furthest direct point, hops) with Share / CSV / GPX / View on map; past walks can be reopened; optional post of the summary to the channel chat (off by default).
+- 2026-11-25: Home channel buttons (A / B / Pub): the channel on air shows its filled gold dot again on Android 5 and newer (it showed only a gold ring after the dual watch styling redrew the buttons); unticked ones are grey, a linked channel purple.

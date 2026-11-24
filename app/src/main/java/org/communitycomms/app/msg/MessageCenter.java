@@ -105,6 +105,25 @@ public final class MessageCenter {
         return true;
     }
 
+    /**
+     * Mesh testing: a text from a station this phone runs (the Echo Test service), on a given engine, shown in
+     * everyone's chat under that name. Not auto-acknowledged as this phone's own message.
+     */
+    public boolean sendTextAs(RadioEngine e, String creator, String text) {
+        if (e == null) return false;
+        MessageLog.Entry m = new MessageLog.Entry();
+        m.id = random.nextLong();
+        m.type = MessageLog.TYPE_TEXT;
+        m.time = System.currentTimeMillis();
+        m.creator = creator;
+        m.channelTag = e.channelTag();
+        m.body = text;
+        m.mine = true;
+        log().put(m);
+        transmit(e, m);
+        return true;
+    }
+
     // ---- pinned announcements (a TEXT starting "[pin] "; older phones just show the text) ----
 
     public static final String PIN = "[pin] ", UNPIN = "[unpin:";

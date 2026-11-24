@@ -322,6 +322,7 @@ public final class MeshControllerActivity extends Activity {
                 n.country = o.optString("country", "");
                 n.enc = o.optString("enc", "");
                 n.readAt = o.optLong("readAt", 0);
+                n.hops = o.optInt("hops", -1);
                 nodes.add(n);
             }
         } catch (JSONException ignored) {
@@ -338,6 +339,7 @@ public final class MeshControllerActivity extends Activity {
                 o.put("ip", n.ip);
                 o.put("mac", n.mac);
                 o.put("on", n.selected);
+                o.put("hops", n.hops); // mesh testing (Map mesh) estimates hop counts from these
                 if (n.readAt > 0) { // the last settings read (no password: nodes never report it)
                     o.put("ch", n.channel);
                     o.put("mesh", n.meshId);
@@ -1053,6 +1055,8 @@ public final class MeshControllerActivity extends Activity {
                     }
                     found++;
                 }
+                // For Map mesh hop estimates: which node the hop counts are measured from, and when.
+                sp.edit().putString("selfIp", entry.host()).putLong("topoAt", System.currentTimeMillis()).commit();
             }
         } catch (IOException e) {
             setStatus("Could not read the mesh layout from " + entry.host() + ": " + e.getMessage());

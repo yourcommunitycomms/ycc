@@ -69,6 +69,14 @@ ALL-FEATURES.txt the one-list summary, PROTOCOL.md the wire format, UPDATES.md t
 - LAN storage server (Docker, /webadmin: files, updates, setup QR, bridge, sync, docs); Update from URL
   (GitHub release by default) that refreshes the LAN copy for everyone.
 
+## Mesh testing (2026-11-24)
+- Play audio to channel (stream or files, as live voice, gain, auto-stop, no local playback by default), Echo
+  Test (contact, link report as text-as-voice and chat, playback as received, queue, cooldown, no loops), Map
+  mesh (fixed station, direct / 2 hops / 3+ / unknown, quality or signal colours, filters, CSV / GPX, 20,000
+  points, offline), Mapping walk (probes and answers, live status, trail, exports), fixed node polling of the
+  base Pi only (read only, 5 s or slower). Play audio private channels only (no public option); the others private unless allowed with a warning; home banner with
+  Stop; off by default and carried in the setup QR.
+
 ## Open (asked for, not built yet)
 - Automatic location sending after moving a set distance, a native Windows app, MeshCore support.
 - Scouts / leaders plan (on hold): sealed reports from listen-key holders, team keys AA-ZZ, leader group lists,

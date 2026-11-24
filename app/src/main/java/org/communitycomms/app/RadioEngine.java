@@ -343,6 +343,10 @@ public final class RadioEngine {
         public boolean anchor;
         /** From their presence: Mission mode on until this time (this phone's clock), or 0. */
         public long missionUntilMs;
+        /** From their presence (flag bit 3): an Echo Test station (mesh testing). Never echoed, never answered. */
+        public boolean echo;
+        /** Their last position came through a YCC relay (channel link): its hop count, or 0 when sent directly. */
+        public int locHops;
 
         Station(long id) {
             this.id = id;
@@ -545,14 +549,115 @@ public final class RadioEngine {
         // Channel link: relayed voice carries its own sender id, so it is its own station ("via OpenMANET: X")
         // on other phones, never renaming this phone's.
         long id = sendAsId != 0 && (type == Packet.TYPE_VOICE || type == Packet.TYPE_VOICE_END) ? sendAsId : myId;
+        return sealAs(c, lk, type, id, s, payload, len);
+    }
+
+    /** Seals (and on a signed channel signs) a packet under the given sender id. Null when it must not be sent. */
+    private static byte[] sealAs(ChannelCrypto c, org.communitycomms.app.crypto.ListenKey lk, int type, long id, int s,
+                                 byte[] payload, int len) throws GeneralSecurityException {
         if (lk == null) return Packet.seal(c, type, id, s, payload, len);
         if (!lk.canSend()) return null;
-        byte[] sig = lk.sign(signedPart(type, myId, s, c.channelTag, payload, len));
+        // The signature covers the sender id actually sent, so relayed voice (its own id) checks out too.
+        byte[] sig = lk.sign(signedPart(type, id, s, c.channelTag, payload, len));
         byte[] p = new byte[len + sig.length];
         System.arraycopy(payload, 0, p, 0, len);
         System.arraycopy(sig, 0, p, len, sig.length);
-        return Packet.seal(c, type, myId, s, p, p.length);
+        return Packet.seal(c, type, id, s, p, p.length);
     }
+
+    /**
+     * Mesh testing: a presence for an extra station this phone runs (the Echo Test service), under its own id,
+     * so it shows in everyone's contacts. echo = presence flag bit 3, which tells other phones (and other Echo
+     * Test services) never to echo it. Older apps ignore the bit.
+     */
+    public void sendPresenceAs(String name, boolean echo) {
+        UdpLink l = link;
+        if (l == null || radioSilent || monitorMode) return;
+        byte[] n = name.getBytes(UTF8);
+        int nl = Math.min(n.length, 32);
+        byte[] p = new byte[1 + nl + 4];
+        p[0] = (byte) nl;
+        System.arraycopy(n, 0, p, 1, nl);
+        p[1 + nl] = (byte) STATUS_AVAILABLE;
+        p[2 + nl] = (byte) 255;
+        p[3 + nl] = 0;
+        p[4 + nl] = (byte) (echo ? 8 : 0);
+        try {
+            byte[] sealed = sealAs(crypto, listenKey, Packet.TYPE_PRESENCE, idFor(name), nextSeq(), p, p.length);
+            if (sealed != null) l.send(sealed);
+        } catch (GeneralSecurityException e) {
+            Log.e(TAG, "seal failed", e);
+        }
+    }
+
+    /** The goodbye for an extra station (Echo Test stopped): it leaves everyone's contacts now. */
+    public void sendGoodbyeAs(String name) {
+        UdpLink l = link;
+        if (l == null || radioSilent || monitorMode) return;
+        byte[] n = name.getBytes(UTF8);
+        int nl = Math.min(n.length, 32);
+        byte[] p = new byte[1 + nl + 3];
+        p[0] = (byte) nl;
+        System.arraycopy(n, 0, p, 1, nl);
+        p[1 + nl] = (byte) STATUS_GONE;
+        p[2 + nl] = (byte) 255;
+        try {
+            for (int i = 0; i < 2; i++) {
+                byte[] sealed = sealAs(crypto, listenKey, Packet.TYPE_PRESENCE, idFor(name), nextSeq(), p, p.length);
+                if (sealed != null) l.send(sealed);
+            }
+        } catch (GeneralSecurityException e) {
+            Log.e(TAG, "seal failed", e);
+        }
+    }
+
+    /** Mesh testing: a small chat body (probe / probe answer) sent once, under this phone's own name. */
+    public void sendTestBody(byte[] body) {
+        byte[] p = namePayload(body.length);
+        System.arraycopy(body, 0, p, p.length - body.length, body.length);
+        send(Packet.TYPE_CHAT, p, p.length);
+    }
+
+    /**
+     * True when a packet from this address came through a relay rather than straight off the network: this phone's
+     * own tunnel / internet relay / cloud relay hands packets in from 127.0.0.1, and Extra peers (relays, routed
+     * hosts) are the configured unicast destinations. Plain WiFi / mesh senders are neither.
+     */
+    public boolean viaRelay(InetAddress from) {
+        if (from == null || from.isLoopbackAddress()) return true;
+        RadioEngine via = sendVia;
+        List<InetSocketAddress> ds = link != null ? link.destinations() : via != null && via.link != null ? via.link.destinations()
+                : new ArrayList<InetSocketAddress>();
+        for (InetSocketAddress d : ds) {
+            InetAddress a = d.getAddress();
+            if (a != null && !a.isMulticastAddress() && a.equals(from)) return true;
+        }
+        return false;
+    }
+
+    /** The sender id this phone uses for a station it runs or relays under another name (see idFor). */
+    public long idForName(String name) {
+        return idFor(name);
+    }
+
+    /** Mesh testing hooks (receive thread; keep them quick). Null = none. */
+    public interface RxHook {
+        /** Any packet opened on a channel (after the own-packet checks). */
+        void onPacket(RadioEngine e, long sender, String name, int type, int seq, InetAddress from);
+
+        /** A live voice frame; late = it belongs to a transmission already ended (pcm is then null). */
+        void onVoiceFrame(RadioEngine e, long sender, String name, int seq, int tx, short[] pcm, boolean late, InetAddress from);
+
+        void onVoiceEnd(RadioEngine e, long sender, String name, int tx);
+
+        /** A position was taken in (s already updated). hops = the hop count the packet carried (0 = sent directly). */
+        void onLocation(RadioEngine e, Station s, InetAddress from, int hops);
+
+        /** A chat body; true when it was a mesh test body (probe / answer) and is used up. */
+        boolean onChat(RadioEngine e, long sender, String name, int seq, InetAddress from, byte[] payload, int off);
+    }
+
+    public static volatile RxHook rxHook;
 
     public int channelTag() {
         return crypto.channelTag;
@@ -705,6 +810,7 @@ public final class RadioEngine {
 
     public void setTransmit(boolean on) {
         if (capture == null || vox) return; // VOX decides when to transmit
+        if (injecting) return; // test audio / echo / channel link on air: PTT waits until it ends
         if (on && (radioSilent || cwMode)) return;
         if (!on && replaying) {
             replaying = false; // PTT during a resend stops it; the resend thread ends it
@@ -882,10 +988,12 @@ public final class RadioEngine {
         if (l == null || radioSilent || listenKey != null || publicLike) return;
         byte[] n = name.getBytes(UTF8);
         int nl = Math.min(n.length, 32);
-        java.nio.ByteBuffer b = java.nio.ByteBuffer.allocate(1 + nl + 29 + 2);
+        java.nio.ByteBuffer b = java.nio.ByteBuffer.allocate(1 + nl + 29 + 3);
         b.put((byte) nl).put(n, 0, nl);
         b.putDouble(lat).putDouble(lon).putFloat(accuracy).putLong(Math.max(0, System.currentTimeMillis() - fixTime)).put((byte) 0);
-        b.put((byte) 255).put((byte) 0);
+        // icon (none), flags (bit1 = relayed by a YCC phone), hop count: the sender, the relaying phone, then the
+        // receiver's network = 2. Older apps read only the first flag bit and ignore the extra byte.
+        b.put((byte) 255).put((byte) 2).put((byte) 2);
         byte[] p = b.array();
         try {
             byte[] sealed = Packet.seal(crypto, Packet.TYPE_LOCATION, idFor(name), nextSeq(), p, p.length);
@@ -899,7 +1007,7 @@ public final class RadioEngine {
     /** Starts relaying a transmission into this channel. False when this phone is already talking here. */
     public synchronized boolean injectStart(String name) {
         if (transmitting || injecting || radioSilent || cwMode) return false;
-        sendAsId = idFor(name);
+        sendAsId = name == null ? 0 : idFor(name); // null: this phone's own name and id (mesh test audio)
         voiceName = name;
         txId = random.nextInt();
         toneLeft = 0;
@@ -1400,6 +1508,10 @@ public final class RadioEngine {
         int nl = p.payload[0] & 0xff;
         if (1 + nl > p.payload.length) return;
         String name = new String(p.payload, 1, nl, UTF8);
+        // A station this phone runs or relays under another name (Echo Test, channel link) coming back to it.
+        if (p.sender == idFor(name)) return;
+        RxHook hook = rxHook;
+        if (hook != null) hook.onPacket(this, p.sender, name, p.type, p.seq, from);
         if (p.type == Packet.TYPE_VOICE_TO) {
             // Voice for one callsign (intercom): others drop it; for us it becomes ordinary voice.
             int o = 1 + nl + 4;
@@ -1428,6 +1540,7 @@ public final class RadioEngine {
         long now = System.currentTimeMillis();
         boolean changed;
         boolean lateVoice = false; // a frame of a transmission that already ended (mesh reorder / re-flood)
+        Station locTaken = null;
         synchronized (stations) {
             Station s = stations.get(p.sender);
             changed = s == null || !s.name.equals(name);
@@ -1465,6 +1578,7 @@ public final class RadioEngine {
                     int fl = p.payload[off + 3] & 0xff;
                     int vm = fl & 1;
                     s.anchor = (fl & 4) != 0;
+                    s.echo = (fl & 8) != 0;
                     if (vm != s.voiceMode) changed = true;
                     s.voiceMode = vm;
                     long mu = 0;
@@ -1515,7 +1629,11 @@ public final class RadioEngine {
                         s.icon = ic >= org.communitycomms.app.geo.Poi.ICON_NAMES.length ? -1 : ic;
                     }
                     s.fake = p.payload.length > io + 1 && (p.payload[io + 1] & 1) != 0;
+                    // Relayed by a YCC phone (channel link): flag bit1, then the hop count it carried.
+                    boolean relayedLoc = p.payload.length > io + 1 && (p.payload[io + 1] & 2) != 0;
+                    s.locHops = relayedLoc ? (p.payload.length > io + 2 ? Math.max(2, p.payload[io + 2] & 0xff) : 2) : 0;
                     changed = true;
+                    locTaken = s;
                 }
             } else if (p.type == Packet.TYPE_ACK && p.payload.length - off >= 14) {
                 int tx = getTx(p.payload, off);
@@ -1529,7 +1647,9 @@ public final class RadioEngine {
                 }
             }
         }
+        if (hook != null && locTaken != null) hook.onLocation(this, locTaken, from, locTaken.locHops);
         if (p.type == Packet.TYPE_VOICE && lateVoice) {
+            if (hook != null) hook.onVoiceFrame(this, p.sender, name, p.seq, getTx(p.payload, 1 + nl), null, true, from);
             return;
         } else if (p.type == Packet.TYPE_VOICE) {
             int off = 1 + nl + 4;
@@ -1542,8 +1662,10 @@ public final class RadioEngine {
                 if (r != null) r.frame(p.sender, name, p.seq, pcm, voiceId(p.sender, getTx(p.payload, 1 + nl)));
                 VoiceTap vt = voiceTap;
                 if (vt != null) vt.onVoice(p.sender, name, pcm);
+                if (hook != null) hook.onVoiceFrame(this, p.sender, name, p.seq, getTx(p.payload, 1 + nl), pcm, false, from);
             }
         } else if (p.type == Packet.TYPE_VOICE_END) {
+            if (hook != null && p.payload.length - (1 + nl) >= 4) hook.onVoiceEnd(this, p.sender, name, getTx(p.payload, 1 + nl));
             Mixer mx = mixer;
             if (mx != null) mx.end(p.sender);
             VoiceTap vt = voiceTap;
@@ -1564,6 +1686,7 @@ public final class RadioEngine {
         } else if (p.type == Packet.TYPE_MARK && p.payload.length > 1 + nl) {
             listener.onPoiMessage(name, p.payload, 1 + nl);
         } else if (p.type == Packet.TYPE_CHAT && p.payload.length > 1 + nl) {
+            if (hook != null && hook.onChat(this, p.sender, name, p.seq, from, p.payload, 1 + nl)) return;
             listener.onChatMessage(name, p.payload, 1 + nl);
         } else if (p.type == Packet.TYPE_CALL && p.payload.length - (1 + nl) >= 4) {
             int id = getTx(p.payload, 1 + nl);

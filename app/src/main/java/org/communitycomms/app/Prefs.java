@@ -690,7 +690,7 @@ public final class Prefs {
      * code ("menus": the keys to turn on). Most people never need these.
      */
     public static final String[] MENU_KEYS = {"array", "report", "tasks", "nomad", "vicemergency", "trains", "stopnames", "artc", "atak", "cast", "calendar", "relayadmin", "bluetti", "trex",
-            "cloud", "openmanet", "streams", "meshctl"};
+            "cloud", "openmanet", "streams", "meshctl", "testaudio", "echotest", "meshmap"};
     public static final String[] MENU_LABELS = {"Channel array", "Report to leaders", "Tasks and notes", "Project NOMAD",
             "VicEmergency alerts on the map", "Melbourne trains preset (in Trains on the map)", "Load station names button (live trains)", "ARTC rail network on the map", "TAK items in the map menu (map files, export, map source)", "Cast screen to TV (Google TV, Chromecast)", "Calendar and notes (mine, team, both; notes with pictures)",
             "Relay admin (add and remove the Cloud Server's sites, remotes and cloud groups; needs its admin key)",
@@ -699,7 +699,12 @@ public final class Prefs {
             "Cloud group (a community channel like Public with its own Cloud Server)",
             "OpenMANET / TAK Vx talk group and OpenMANET node menus (not encrypted)",
             "Internet audio (radio streams in the menu)",
-            "Mesh controller (change every OpenMANET node's HaLow channel, mesh name and password; needs the nodes' login)"};
+            "Mesh controller (change every OpenMANET node's HaLow channel, mesh name and password; needs the nodes' login)",
+            "Play audio to channel (a radio stream or audio files sent as live voice, for testing the mesh)",
+            "Echo Test (this phone answers test calls with a link report and plays them back)",
+            "Map mesh and Mapping walk (coverage map from a fixed station; live link status while walking)"};
+    /** Mesh testing tools (Settings > Advanced and Region features > Mesh testing). */
+    public static final String[] FEATURES_MESHTEST = {"testaudio", "echotest", "meshmap"};
 
     /** Advanced and Region features, grouped (all keys are in MENU_KEYS; all off by default). */
     public static final String[] FEATURES_ADVANCED = {"array", "report", "tasks", "calendar", "bluetti", "cast", "relayadmin", "cloud", "trex"};

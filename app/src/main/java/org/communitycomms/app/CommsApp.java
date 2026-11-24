@@ -19,6 +19,7 @@ public final class CommsApp extends Application {
         }
         Prefs.migrateUiReorg(this); // once: phones already set up keep their home screen; role worked out
         org.communitycomms.app.geo.FakeGps.init(this);
+        MeshTest.init(this); // mesh testing receive hook (does nothing until a tool is turned on)
         Cw.restore(this); // CW mode survives a restart or a crash
         org.communitycomms.app.geo.Geo.loadUnits(this);
         registerActivityLifecycleCallbacks(new LightDiscipline());

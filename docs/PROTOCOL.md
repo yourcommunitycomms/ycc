@@ -110,7 +110,7 @@ below are what follows it.
 |---|---|---|
 | 1 | VOICE | txId(4) + one IMA-ADPCM frame (section 4) |
 | 2 | VOICE_END | txId(4). Sent 3 times when the talker releases PTT |
-| 3 | PRESENCE | status(1: 0 available, 1 away, 2 stealth, 3 gone: a goodbye, sent twice when the phone exits or leaves the channel, so receivers drop the person at once; older phones ignore it and time them out) battery(1: 0-100 %, 255 unknown) checkin(1: time between presences when slower than normal: 0 = normal, 1-180 = tens of seconds, 181-210 = 31-60 minutes; older phones send none) flags(1, optional: bit0 burst voice, bit1 Mission mode, bit2 mains power anchor) missionLeft(2, only with bit1: whole minutes the Mission mode has left; receivers stay out of deep sleep while a mission phone heard in the last 10 minutes has time left); every 5 s while on a channel and at once when the status changes. Old phones sent nothing here: treat a missing status as unknown |
+| 3 | PRESENCE | status(1: 0 available, 1 away, 2 stealth, 3 gone: a goodbye, sent twice when the phone exits or leaves the channel, so receivers drop the person at once; older phones ignore it and time them out) battery(1: 0-100 %, 255 unknown) checkin(1: time between presences when slower than normal: 0 = normal, 1-180 = tens of seconds, 181-210 = 31-60 minutes; older phones send none) flags(1, optional: bit0 burst voice, bit1 Mission mode, bit2 mains power anchor, bit3 an Echo Test station: never echo it, never answer it) missionLeft(2, only with bit1: whole minutes the Mission mode has left; receivers stay out of deep sleep while a mission phone heard in the last 10 minutes has time left); every 5 s while on a channel and at once when the status changes. Old phones sent nothing here: treat a missing status as unknown |
 | 4 | ACK | txId(4) targetSenderId(8) framesHeard(2) |
 | 20 | UP | report for leaders on a signed Public channel, not signed: R(33, compressed P-256) iv(16) AES-256-CTR(JSON) HMAC-SHA256[16]. Secret = x of k·Q; enc key SHA-256("enc"||secret), mac key SHA-256("mac"||secret). JSON k kind, id, c code, n name, t text, at, b, la, lo. Code = ID "-" base32(SHA-256("member|ID|"||d)[5]). Team keys starting YCCT1- use SHA-512(name||"|communitycomms/v1") instead of PBKDF2. |
 | 10 | CHAT | (text starting "[say] " is read aloud by receivers; "[task] " is a task; "[cal] " + JSON {id, t title, s start ms, d minutes, ad all day, n note, r remind, rm minutes before, v buzz, rev, del} is a team calendar entry (newest rev of an id from its first author wins; not shown in chat); "[up-ack:" confirms a report; a last line starting "[route] " is a shared route: ";"-separated m mode (0 car, 1 foot), n name, p start|points|destination as lat,lon, x closed roads lat,lon[,ms], and optional t route notes, k kind per point (0 via, 1 waypoint, 2 rest stop), wn / wo / wt / wm name, note, time, minutes per point ("|"-separated; text URL-encoded); unknown keys are ignored) | messages, reports, catch-up sync, private messages (section 6) |
@@ -126,7 +126,15 @@ below are what follows it.
 
 **LOCATION extensions:** after the label, newer phones append an **icon** byte (the map icon index
 others see them as, 255 = a plain dot) and a **flags** byte (bit 0 = a fake GPS position: show
-"NAME (Fake)"). Older phones stop reading after the label, so both are optional.
+"NAME (Fake)"; bit 1 = relayed by a YCC phone, e.g. a TAK position sent on by a channel link). With
+bit 1 set a **hops** byte follows (2 = the sender, the relaying phone, then this network). Older phones
+stop reading after the label, so all of these are optional.
+
+**Stations run under another name** (Echo Test, channel link relays) use their own sender id,
+`phoneSenderId XOR (nameHash * 0x9E3779B97F4A7C15) XOR 0x5943` (Java `String.hashCode` of the name).
+A phone drops any packet whose sender id is that value for the packet's own name: its own stations
+coming back to it. An Echo Test station sends PRESENCE (flag bit 3) every 10 s and a goodbye when it
+stops; its chat posts carry the station's name as the creator.
 
 Unknown types must be ignored (newer phones may add types).
 
@@ -201,7 +209,22 @@ A station whose app restarts gets a new senderId; replace the old entry with the
                       then count x { lat(4, deg x 1e6) lon(4) ageSec(4) newSegment(1) }  (<=60 per body)
             2 REQUEST "show me your path" (the receiver is asked before anything is sent)
             3 REPLY   code(1): 1 declined, 2 not tracking and did not start
+30 PROBE    ver(1)=1 probeSeq(4) sentAt(8, walker's clock ms) lat(8, double, NaN = no fix) lon(8)
+            accuracy(4, float) interval(1, s) flags(1, bit0 = send me the node list)
+            targetLen(1) target callsign  nodeLen(1) walker's mesh node name   (Mapping walk, sent once)
+31 PROBEACK ver(1)=1 probeSeq(4) sentAt(8, copied back) walkerLen(1) walker callsign
+            hops(1, signed: 1 direct, 2, 3.., -1 unknown, -2 through a relay / the internet)
+            lossPermille(2, 0xffff unknown) jitterMs(2, 0xffff unknown) window(1, probes measured)
+            signalDbm(1, signed, 127 unknown) throughputKbps(4, -1 unknown) fixedLat(8) fixedLon(8)
+            fixedNodeLen(1) fixed node name  listLen(2) node names joined by ',' (<=300 bytes)
 ```
+- **Mapping walk (kinds 30, 31):** private channels unless the user allows public ones. Only the phone
+  named as target (its callsign, or its Echo Test name) answers, at most about once a second per
+  walker; loss is over the walker's last 20 probe numbers, jitter is RFC 3550 style against the
+  walker's send times. Hops come from the fixed station's own OpenMANET node (openmanetd
+  MeshTopologyService/GetMeshTopology `hopsFromSelf` and MeshNeighborService/ListMeshNeighbors, read
+  only): the walker's node is the fixed node or a direct neighbour = 1, otherwise its hop count. Phones
+  without these kinds ignore them. Receivers never pass kinds 30 and 31 to the chat.
 - **Path tracking (kind 9):** sent only on a private channel (never Public). A phone that is not named in
   `to` (its callsign or "team callsign") drops the body. POINTS go when sharing starts (everything recorded,
   at most the last 2000 points), then live every 15 s at most (one point of overlap so the line joins), and

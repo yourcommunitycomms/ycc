@@ -247,3 +247,7 @@ ADDED SOON AFTER RELEASE 1 (everything since is in the lists above and in UPDATE
 - TV: a Menu and a TV mode button in the title bar.
 - LAN storage server: Bridge tab (WiFi bridge and tunnel relay with per-person ports, keys, own
   addresses and QR codes), works with or without /YCC on the address.
+- Mesh testing (off by default): play a radio stream or audio files to the channel as live voice; an Echo
+  Test contact that reports the link (packets, lost, late, jitter) and plays your test back; Map mesh, a
+  coverage map from a fixed station (direct, 2 hops, 3 or more, signal); a Mapping walk with a live link
+  status and a coloured trail. Private channels unless allowed, with a warning.

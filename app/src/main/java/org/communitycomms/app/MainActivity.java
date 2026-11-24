@@ -532,6 +532,8 @@ public final class MainActivity extends Activity implements RadioService.Ui {
     @Override
     protected void onResume() {
         super.onResume();
+        meshBannerUi.removeCallbacks(meshBannerTick);
+        meshBannerUi.post(meshBannerTick);
         anchorWatch = AnchorButton.watch(this);
         screenTimeoutHint();
         if (wantMapHome() != mapHome || (wantMapHome() && commander()) != builtCommander) {
@@ -1119,6 +1121,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
 
     @Override
     protected void onPause() {
+        meshBannerUi.removeCallbacks(meshBannerTick);
         AnchorButton.unwatch(this, anchorWatch);
         anchorWatch = null;
         if (RadioService.locationAsk == homeLocationAsk) RadioService.locationAsk = null;
@@ -2005,6 +2008,15 @@ public final class MainActivity extends Activity implements RadioService.Ui {
                 toggleRadioSilent();
             }
         });
+        if (MeshTest.anyOn(prefs)) {
+            String mt = MeshTest.bannerText();
+            stateRow(box, "Mesh testing: " + (mt.length() > 0 ? mt : "nothing running") + "  ›", new Runnable() {
+                @Override
+                public void run() {
+                    startActivity(new Intent(MainActivity.this, MeshTestingActivity.class));
+                }
+            });
+        }
         boolean fake = org.communitycomms.app.geo.FakeGps.enabled(this);
         int obs = org.communitycomms.app.geo.FakeGps.obscureM(this);
         stateRow(box, "Fake GPS: " + (fake ? "ON" : "off") + (obs > 0 ? " · location obscured " + org.communitycomms.app.geo.Geo.range(obs) : "") + "  ›", new Runnable() {
@@ -2331,7 +2343,8 @@ public final class MainActivity extends Activity implements RadioService.Ui {
                 {"Cameras and power", MENU_VIDEOS, "Video feed", MENU_BLUETTI, "Battery power", MENU_CAST, "Cast screen to TV"},
                 {"Codes", MENU_DRYAD, "DRYAD sheets", "pigpen", "Pigpen", "enigma", "Enigma / CW (Morse)", "challenge", "Challenge and response"},
                 {"Network", "cloud", "Cloud group", MENU_RELAY_ADMIN, "Relay admin (Cloud Server)", MENU_OPENMANET, "OpenMANET node (browser)",
-                        MENU_MESHCTL, "Mesh controller (OpenMANET channel, mesh name)", MENU_GATEWAY, "OpenMANET internet gateway", MENU_NOMAD, "Project NOMAD (local AI, library)"},
+                        MENU_MESHCTL, "Mesh controller (OpenMANET channel, mesh name)", MENU_GATEWAY, "OpenMANET internet gateway", MENU_NOMAD, "Project NOMAD (local AI, library)",
+                        "meshtest", "Mesh testing (test audio, Echo Test, Map mesh, walk)"},
                 {"Tools", "tools", "Tools (QR codes, open in browser)", "scan", "Scan a QR code"},
                 {"Screen", MENU_BLACKOUT, "Blackout screen", MENU_RED, LightDiscipline.redMode(this) ? "Red light mode: on (tap for off)" : "Red light mode"}};
         for (Object[] g : groups) {
@@ -2343,6 +2356,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
                 else if ("pigpen".equals(what) || "enigma".equals(what)) show = adv;
                 else if ("challenge".equals(what)) show = prefs.appMode() == Prefs.MODE_ADVANCED;
                 else if ("cloud".equals(what)) show = prefs.cloudFeature();
+                else if ("meshtest".equals(what)) show = MeshTest.anyOn(prefs);
                 else show = true;
                 if (!show) continue;
                 Button b = new Button(this);
@@ -2377,6 +2391,8 @@ public final class MainActivity extends Activity implements RadioService.Ui {
             if (it != null) onOptionsItemSelected(it);
         } else if ("map".equals(what)) {
             startActivity(new Intent(this, MapActivity.class));
+        } else if ("meshtest".equals(what)) {
+            startActivity(new Intent(this, MeshTestingActivity.class));
         } else if ("pigpen".equals(what)) {
             startActivity(new Intent(this, PigpenActivity.class));
         } else if ("enigma".equals(what)) {
@@ -2789,6 +2805,59 @@ public final class MainActivity extends Activity implements RadioService.Ui {
             wokeForVoice = false;
             LightDiscipline.blackout(this);
         }
+    }
+
+    // ---- mesh testing banner: test audio, Echo Test or a walk running, with Stop, so none is left on by accident ----
+
+    private final android.os.Handler meshBannerUi = new android.os.Handler();
+    private TextView meshBanner;
+    private final Runnable meshBannerTick = new Runnable() {
+        @Override
+        public void run() {
+            renderMeshBanner();
+            meshBannerUi.postDelayed(this, 1000);
+        }
+    };
+
+    private void renderMeshBanner() {
+        String t = MeshTest.bannerText();
+        if (t.length() == 0) {
+            if (meshBanner != null) meshBanner.setVisibility(View.GONE);
+            return;
+        }
+        if (meshBanner == null) {
+            float d = getResources().getDisplayMetrics().density;
+            meshBanner = new TextView(this);
+            meshBanner.setTextColor(0xffffffff);
+            meshBanner.setBackgroundColor(0xe0b71c1c);
+            meshBanner.setTextSize(15);
+            meshBanner.setPadding((int) (10 * d), (int) (8 * d), (int) (10 * d), (int) (8 * d));
+            meshBanner.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    new AlertDialog.Builder(MainActivity.this).setTitle("Mesh testing").setMessage(MeshTest.bannerText())
+                            .setPositiveButton("Stop all", new DialogInterface.OnClickListener() {
+                                @Override
+                                public void onClick(DialogInterface di, int w) {
+                                    MeshTest.stopAll();
+                                    renderMeshBanner();
+                                }
+                            })
+                            .setNeutralButton("Open", new DialogInterface.OnClickListener() {
+                                @Override
+                                public void onClick(DialogInterface di, int w) {
+                                    startActivity(new Intent(MainActivity.this, MeshTestingActivity.class));
+                                }
+                            })
+                            .setNegativeButton("Keep running", null).show();
+                }
+            });
+            addContentView(meshBanner, new android.widget.FrameLayout.LayoutParams(android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+                    android.widget.FrameLayout.LayoutParams.WRAP_CONTENT, android.view.Gravity.TOP));
+        }
+        meshBanner.setText("● " + t + "   [ STOP ]");
+        meshBanner.setVisibility(View.VISIBLE);
+        meshBanner.bringToFront();
     }
 
     /** A smaller button beside PTT: type a message that every phone on the channel reads aloud. */
@@ -4890,8 +4959,14 @@ public final class MainActivity extends Activity implements RadioService.Ui {
             boolean purple = linked >= 0 && (slot == linked || slot == Prefs.SLOT_OPENMANET);
             rb.setTextColor(purple ? 0xffce93d8 : 0xffffffff);
             if (android.os.Build.VERSION.SDK_INT >= 21) {
-                rb.setButtonTintList(purple ? android.content.res.ColorStateList.valueOf(0xffba68c8) : null);
+                // Gold when ticked, grey when not (the app's colours), purple for a linked channel.
+                rb.setButtonTintList(purple ? android.content.res.ColorStateList.valueOf(0xffba68c8)
+                        : new android.content.res.ColorStateList(new int[][]{{android.R.attr.state_checked}, {}},
+                        new int[]{0xfff0c75e, 0xffcfd8dc}));
             }
+            // A new (animated) radio drawable starts on its unticked frame: show the ticked one now, without animating.
+            rb.refreshDrawableState();
+            rb.jumpDrawablesToCurrentState();
         }
     }
 
