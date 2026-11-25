@@ -41,11 +41,13 @@ public final class MeshMap {
         public float acc;
         public int hops = MeshTest.HOPS_UNKNOWN, lossPm = -1, jitterMs = -1, grade = -1, kbps = -1, src;
         public int signalDbm = Integer.MIN_VALUE;
+        /** The sender said this position came from fake GPS (testing): not real coverage. */
+        public boolean fake;
 
         String csv() {
             return t + "," + clean(name) + "," + clean(chan) + "," + String.format(Locale.US, "%.6f,%.6f,%.0f", lat, lon, acc) + ","
                     + hops + "," + lossPm + "," + jitterMs + "," + grade + "," + (signalDbm == Integer.MIN_VALUE ? "" : signalDbm) + ","
-                    + kbps + "," + src + "," + clean(node);
+                    + kbps + "," + src + "," + clean(node) + "," + (fake ? 1 : 0);
         }
 
         static Point parse(String l) {
@@ -67,6 +69,7 @@ public final class MeshMap {
                 p.kbps = Integer.parseInt(f[11]);
                 p.src = Integer.parseInt(f[12]);
                 p.node = f.length > 13 ? f[13] : "";
+                p.fake = f.length > 14 && "1".equals(f[14]);
                 return p;
             } catch (RuntimeException e) {
                 return null;
@@ -230,6 +233,7 @@ public final class MeshMap {
             p.jitterMs = l.jitterMs(now);
             p.grade = MeshTest.grade(loss, p.jitterMs);
             p.src = SRC_POSITION;
+            p.fake = s.fake;
             add(p);
         }
     }
@@ -266,7 +270,7 @@ public final class MeshMap {
             } else if (p.hops < 0) {
                 style = TileMapView.Dot.SQUARE;
             }
-            out.add(new TileMapView.Dot(p.lat, p.lon, c, style).tag(p));
+            out.add(new TileMapView.Dot(p.lat, p.lon, c, style).tag(p).mark(p.fake));
         }
         double[] f = fixedPoint();
         if (f != null) out.add(new TileMapView.Dot(f[0], f[1], 0xff263238, TileMapView.Dot.STATION));
@@ -309,20 +313,20 @@ public final class MeshMap {
             if (gpx) {
                 w.write("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<gpx version=\"1.1\" creator=\"YCC Map mesh\" xmlns=\"http://www.topografix.com/GPX/1/1\">\n");
                 double[] fx = fixedPoint();
-                if (fx != null) w.write(String.format(Locale.US, "<wpt lat=\"%.6f\" lon=\"%.6f\"><name>Fixed station</name></wpt>\n", fx[0], fx[1]));
+                if (fx != null) w.write(String.format(Locale.US, "<wpt lat=\"%.6f\" lon=\"%.6f\"><name>Antenna (fixed point)</name></wpt>\n", fx[0], fx[1]));
                 for (Point p : list) {
                     w.write(String.format(Locale.US, "<wpt lat=\"%.6f\" lon=\"%.6f\"><time>%s</time><name>%s</name><desc>%s</desc></wpt>\n",
                             p.lat, p.lon, iso(p.t), xml(p.name), xml(describe(p))));
                 }
                 w.write("</gpx>\n");
             } else {
-                w.write("time_utc,callsign,channel,lat,lon,accuracy_m,hops,loss_permille,jitter_ms,quality,signal_dbm,throughput_kbps,source,node,status_colour\n");
+                w.write("time_utc,callsign,channel,lat,lon,accuracy_m,hops,loss_permille,jitter_ms,quality,signal_dbm,throughput_kbps,source,node,status_colour,fake_gps\n");
                 for (Point p : list) {
                     w.write(iso(p.t) + "," + clean(p.name) + "," + clean(p.chan) + "," + String.format(Locale.US, "%.6f,%.6f,%.0f", p.lat, p.lon, p.acc)
                             + "," + (p.hops == MeshTest.HOPS_UNKNOWN ? "unknown" : String.valueOf(p.hops)) + "," + (p.lossPm < 0 ? "" : p.lossPm)
                             + "," + (p.jitterMs < 0 ? "" : p.jitterMs) + "," + MeshTest.gradeWord(p.grade) + ","
                             + (p.signalDbm == Integer.MIN_VALUE ? "" : p.signalDbm) + "," + (p.kbps < 0 ? "" : p.kbps) + ","
-                            + (p.src == SRC_PROBE ? "probe" : "position") + "," + clean(p.node) + "," + statusColour(p) + "\n");
+                            + (p.src == SRC_PROBE ? "probe" : "position") + "," + clean(p.node) + "," + statusColour(p) + "," + (p.fake ? "yes" : "") + "\n");
                 }
             }
         } finally {
@@ -340,6 +344,6 @@ public final class MeshMap {
         return statusColour(p) + ": " + MeshTest.hopsWord(p.hops) + ", " + MeshTest.gradeWord(p.grade)
                 + (p.lossPm >= 0 ? ", loss " + (p.lossPm / 10.0) + "%" : "") + (p.jitterMs >= 0 ? ", jitter " + p.jitterMs + " ms" : "")
                 + (p.signalDbm != Integer.MIN_VALUE ? ", signal " + p.signalDbm + " dBm" : "") + (p.kbps >= 0 ? ", " + p.kbps + " kbit/s" : "")
-                + (p.node.length() > 0 ? ", node " + p.node : "") + ", " + p.chan + (p.src == SRC_PROBE ? ", walk probe" : "");
+                + (p.node.length() > 0 ? ", node " + p.node : "") + ", " + p.chan + (p.src == SRC_PROBE ? ", walk probe" : "") + (p.fake ? ", FAKE GPS (not real coverage)" : "");
     }
 }

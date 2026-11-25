@@ -1321,6 +1321,7 @@ public final class MapActivity extends Activity {
             }
             map.setTracks(TrackUi.lines());
             map.setDots(MeshMap.mainMapDots()); // mesh testing: Map mesh layer (null when off)
+            if (shownBars != -2 && (MeshRadio.bars() != shownBars || TitleIcons.meshShown(MapActivity.this) != shownMeshIcon)) invalidateOptionsMenu(); // the signal bars icon changed
             if (walkStrip != null) {
                 boolean w = MeshWalk.running();
                 walkStrip.setVisibility(w ? View.VISIBLE : View.GONE);
@@ -1746,12 +1747,37 @@ public final class MapActivity extends Activity {
             m.add(0, 6, 0, "TAK map source for the LAN tiles…");
         }
         AnchorButton.add(this, m);
+        // The same title bar icons as home (shown here only when they show there).
+        if (!TvActivity.isTv(this)) {
+            m.add(0, 9001, 0, "Shortcuts").setIcon(TitleIcons.shortcuts(this, UpdateCheck.available(this) > 0))
+                    .setShowAsAction(android.view.MenuItem.SHOW_AS_ACTION_ALWAYS);
+            m.add(0, 9002, 0, "OpenMANET Mesh").setIcon(TitleIcons.meshBars(this, MeshRadio.bars()))
+                    .setShowAsAction(android.view.MenuItem.SHOW_AS_ACTION_ALWAYS);
+            m.add(0, 9003, 0, "Chat").setIcon(android.R.drawable.sym_action_chat)
+                    .setShowAsAction(android.view.MenuItem.SHOW_AS_ACTION_ALWAYS);
+        }
         return true;
     }
+
+    private int shownBars = -2;
+    private boolean shownMeshIcon;
 
     @Override
     public boolean onPrepareOptionsMenu(android.view.Menu m) {
         AnchorButton.update(this, m);
+        Prefs pp = new Prefs(this);
+        android.view.MenuItem sc = m.findItem(9001), mr = m.findItem(9002), ch = m.findItem(9003);
+        if (sc != null) {
+            sc.setVisible(pp.appMode() != Prefs.MODE_INTERCOM);
+            sc.setIcon(TitleIcons.shortcuts(this, UpdateCheck.available(this) > 0));
+        }
+        if (mr != null) {
+            shownBars = MeshRadio.bars();
+            shownMeshIcon = TitleIcons.meshShown(this);
+            mr.setVisible(shownMeshIcon);
+            mr.setIcon(TitleIcons.meshBars(this, shownBars));
+        }
+        if (ch != null) ch.setVisible(pp.appMode() == Prefs.MODE_ADVANCED);
         return super.onPrepareOptionsMenu(m);
     }
 
@@ -1805,6 +1831,20 @@ public final class MapActivity extends Activity {
         if (AnchorButton.onSelected(this, item)) return true;
         if (item.getItemId() == 7711) {
             WalkUi.fromMap(this);
+            return true;
+        }
+        if (item.getItemId() == 9001) { // the home screen's Shortcuts page
+            startActivity(new android.content.Intent(this, MainActivity.class)
+                    .addFlags(android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP | android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                    .putExtra(MainActivity.EXTRA_SHOW_SHORTCUTS, true));
+            return true;
+        }
+        if (item.getItemId() == 9002) {
+            MeshRadioActivity.open(this);
+            return true;
+        }
+        if (item.getItemId() == 9003) {
+            startActivity(new android.content.Intent(this, ChatActivity.class));
             return true;
         }
         if (item.getItemId() == 2) {

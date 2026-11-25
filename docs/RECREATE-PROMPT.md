@@ -639,13 +639,18 @@ A station whose app restarts gets a new senderId; replace the old entry with the
             2 REQUEST "show me your path" (the receiver is asked before anything is sent)
             3 REPLY   code(1): 1 declined, 2 not tracking and did not start
 30 PROBE    ver(1)=1 probeSeq(4) sentAt(8, walker's clock ms) lat(8, double, NaN = no fix) lon(8)
-            accuracy(4, float) interval(1, s) flags(1, bit0 = send me the node list)
+            accuracy(4, float) interval(1, s) flags(1, bit0 = send me the node list, bit1 = fake GPS position)
             targetLen(1) target callsign  nodeLen(1) walker's mesh node name   (Mapping walk, sent once)
 31 PROBEACK ver(1)=1 probeSeq(4) sentAt(8, copied back) walkerLen(1) walker callsign
             hops(1, signed: 1 direct, 2, 3.., -1 unknown, -2 through a relay / the internet)
             lossPermille(2, 0xffff unknown) jitterMs(2, 0xffff unknown) window(1, probes measured)
             signalDbm(1, signed, 127 unknown) throughputKbps(4, -1 unknown) fixedLat(8) fixedLon(8)
             fixedNodeLen(1) fixed node name  listLen(2) node names joined by ',' (<=300 bytes)
+32 NODEOFFER  ver(1)=1 offerId(4) targetLen(1) target callsign ("" = everyone)   (node login share)
+33 NODEACCEPT ver(1)=1 offerId(4) adminLen(1) admin callsign keyLen(2) receiver P-256 public key (X.509)
+34 NODELOGIN  ver(1)=1 offerId(4) targetLen(1) target callsign keyLen(2) admin's fresh P-256 public key
+              sealedLen(2) sealed { "u": user, "p": password, "n": [{name, ip}] }
+35 NODEFORGET ver(1)=1 randomId(4) 0(1)   (forget a login this sender shared)
 ```
 - **Mapping walk (kinds 30, 31):** private channels unless the user allows public ones. Only the phone
   named as target (its callsign, or its Echo Test name) answers, at most about once a second per
@@ -654,6 +659,14 @@ A station whose app restarts gets a new senderId; replace the old entry with the
   MeshTopologyService/GetMeshTopology `hopsFromSelf` and MeshNeighborService/ListMeshNeighbors, read
   only): the walker's node is the fixed node or a direct neighbour = 1, otherwise its hop count. Phones
   without these kinds ignore them. Receivers never pass kinds 30 and 31 to the chat.
+- **Node login share (kinds 32-35):** Mesh controller > More, private channels only, each body sent 3 times
+  (deduplicated by kind, sender and id). Never sealed with the channel key: the receiver makes a fresh P-256
+  key pair when it accepts; secret = ECDH(admin fresh key, receiver key); master = HMAC-SHA256("YCCN1 " + offerId,
+  secret); encKey / macKey = HMAC-SHA256(master, "YCCN1 enc" / "YCCN1 mac"); sealed = IV(16) | AES-256-CBC |
+  HMAC-SHA256(macKey, "YCCP1" | IV | ct) (the protected-notes format). Key check number = first 4 bytes of
+  SHA-256(receiver key) mod 1,000,000. FORGET is acted on only by phones holding a login from that sender.
+  QR form: "YCCNODE1:" + base64url( fromLen(1) from salt(16) sealed ), keys from PBKDF2-HMAC-SHA1(PIN of 6+
+  characters, salt, 20,000) as for protected notes. Receivers never pass kinds 32-35 to the chat.
 - **Path tracking (kind 9):** sent only on a private channel (never Public). A phone that is not named in
   `to` (its callsign or "team callsign") drops the body. POINTS go when sharing starts (everything recorded,
   at most the last 2000 points), then live every 15 s at most (one point of overlap so the line joins), and
@@ -1065,4 +1078,4 @@ Each of these happened in the original build. Check for them in yours.
 **Not yet tested on real equipment:** scanning a phone setup QR code with a real camera, Bluetooth PTT buttons (e.g. FalconClaw "BLU-PTT"; the signal it
 sends is unknown, so the app shows the last raw value in Settings), OpenMANET / ATAK Vx voice, USB,
 network and intercom cameras, the possible-gunshots alert, crash detection, tunnel comms over a real
-router and the internet, internet radio streams, Reolink live video, sound and multi-camera alerts (tested against tools/fake-reolink only); cloud groups and the internet relay on a real server; Tesla Powerwall 2, Anker SOLIX and EcoFlow readers on real units; a real baked T.REX Arms map file; scanning QR codes with a real phone camera (Tools, cloud group Scan QR); spoken route stop announcements and protected meeting reminders going off on a real phone. Mesh testing (2026-11-24): Play audio, Echo Test, Map mesh and Mapping walk on real phones and a real mesh, real radio stream audio quality, and ListMeshNeighbors on a real node (field names read from the openmanetd 1.4.0 binary, emulators tested against a stand-in node).
+router and the internet, internet radio streams, Reolink live video, sound and multi-camera alerts (tested against tools/fake-reolink only); cloud groups and the internet relay on a real server; Tesla Powerwall 2, Anker SOLIX and EcoFlow readers on real units; a real baked T.REX Arms map file; scanning QR codes with a real phone camera (Tools, cloud group Scan QR); spoken route stop announcements and protected meeting reminders going off on a real phone. Mesh testing (2026-11-24): Play audio, Echo Test, Map mesh and Mapping walk on real phones and a real mesh, real radio stream audio quality, and ListMeshNeighbors on a real node (field names read from the openmanetd 1.4.0 binary, emulators tested against a stand-in node). OpenMANET Mesh and the walker reading its own node (2026-11-25): finding "My mesh node" from the WiFi name assumes the node's access point is named after it (e.g. localnetHT01); tested only with a stand-in SSID and two stand-in nodes, so a real Heltec and a real phone's WiFi name (which needs location permission on Android 8.1+) are untested; nextHopMac in the mesh layout is a guess at the field name. Node login sharing (2026-11-25): offer / accept / sealed login / revoke tested between two API 34 emulators; the PIN-sealed QR scan and Android 4.x P-256 key making are untested; the shared password is kept in YCC's private app storage (not encrypted at rest with the Android Keystore yet). Read-only login (2026-11-25): installing it (rpcd login, ACL file, script, rpcd reload over /ubus) and reading with it are tested only against a stand-in /ubus on emulators, NOT on the real Pi or Heltec (no node writes until the owner says go); the rpcd ACL format and the ycc-ro-radio script are untested on real OpenWrt; the server Phone setup fields are in server/provision.py but not deployed. Finding my node by gateway is confirmed on the real mesh (S5 on the Pi 4, Nexus 7 on HT01, named from each node's web page title without a login); the real openmanetd ListMeshNeighbors answer has now been seen and is read (S5 with the admin login). Fixed 2026-11-25: on Android 5.1+ with mobile data on, a WiFi without internet was not used for the channel broadcasts (one-way: heard everyone, nobody heard it); multicast-only mode (netMode multicast) still sends on the default network. 2026-11-25: re-join on a WiFi address change is tested only as far as the WiFi-off/on case on emulators (same address, no re-join); a real change of network is untested until the next field test.

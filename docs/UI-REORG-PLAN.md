@@ -339,7 +339,7 @@ its key and can still be listened to, but has no button on the home radio row an
 |---|---|---|---|
 | Mode choice (Advanced / Intercom / simple) | Wizard step 5, Settings main | Wizard "Device role" + "Group type"; Settings > Me > Role; **Simple / Advanced switch on the Channels page** | Intercom is a role, simple modes are group types; decision 13 |
 | Channel eyes (advanced) / Keys screen (simple) | Channels page / Keys | Channels page (Simple or Advanced) with a **show on home screen** eye on every channel | Decision 14 |
-| Video feed | Menu | **Video feed** (menu, More > Cameras and power) | Decision 15 (built) |
+| Video feed | Menu | **Video feed** (menu, Feature menus > Cameras and power) | Decision 15 (built) |
 | Callsign, units | Settings main | Settings > Me (callsign greyed out when a setup QR locked it) | One place for who I am |
 | Run the setup wizard again | Settings main | Settings > Me | Same |
 | Update from URL / Edit update URL | Settings main | Settings > About and updates | Rarely used |
@@ -356,7 +356,7 @@ its key and can still be listened to, but has no button on the home radio row an
 | Internet audio (streams) | Settings > Audio | Advanced and Region features > More… | It's an optional feature |
 | Home screen choice, orientation, invert | Settings > Home screen | Settings > Screen; **map home is the default** | Decision 11 |
 | Quick buttons (per mode) and their custom setting | Home screen; Settings > Home screen | **Shortcuts** page (all shortcuts, status strip; pick the four shown on the radio home) | Decision 12 |
-| TV mode button | Settings > Home screen | Role: TV / display, and More > Screen | Role-driven |
+| TV mode button | Settings > Home screen | Role: TV / display, and Feature menus > Screen | Role-driven |
 | Specialised menus | Settings > Home screen and menus | Settings > **Advanced and Region features** (checklist, off by default, in the setup QR; More… for obscure items) | the owner's name; region items grouped |
 | Power mode, battery levels, mission mode, sleep, rest GPS, deep sleep, burst sleep, check-in windows | Settings > Power and sleep | Settings > Power and batteries | Same |
 | Anchor (mains power) | Settings > Power | Settings > Power and batteries: **Anchored (on stable power)** tick; offered in the wizard's power step | Any device can be anchored; not a role |
@@ -369,14 +369,14 @@ its key and can still be listened to, but has no button on the home radio row an
 | Radio silent (and support) | Settings > Security | Settings > Security, plus the Channels page tick | Same |
 | Fake GPS, Obscure location, auto-accept requests | Settings > Security | Settings > Location and privacy (with "share location with public and cloud groups") | One privacy page |
 | Clear mission data, Clear everything | Settings > Mission and data | Settings > Data and backups | Same |
-| Tools | Settings > Tools | More > Tools (and Settings link) | Easier to find |
+| Tools | Settings > Tools | Feature menus > Tools (and Settings link) | Easier to find |
 | About, How Modern DRYAD works | Settings main | Settings > About and updates | Same |
-| Relay admin | Menu (specialised) | More > Network; Advanced setup > Cloud Server | Grouped |
+| Relay admin | Menu (specialised) | Feature menus > Network; Advanced setup > Cloud Server | Grouped |
 | Cloud group | Channels / Keys | Channels / Keys (stays) + Advanced setup > Cloud group | Both |
-| Gateway, OpenMANET node | Menu | More > Network; role Network gateway | Grouped |
-| Battery power | Menu (specialised) | More > Cameras and power | Grouped |
-| Video feed, cameras | Menu | More > Cameras and power | Grouped |
-| DRYAD, Pigpen, Enigma, CW, Challenge | Menu / DRYAD screen | More > Codes | Grouped |
+| Gateway, OpenMANET node | Menu | Feature menus > Network; role Network gateway | Grouped |
+| Battery power | Menu (specialised) | Feature menus > Cameras and power | Grouped |
+| Video feed, cameras | Menu | Feature menus > Cameras and power | Grouped |
+| DRYAD, Pigpen, Enigma, CW, Challenge | Menu / DRYAD screen | Feature menus > Codes | Grouped |
 
 Proposed Settings pages: **Me** (role, callsign, units, wizard, share my setup) · **Channels and listening** ·
 **Voice and PTT** · **Alerts** · **Screen** · **Power and batteries** (Anchored here) · **Location and privacy** ·

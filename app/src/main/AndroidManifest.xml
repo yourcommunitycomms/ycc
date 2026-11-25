@@ -156,6 +156,7 @@
         <activity android:name=".RelayAdminActivity" android:exported="false" />
         <activity android:name=".MeshControllerActivity" android:exported="false" />
         <activity android:name=".MeshTestingActivity" android:exported="false" android:windowSoftInputMode="stateHidden" />
+        <activity android:name=".MeshRadioActivity" android:exported="false" />
         <activity android:name=".OpenManetSettingsActivity" android:exported="false" />
         <activity android:name=".ChannelsActivity" android:exported="false" />
         <activity

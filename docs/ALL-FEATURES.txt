@@ -250,4 +250,7 @@ ADDED SOON AFTER RELEASE 1 (everything since is in the lists above and in UPDATE
 - Mesh testing (off by default): play a radio stream or audio files to the channel as live voice; an Echo
   Test contact that reports the link (packets, lost, late, jitter) and plays your test back; Map mesh, a
   coverage map from a fixed station (direct, 2 hops, 3 or more, signal); a Mapping walk with a live link
-  status and a coloured trail. Private channels unless allowed, with a warning.
+  status and a coloured trail. Private channels unless allowed, with a warning. The walker can also read its
+  own mesh node, so both sides of the link are shown.
+- OpenMANET Mesh (with OpenMANET on): what this phone's own mesh node sees, its neighbours, their signal and
+  speed, hops to every node, and each contact's link; a small signal bars icon in the title bar.

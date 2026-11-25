@@ -82,23 +82,106 @@ public final class UpdateFromUrl {
         row.addView(local, new android.widget.LinearLayout.LayoutParams(0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1));
         row.addView(gh, new android.widget.LinearLayout.LayoutParams(0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1));
         box.addView(row);
+        // What was typed survives the dialog closing (rotation, Cancel by mistake): kept as a draft until saved.
+        final String draft = sp(a).getString("updateUrlDraft", "");
+        if (draft.length() > 0) e.setText(draft);
+        e.addTextChangedListener(new android.text.TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int st, int c, int af) {
+            }
+
+            @Override
+            public void onTextChanged(CharSequence s, int st, int b, int c) {
+            }
+
+            @Override
+            public void afterTextChanged(android.text.Editable s) {
+                sp(a).edit().putString("updateUrlDraft", s.toString()).commit();
+            }
+        });
+        final android.widget.TextView result = new android.widget.TextView(a);
+        result.setTextSize(14);
+        result.setPadding(0, (int) (8 * dp), 0, (int) (4 * dp));
+        box.addView(result);
         final String was = url(a);
-        new AlertDialog.Builder(a)
+        final int[] tested = {0}; // 0 not tested, 1 OK, -1 failed (for the text now in the field)
+        final String[] testedFor = {""};
+        final AlertDialog dlg = new AlertDialog.Builder(a)
                 .setTitle("Update URL")
                 .setMessage("Where to get the app from: the project's GitHub release (the default, always the newest), "
                         + "or a local storage server, e.g. http://192.168.1.10:8647/YCC/Updates/YCC.apk. Local server asks for "
-                        + "its name and fills in the rest. Test downloads it; it is kept once it works, and a group's network "
-                        + "defaults can set it for every phone. A newer app from outside the LAN is also put on the LAN storage, "
-                        + "so the other phones update from there.")
+                        + "its name and fills in the rest. Test checks the address without closing this; Save keeps it. A "
+                        + "group's network defaults can set it for every phone.")
                 .setView(box)
-                .setPositiveButton(thenUpdate ? "Test and update" : "Test and save", new DialogInterface.OnClickListener() {
+                .setPositiveButton(thenUpdate ? "Save and update" : "Save", null)
+                .setNeutralButton("Test", null)
+                .setNegativeButton(android.R.string.cancel, null)
+                .create();
+        dlg.setOnShowListener(new DialogInterface.OnShowListener() {
+            @Override
+            public void onShow(DialogInterface di) {
+                dlg.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener(new android.view.View.OnClickListener() {
                     @Override
-                    public void onClick(DialogInterface d, int w) {
+                    public void onClick(android.view.View v) {
+                        final String u = e.getText().toString().trim();
+                        result.setTextColor(0xffcfd8dc);
+                        result.setText("Testing " + u + " …");
+                        new Thread(new Runnable() {
+                            @Override
+                            public void run() {
+                                final String[] r = test(a, u);
+                                a.runOnUiThread(new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        if (!dlg.isShowing()) return;
+                                        boolean ok = r[0] != null;
+                                        tested[0] = ok ? 1 : -1;
+                                        testedFor[0] = u;
+                                        result.setTextColor(ok ? 0xffa5d6a7 : 0xffff8a80);
+                                        result.setText(ok ? "OK: " + r[0] : "Failed: " + r[1]);
+                                    }
+                                });
+                            }
+                        }, "update-url-test").start();
+                    }
+                });
+                dlg.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(new android.view.View.OnClickListener() {
+                    @Override
+                    public void onClick(android.view.View v) {
                         final String u = e.getText().toString().trim();
                         if (!u.startsWith("http://") && !u.startsWith("https://")) {
-                            Toast.makeText(a, "The address starts with http:// or https://", Toast.LENGTH_LONG).show();
+                            result.setTextColor(0xffff8a80);
+                            result.setText("The address starts with http:// or https://");
                             return;
                         }
+                        final Runnable save = new Runnable() {
+                            @Override
+                            public void run() {
+                                sp(a).edit().putString("updateUrl", u).remove("updateUrlDraft").commit();
+                                dlg.dismiss();
+                                Toast.makeText(a, "Update address saved", Toast.LENGTH_SHORT).show();
+                                if (thenUpdate) download(a, u);
+                            }
+                        };
+                        final Runnable checked = new Runnable() {
+                            @Override
+                            public void run() {
+                                if (tested[0] == 1 && u.equals(testedFor[0])) {
+                                    save.run();
+                                    return;
+                                }
+                                new AlertDialog.Builder(a).setTitle(tested[0] == -1 && u.equals(testedFor[0]) ? "The test failed" : "Not tested")
+                                        .setMessage((tested[0] == -1 && u.equals(testedFor[0]) ? "The last test of this address failed. "
+                                                : "This address has not been tested. ") + "Save it anyway?")
+                                        .setPositiveButton("Save anyway", new DialogInterface.OnClickListener() {
+                                            @Override
+                                            public void onClick(DialogInterface d2, int w2) {
+                                                save.run();
+                                            }
+                                        })
+                                        .setNegativeButton("Back", null).show();
+                            }
+                        };
                         if (was.contains("/Personal/") && !u.equals(was)) { // a personal APK's own address: ask first
                             new AlertDialog.Builder(a).setTitle("Replace this app's own update address?")
                                     .setMessage("This app came from your storage server set up for you, with its own update "
@@ -106,17 +189,90 @@ public final class UpdateFromUrl {
                                     .setPositiveButton("Replace", new DialogInterface.OnClickListener() {
                                         @Override
                                         public void onClick(DialogInterface d2, int w2) {
-                                            download(a, u);
+                                            checked.run();
                                         }
                                     })
                                     .setNegativeButton("Keep mine", null).show();
                             return;
                         }
-                        download(a, u);
+                        checked.run();
                     }
-                })
-                .setNegativeButton(android.R.string.cancel, null)
-                .show();
+                });
+                dlg.getButton(AlertDialog.BUTTON_NEGATIVE).setOnClickListener(new android.view.View.OnClickListener() {
+                    @Override
+                    public void onClick(android.view.View v) {
+                        sp(a).edit().remove("updateUrlDraft").commit();
+                        dlg.dismiss();
+                    }
+                });
+            }
+        });
+        dlg.show();
+    }
+
+    /**
+     * Checks an update address without downloading the whole app: version.txt beside it when there is one (the LAN
+     * storage layout), else the start of the file itself. Returns {what was found, null} or {null, why it failed}.
+     */
+    static String[] test(Activity a, String u) {
+        if (!u.startsWith("http://") && !u.startsWith("https://")) return new String[]{null, "the address starts with http:// or https://"};
+        try {
+            URL url = new URL(u);
+            if (url.getHost().length() == 0) return new String[]{null, "there is no server name in the address"};
+            LanTiles lan = new LanTiles(a);
+            if (lan.configured() && u.startsWith(lan.base())) {
+                byte[] v = lan.getPath("Updates/version.txt");
+                if (v != null) return new String[]{"the LAN storage offers version " + new String(v, "UTF-8").trim().split("\\s+")[0], null};
+            }
+            String vUrl = u.substring(0, u.lastIndexOf('/') + 1) + "version.txt";
+            if (!u.contains("github.com")) {
+                HttpURLConnection c = (HttpURLConnection) new URL(vUrl).openConnection();
+                c.setConnectTimeout(8000);
+                c.setReadTimeout(8000);
+                if (c.getResponseCode() == 200) {
+                    String t = TestAudio.readText(c.getInputStream()).trim();
+                    c.disconnect();
+                    String code = t.split("\\s+")[0];
+                    if (code.matches("\\d+")) return new String[]{"version " + code + " found (version.txt beside the app)", null};
+                }
+                c.disconnect();
+            }
+            HttpURLConnection c = (HttpURLConnection) url.openConnection();
+            org.communitycomms.app.geo.Tls12SocketFactory.apply(c);
+            c.setConnectTimeout(10000);
+            c.setReadTimeout(15000);
+            c.setRequestProperty("Range", "bytes=0-1023");
+            int code = c.getResponseCode();
+            if (code != 200 && code != 206) {
+                c.disconnect();
+                return new String[]{null, "the server answered " + code + (code == 404 ? " (not found: check the path)" : code == 401 || code == 403 ? " (it wants a login)" : "")};
+            }
+            InputStream in = c.getInputStream();
+            byte[] head = new byte[2];
+            int n = in.read(head);
+            in.close();
+            long len = c.getHeaderFieldInt("Content-Length", -1);
+            String range = c.getHeaderField("Content-Range");
+            if (range != null && range.contains("/")) {
+                try {
+                    len = Long.parseLong(range.substring(range.lastIndexOf('/') + 1).trim());
+                } catch (NumberFormatException ignored) {
+                }
+            }
+            c.disconnect();
+            if (n < 2 || head[0] != 'P' || head[1] != 'K') return new String[]{null, "the address answers, but it is not an app file (APK)"};
+            return new String[]{"an app file is there" + (len > 0 ? " (" + (len / 1024) + " KB)" : "") + ". Save, then Update from URL installs it.", null};
+        } catch (java.net.UnknownHostException e) {
+            return new String[]{null, "server not found (" + e.getMessage() + "): check the name, or use its address"};
+        } catch (java.net.SocketTimeoutException e) {
+            return new String[]{null, "no answer (timed out): the server is off or not reachable from this network"};
+        } catch (java.net.ConnectException e) {
+            return new String[]{null, "nothing answers there (" + e.getMessage() + "): check the port"};
+        } catch (java.net.MalformedURLException e) {
+            return new String[]{null, "not a valid address (" + e.getMessage() + ")"};
+        } catch (Exception e) {
+            return new String[]{null, org.communitycomms.app.geo.Tls12SocketFactory.explain(e).getMessage()};
+        }
     }
 
     /** Local server: its name (or address), port and path, put together into the update address. */

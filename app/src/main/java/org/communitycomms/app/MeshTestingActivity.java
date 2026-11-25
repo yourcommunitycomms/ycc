@@ -82,24 +82,153 @@ public final class MeshTestingActivity extends Activity {
         sv.addView(root);
         setContentView(sv);
         channelLine = text(root, "", 14);
-        TextView quiet = text(root, "Testing tools for the mesh. Play audio works on private channels only; the others can be allowed on public ones (with a warning). "
-                + "Nothing plays out loud on this phone unless you ask for it.", 12);
-        quiet.setTextColor(0xffb0bec5);
+        // Who is around: a warning when nobody else is heard on this channel (or, roaming, the fixed station is quiet).
+        LinearLayout wr = row(root);
+        lonely = new TextView(this);
+        lonely.setTextColor(0xffffffff);
+        lonely.setBackgroundColor(0xffc62828);
+        lonely.setPadding((int) (8 * d), (int) (6 * d), (int) (8 * d), (int) (6 * d));
+        wr.addView(lonely, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        lonelyBtn = new Button(this);
+        lonelyBtn.setAllCaps(false);
+        lonelyBtn.setText("Channels");
+        lonelyBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                startActivity(new android.content.Intent(MeshTestingActivity.this, ChannelsActivity.class));
+            }
+        });
+        wr.addView(lonelyBtn);
+        lonelyRow = wr;
+        // This phone's job in the test: chosen first, nothing selected until then.
+        LinearLayout rr = row(root);
+        stationaryBtn = rowButton(rr, "Stationary", new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                setRole("stationary");
+            }
+        });
+        roamingBtn = rowButton(rr, "Roaming", new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                setRole("roaming");
+            }
+        });
+        roleHint = text(root, "Pick this phone's job:\n• Stationary: this phone stays put (e.g. at the base Pi) and maps who it hears; it can also run the Echo Test.\n"
+                + "• Roaming: this phone moves around and checks its link to the stationary phone (Mapping walk).", 14);
+        stationaryBox = new LinearLayout(this);
+        stationaryBox.setOrientation(LinearLayout.VERTICAL);
+        roamingBox = new LinearLayout(this);
+        roamingBox.setOrientation(LinearLayout.VERTICAL);
+        root.addView(stationaryBox);
+        root.addView(roamingBox);
         boolean any = false;
-        if (prefs.menuOn(MeshTest.K_AUDIO)) {
-            buildAudio(root);
+        if (prefs.menuOn(MeshTest.K_MAP)) {
+            buildMap(stationaryBox);
+            buildWalk(roamingBox);
             any = true;
         }
         if (prefs.menuOn(MeshTest.K_ECHO)) {
-            buildEcho(root);
+            buildEcho(stationaryBox);
             any = true;
         }
-        if (prefs.menuOn(MeshTest.K_MAP)) {
-            buildMap(root);
-            buildWalk(root);
+        if (prefs.menuOn(MeshTest.K_AUDIO)) {
+            LinearLayout other = collapsible(root, "Other tests (play audio to the channel)");
+            buildAudio(other);
             any = true;
         }
+        TextView quiet = text(root, "\nPlay audio works on private channels only; the others can be allowed on public ones (with a warning). "
+                + "Nothing plays out loud on this phone unless you ask for it.", 12);
+        quiet.setTextColor(0xffb0bec5);
         if (!any) text(root, "\nNo mesh testing tool is ticked. Turn them on in Settings > Advanced and Region features > Mesh testing.", 15);
+        applyRole();
+    }
+
+    private TextView lonely, roleHint;
+    private Button lonelyBtn, stationaryBtn, roamingBtn;
+    private LinearLayout lonelyRow, stationaryBox, roamingBox;
+    private CheckBox mapOnBox, fixedBox;
+
+    static String role() {
+        return MeshTest.sp().getString("mt_role", "");
+    }
+
+    private void setRole(String r) {
+        MeshTest.sp().edit().putString("mt_role", r).commit();
+        if ("stationary".equals(r)) { // the fixed station: map who it hears
+            if (mapOnBox != null && !mapOnBox.isChecked()) mapOnBox.setChecked(true);
+            if (fixedBox != null && !fixedBox.isChecked()) fixedBox.setChecked(true);
+        } else if (fixedBox != null && fixedBox.isChecked()) {
+            fixedBox.setChecked(false); // a roaming phone is not the fixed station
+        }
+        applyRole();
+    }
+
+    private void applyRole() {
+        String r = role();
+        boolean st = "stationary".equals(r), ro = "roaming".equals(r);
+        stationaryBox.setVisibility(st ? View.VISIBLE : View.GONE);
+        roamingBox.setVisibility(ro ? View.VISIBLE : View.GONE);
+        roleHint.setVisibility(st || ro ? View.GONE : View.VISIBLE);
+        stationaryBtn.setText(st ? "● Stationary" : "Stationary");
+        roamingBtn.setText(ro ? "● Roaming" : "Roaming");
+        stationaryBtn.setTextColor(st ? 0xfff0c75e : 0xffffffff);
+        roamingBtn.setTextColor(ro ? 0xfff0c75e : 0xffffffff);
+    }
+
+    /** A titled section that opens and closes ("▸ More options"); returns the inside to fill. */
+    private LinearLayout collapsible(LinearLayout into, final String title) {
+        final Button b = new Button(this);
+        b.setAllCaps(false);
+        b.setGravity(android.view.Gravity.START | android.view.Gravity.CENTER_VERTICAL);
+        b.setText("▸ " + title);
+        into.addView(b);
+        final LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setVisibility(View.GONE);
+        into.addView(box);
+        b.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                boolean open = box.getVisibility() != View.VISIBLE;
+                box.setVisibility(open ? View.VISIBLE : View.GONE);
+                b.setText((open ? "▾ " : "▸ ") + title);
+            }
+        });
+        return box;
+    }
+
+    /** Other phones heard on the channel on air in the last 2 minutes (not relays or Echo Test); name = only that one, in 30 s. */
+    private int othersHeard(String name) {
+        RadioService rs = RadioService.instance();
+        RadioEngine e = rs == null ? null : rs.engine();
+        if (e == null) return -1;
+        long now = System.currentTimeMillis();
+        int n = 0;
+        for (RadioEngine.Station s : e.stations()) {
+            if (s.name == null || s.name.startsWith("via ") || s.echo || s.name.toLowerCase(java.util.Locale.US).contains("echo test")) continue;
+            if (now - s.lastSeenMs > 120000) continue;
+            if (name != null) {
+                if (s.name.equalsIgnoreCase(name) && now - s.lastSeenMs <= 30000) n++;
+            } else n++;
+        }
+        return n;
+    }
+
+    private void refreshWarnings() {
+        String ch = MeshTest.channelNow();
+        String msg = null;
+        int others = othersHeard(null);
+        if (others == 0) msg = "No one else is heard on " + (ch == null ? "this channel" : ch) + ". Check the other phones are on the same channel "
+                + "(the same channel name) and on the mesh WiFi.";
+        else if ("roaming".equals(role())) {
+            Object t = walkTarget == null ? null : walkTarget.getSelectedItem();
+            String fixed = MeshWalk.running() ? MeshWalk.target() : t == null ? "" : t.toString();
+            if (fixed.length() > 0 && !fixed.startsWith("(") && othersHeard(fixed) == 0)
+                msg = "The stationary phone " + fixed + " has not been heard in the last 30 s. Check it is on, on the same channel and on the mesh WiFi.";
+        }
+        lonelyRow.setVisibility(msg == null ? View.GONE : View.VISIBLE);
+        if (msg != null) lonely.setText(msg);
     }
 
     // ---- small builders ----
@@ -606,8 +735,30 @@ public final class MeshTestingActivity extends Activity {
         heading(root, "Map mesh (coverage)");
         text(root, "On the FIXED phone: records every position it hears from other phones straight off the network (direct or "
                 + "counted mesh hops, never through a relay or the internet), coloured by link quality. Works offline.", 13);
-        check(root, "Map mesh on (record positions heard)", "map_on", false);
-        final CheckBox fixed = check(root, "This phone is fixed here", "fixed_on", false);
+        final CheckBox mapOn = check(root, "Map mesh on (record positions heard)", "map_on", false);
+        final CheckBox fixed = check(root, "Set antenna fixed here (the base node's antenna; walk distances are measured from it)", "fixed_on", false);
+        mapOnBox = mapOn;
+        fixedBox = fixed;
+        for (final CheckBox cb : new CheckBox[]{mapOn, fixed}) {
+            final String key = cb == mapOn ? "map_on" : "fixed_on";
+            cb.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+                @Override
+                public void onCheckedChanged(CompoundButton b, boolean on) {
+                    MeshTest.sp().edit().putBoolean(key, on).commit();
+                    shownVersion = -1;
+                    if (on) MeshTest.fakeGpsGate(MeshTestingActivity.this, new Runnable() {
+                        @Override
+                        public void run() {
+                        }
+                    }, new Runnable() {
+                        @Override
+                        public void run() {
+                            cb.setChecked(false);
+                        }
+                    });
+                }
+            });
+        }
         fixedText = text(root, "", 13);
         LinearLayout r = row(root);
         rowButton(r, "Use my GPS", new View.OnClickListener() {
@@ -934,7 +1085,9 @@ public final class MeshTestingActivity extends Activity {
         });
         r.addView(rf);
         fillTargets();
-        walkEvery = number(root, "Probe every (seconds)", MeshWalk.intervalSec());
+        final LinearLayout walkMore = new LinearLayout(this); // filled below, shown under "More options"
+        walkMore.setOrientation(LinearLayout.VERTICAL);
+        walkEvery = number(walkMore, "Probe every (seconds)", MeshWalk.intervalSec());
         LinearLayout nr = row(root);
         TextView nl = new TextView(this);
         nl.setText("My mesh node ");
@@ -952,13 +1105,17 @@ public final class MeshTestingActivity extends Activity {
             }
         });
         fillNodes();
-        TextView nh = text(root, "The node your phone's WiFi is on (the list comes from the fixed station once a walk runs). "
-                + "It lets the fixed station tell direct from relayed and report your node's signal.", 12);
+        TextView nh = text(root, "The node your phone's WiFi is on. Auto finds it from the WiFi lease (the node that is your gateway / DHCP server), else the WiFi name; "
+                + "or pick it (the list comes from the fixed station and your node). It lets the fixed station tell direct from relayed.", 12);
         nh.setTextColor(0xffb0bec5);
-        check(root, "Vibrate gently when the status changes (no sound)", "walk_vibe", false);
-        check(root, "Post the walk summary to the channel chat when the walk stops", "walk_post", false);
         simBox = check(root, "Fake GPS is on: walk a test route (a 150 m circle at walking pace)", "walk_sim", false);
-        publicTick(root, "walk", "Mapping walk");
+        LinearLayout more = collapsible(root, "More options");
+        check(more, "Also read MY node during the walk (its neighbours, signal and next hop; asks for the nodes' login once)", "walk_local", true);
+        walkLocalEvery = number(more, "Read my node every (s, 5-60)", MeshRadio.walkSec());
+        check(more, "Vibrate gently when the status changes (no sound)", "walk_vibe", false);
+        check(more, "Post the walk summary to the channel chat when the walk stops", "walk_post", false);
+        publicTick(more, "walk", "Mapping walk");
+        more.addView(walkMore);
         walkBtn = button(root, "Start walk", new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -967,16 +1124,15 @@ public final class MeshTestingActivity extends Activity {
                     refresh();
                     return;
                 }
-                MeshTest.sp().edit().putInt("walk_every", Math.max(2, Math.min(60, num(walkEvery, 5)))).commit();
+                MeshTest.sp().edit().putInt("walk_every", Math.max(2, Math.min(60, num(walkEvery, 5))))
+                        .putInt("walk_local_every", Math.max(5, Math.min(60, num(walkLocalEvery, 10)))).commit();
                 final Object t = walkTarget.getSelectedItem();
-                MeshTest.checkChannel(MeshTestingActivity.this, "walk", "Mapping walk", new Runnable() {
+                MeshTest.fakeGpsGate(MeshTestingActivity.this, new Runnable() {
                     @Override
                     public void run() {
-                        String err = MeshWalk.start(t == null ? null : t.toString());
-                        if (err != null) Toast.makeText(MeshTestingActivity.this, err, Toast.LENGTH_LONG).show();
-                        refresh();
+                        startWalkChecked(t);
                     }
-                });
+                }, null);
             }
         });
         walkBig = new TextView(this);
@@ -1008,6 +1164,22 @@ public final class MeshTestingActivity extends Activity {
         TextView mh = text(root, "Tip: the walk can also be started, watched and stopped from the full map (menu > Mapping walk); it keeps "
                 + "running when you leave either page. Tap a trail dot for its figures.", 12);
         mh.setTextColor(0xffa5d6a7);
+    }
+
+    private void startWalkChecked(final Object t) {
+        MeshTest.checkChannel(MeshTestingActivity.this, "walk", "Mapping walk", new Runnable() {
+            @Override
+            public void run() {
+                WalkUi.loginThen(MeshTestingActivity.this, new Runnable() {
+                    @Override
+                    public void run() {
+                        String err = MeshWalk.start(t == null ? null : t.toString());
+                        if (err != null) Toast.makeText(MeshTestingActivity.this, err, Toast.LENGTH_LONG).show();
+                        refresh();
+                    }
+                });
+            }
+        });
     }
 
     private void exportWalk(boolean gpx) {
@@ -1042,13 +1214,19 @@ public final class MeshTestingActivity extends Activity {
     }
 
     private List<String> shownNodes;
+    private EditText walkLocalEvery;
 
     private void fillNodes() {
         List<String> items = new ArrayList<String>();
-        items.add("(not set)");
-        String cur = MeshWalk.myNode();
+        String det = MeshRadio.detectedNode();
+        items.add(det.length() > 0 ? "Auto (detected: " + det + ")" : "Auto (gateway, then WiFi name)");
+        if (det.length() > 0) items.add(det); // my own node, learnt by this phone (not only from the fixed station)
+        String cur = MeshTest.sp().getString("walk_node", "").trim();
         for (String n : MeshWalk.nodeList()) if (!items.contains(n)) items.add(n);
+        for (String n : MeshNode.LOCAL.names()) if (!items.contains(n)) items.add(n);
         if (cur.length() > 0 && !items.contains(cur)) items.add(cur);
+        java.util.LinkedHashSet<String> uniq = new java.util.LinkedHashSet<String>(items);
+        items = new ArrayList<String>(uniq);
         if (items.equals(shownNodes)) return;
         shownNodes = items;
         ArrayAdapter<String> a = new ArrayAdapter<String>(this, android.R.layout.simple_spinner_item, items);
@@ -1068,6 +1246,7 @@ public final class MeshTestingActivity extends Activity {
     };
 
     private void refresh() {
+        refreshWarnings();
         String ch = MeshTest.channelNow();
         channelLine.setText(ch == null ? "Not on a channel." : "On " + ch + (MeshTest.onPublicChannel() ? " (PUBLIC: anyone can hear)" : " (private)"));
         channelLine.setTextColor(ch != null && MeshTest.onPublicChannel() ? 0xffffab91 : 0xffa5d6a7);
@@ -1088,7 +1267,7 @@ public final class MeshTestingActivity extends Activity {
         }
         if (map != null) {
             double[] f = MeshMap.fixedPoint();
-            fixedText.setText(f == null ? "No fixed point yet." : "Fixed at " + org.communitycomms.app.geo.Geo.latLon(f[0], f[1])
+            fixedText.setText(f == null ? "No antenna point yet: Use my GPS, or long-press the map where the antenna is." : "Antenna at " + org.communitycomms.app.geo.Geo.latLon(f[0], f[1])
                     + (MeshMap.recording() ? " · recording" : " · not recording (tick Map mesh on)"));
             nodeBtn.setText(MeshNode.polling() ? "Stop polling " + MeshNode.host() : "Poll my node…");
             StringBuilder nb = new StringBuilder();
@@ -1115,6 +1294,7 @@ public final class MeshTestingActivity extends Activity {
             walkDetails.setText(w ? MeshWalk.details() : "");
             simBox.setVisibility(org.communitycomms.app.geo.FakeGps.enabled(this) ? View.VISIBLE : View.GONE);
             WalkUi.showPendingSummary(this);
+            MeshRadio.nameFromWeb(this); // my node by the gateway (no login), every 30 s at most
             fillNodes();
         }
     }

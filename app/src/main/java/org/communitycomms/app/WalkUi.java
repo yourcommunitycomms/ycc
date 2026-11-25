@@ -74,14 +74,24 @@ public final class WalkUi {
             b.setItems(names.toArray(new String[0]), new DialogInterface.OnClickListener() {
                 @Override
                 public void onClick(DialogInterface d, final int w) {
+                    MeshTest.fakeGpsGate(a, new Runnable() {
+                        @Override
+                        public void run() {
                     MeshTest.checkChannel(a, "walk", "Mapping walk", new Runnable() {
                         @Override
                         public void run() {
-                            String err = MeshWalk.start(names.get(w));
-                            Toast.makeText(a, err != null ? err : "Walk started: probing " + names.get(w) + " every " + MeshWalk.intervalSec() + " s",
-                                    Toast.LENGTH_LONG).show();
+                            loginThen(a, new Runnable() {
+                                @Override
+                                public void run() {
+                                    String err = MeshWalk.start(names.get(w));
+                                    Toast.makeText(a, err != null ? err : "Walk started: probing " + names.get(w) + " every " + MeshWalk.intervalSec() + " s",
+                                            Toast.LENGTH_LONG).show();
+                                }
+                            });
                         }
                     });
+                        }
+                    }, null);
                 }
             });
         }
@@ -91,6 +101,15 @@ public final class WalkUi {
                 history(a);
             }
         }).setNegativeButton(android.R.string.cancel, null).show();
+    }
+
+    /** Before a walk: the nodes' login once (to read my own node), unless it is held, not wanted, or OpenMANET is off. */
+    static void loginThen(Activity a, Runnable start) {
+        if (!MeshRadio.walkLocal() || MeshRadio.hasLogin() || !MeshRadio.available(a)) {
+            start.run();
+            return;
+        }
+        MeshRadio.askLogin(a, true, start);
     }
 
     /** After Stop: the summary sheet, once. */

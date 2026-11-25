@@ -157,6 +157,11 @@ public final class MeshControllerActivity extends Activity {
         root.setOrientation(LinearLayout.VERTICAL);
         int pad = (int) (10 * d);
         root.setPadding(pad, pad, pad, pad);
+        sharedBanner = new TextView(this);
+        sharedBanner.setBackgroundColor(0xffc62828);
+        sharedBanner.setTextColor(0xffffffff);
+        sharedBanner.setPadding((int) (8 * d), (int) (6 * d), (int) (8 * d), (int) (6 * d));
+        root.addView(sharedBanner);
         status = new TextView(this);
         status.setPadding(0, 0, 0, (int) (4 * d));
         root.addView(status);
@@ -218,6 +223,8 @@ public final class MeshControllerActivity extends Activity {
                 : "Checking which saved nodes answer… Tap Scan and log in to read their settings.");
         if (!nodes.isEmpty()) quickCheck();
         TvFocus.watch(getWindow());
+        showSharedBanner();
+        ui.post(shareTick);
     }
 
     @Override
@@ -225,6 +232,14 @@ public final class MeshControllerActivity extends Activity {
         super.onStop();
         if (!busy) wipeLogin(); // left the page or the screen locked
     }
+
+    private final Runnable shareTick = new Runnable() {
+        @Override
+        public void run() {
+            NodeShare.showPending(MeshControllerActivity.this);
+            ui.postDelayed(this, 1000);
+        }
+    };
 
     @Override
     protected void onDestroy() {
@@ -244,7 +259,20 @@ public final class MeshControllerActivity extends Activity {
         if (pass != null) ui.postDelayed(idleWipe, IDLE_WIPE_MS);
     }
 
+    private boolean usingShared;
+    private TextView sharedBanner;
+
+    /** A red line at the top while a login shared by someone else is held. */
+    private void showSharedBanner() {
+        if (sharedBanner == null) return;
+        boolean on = NodeShare.held();
+        sharedBanner.setVisibility(on ? View.VISIBLE : View.GONE);
+        if (on) sharedBanner.setText("Admin login from " + NodeShare.from() + " (shared with this phone; FULL admin on the nodes). "
+                + "More > Forget the login shared with me.");
+    }
+
     private void wipeLogin() {
+        usingShared = false;
         pass = null;
         newPassword = null;
         for (Node n : nodes) n.pass = null;
@@ -795,7 +823,10 @@ public final class MeshControllerActivity extends Activity {
     private void more() {
         String[] items = {"Suggest an order (farthest first)", "Check which nodes answer (no login)",
                 "Undo: put the last settings back", sp.contains("savedPass") ? "Forget the saved login (remembered on this phone)" : "Forget the login now",
-                "About the Mesh controller"};
+                "About the Mesh controller", "OpenMANET Mesh (my node's neighbours and signal, read-only)",
+                "Share the node ADMIN login to team phones…", "Revoke the shared login (ask phones to forget it)…",
+                "Node login sharing log", NodeShare.held() ? "Forget the login shared with me" : "(no login shared with me)",
+                "Read-only login for team phones (one password, all nodes)…"};
         new AlertDialog.Builder(this).setItems(items, new DialogInterface.OnClickListener() {
             @Override
             public void onClick(DialogInterface dlg, int which) {
@@ -813,6 +844,50 @@ public final class MeshControllerActivity extends Activity {
                     sp.edit().remove("savedPass").commit();
                     wipeLogin();
                     setStatus(saved ? "Saved login removed from this phone." : "Login forgotten.");
+                } else if (which == 5) {
+                    MeshRadioActivity.open(MeshControllerActivity.this);
+                } else if (which == 6) {
+                    askLogin(new Runnable() {
+                        @Override
+                        public void run() {
+                            if (usingShared) {
+                                toast("This login was shared with you by " + NodeShare.from() + ": only the admin who has it can share it.");
+                                return;
+                            }
+                            NodeShare.startShare(MeshControllerActivity.this, user, pass, sp.getString("nodes", "[]"));
+                        }
+                    });
+                } else if (which == 7) {
+                    NodeShare.confirmRevoke(MeshControllerActivity.this);
+                } else if (which == 8) {
+                    NodeShare.showLog(MeshControllerActivity.this);
+                } else if (which == 10) {
+                    askLogin(new Runnable() {
+                        @Override
+                        public void run() {
+                            java.util.List<RoLogin.Target> ts = new java.util.ArrayList<RoLogin.Target>();
+                            for (Node n : nodes) if (n.ip != null && n.ip.length() > 0) ts.add(new RoLogin.Target(n.label(), n.ip));
+                            RoLogin.adminDialog(MeshControllerActivity.this, ts, new RoLogin.Login() {
+                                @Override
+                                public String user() {
+                                    return user;
+                                }
+
+                                @Override
+                                public String pass() {
+                                    return pass;
+                                }
+                            }, sp.getString("nodes", "[]"));
+                        }
+                    });
+                } else if (which == 9) {
+                    if (NodeShare.held()) NodeShare.confirmForget(MeshControllerActivity.this, new Runnable() {
+                        @Override
+                        public void run() {
+                            if (usingShared) wipeLogin();
+                            showSharedBanner();
+                        }
+                    });
                 } else {
                     new AlertDialog.Builder(MeshControllerActivity.this).setTitle("Mesh controller")
                             .setMessage("Changes the HaLow channel (frequency and width), mesh name and mesh password on "
@@ -840,6 +915,12 @@ public final class MeshControllerActivity extends Activity {
     private void askLogin(final Runnable then) {
         if (busy) return;
         if (pass == null && sp.contains("savedPass")) pass = sp.getString("savedPass", null); // "Remember on this phone"
+        if (pass == null && NodeShare.held()) { // the admin login a team admin shared with this phone (never shown)
+            user = NodeShare.user();
+            pass = NodeShare.pass();
+            usingShared = true;
+            showSharedBanner();
+        }
         if (pass != null) {
             touchIdle();
             then.run();

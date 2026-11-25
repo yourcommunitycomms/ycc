@@ -678,6 +678,28 @@ public final class RadioEngine {
         return link == null ? new ArrayList<InetSocketAddress>() : link.destinations();
     }
 
+    private static volatile java.util.Set<InetAddress> ownAddrs = new java.util.HashSet<InetAddress>();
+    private static volatile long ownAddrsAt;
+
+    /** Is this one of this phone's own addresses (refreshed every 10 s)? */
+    static boolean ownAddress(InetAddress a) {
+        if (a == null) return false;
+        if (a.isLoopbackAddress()) return false; // tunnels and relays hand packets in from 127.0.0.1: not ours
+        long now = System.currentTimeMillis();
+        if (now - ownAddrsAt > 10000) {
+            java.util.Set<InetAddress> s = new java.util.HashSet<InetAddress>();
+            try {
+                for (java.net.NetworkInterface ni : java.util.Collections.list(java.net.NetworkInterface.getNetworkInterfaces())) {
+                    for (InetAddress x : java.util.Collections.list(ni.getInetAddresses())) s.add(x);
+                }
+            } catch (Exception ignored) {
+            }
+            ownAddrs = s;
+            ownAddrsAt = now;
+        }
+        return ownAddrs.contains(a);
+    }
+
     public void setCallsign(String c) {
         callsign = c;
     }
@@ -1510,6 +1532,9 @@ public final class RadioEngine {
         String name = new String(p.payload, 1, nl, UTF8);
         // A station this phone runs or relays under another name (Echo Test, channel link) coming back to it.
         if (p.sender == idFor(name)) return;
+        // This phone's own other radio (a channel link / listen-beside engine) under its own callsign: not a contact.
+        String me = callsign;
+        if (me != null && me.equalsIgnoreCase(name) && ownAddress(from)) return;
         RxHook hook = rxHook;
         if (hook != null) hook.onPacket(this, p.sender, name, p.type, p.seq, from);
         if (p.type == Packet.TYPE_VOICE_TO) {

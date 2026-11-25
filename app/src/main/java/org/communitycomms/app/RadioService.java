@@ -764,6 +764,61 @@ public final class RadioService extends Service implements RadioEngine.Listener 
         }
     };
 
+    // ---- WiFi network changes: re-join so every socket, multicast group, broadcast address and node lookup is new ----
+
+    private volatile String lastWifiAddr;
+
+    /**
+     * A phone moved from one WiFi to another (home WiFi to a mesh node, one node's access point to another) while
+     * on air: everything worked out at join time (broadcast address, multicast group membership on the old network,
+     * the talk group sockets, which mesh node this phone is on) is re-done by re-joining the channel, a few seconds
+     * after the new WiFi address settles. Seen 2026-11-25: phones moved onto the mesh WiFi with YCC running went
+     * one-way until YCC was restarted.
+     */
+    @android.annotation.TargetApi(21)
+    private void watchWifi() {
+        try {
+            android.net.ConnectivityManager cm = (android.net.ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
+            if (cm == null) return;
+            cm.registerNetworkCallback(new android.net.NetworkRequest.Builder()
+                    .addTransportType(android.net.NetworkCapabilities.TRANSPORT_WIFI).build(), new android.net.ConnectivityManager.NetworkCallback() {
+                @Override
+                public void onLinkPropertiesChanged(android.net.Network n, android.net.LinkProperties lp) {
+                    String a = "";
+                    for (android.net.LinkAddress la : lp.getLinkAddresses()) {
+                        if (la.getAddress() instanceof java.net.Inet4Address) a = la.toString();
+                    }
+                    if (a.length() == 0) return;
+                    String was = lastWifiAddr;
+                    lastWifiAddr = a;
+                    if (was != null && !was.equals(a)) {
+                        Log.i(TAG, "WiFi changed: " + was + " -> " + a + ", re-joining in a few seconds");
+                        main.removeCallbacks(netRejoin);
+                        main.postDelayed(netRejoin, 4000);
+                    }
+                }
+            });
+        } catch (RuntimeException e) {
+            Log.w(TAG, "cannot watch WiFi changes: " + e.getMessage());
+        }
+    }
+
+    private final Runnable netRejoin = new Runnable() {
+        @Override
+        public void run() {
+            MeshRadio.networkChanged(RadioService.this);
+            Object[] j = lastJoin;
+            RadioEngine e = engine;
+            if (j == null || e == null) return; // not on a YCC channel (the OM/TAK talk group re-joins on its own start)
+            if (e.isTransmitting()) { // never cut a transmission: try again shortly
+                main.postDelayed(this, 3000);
+                return;
+            }
+            Log.i(TAG, "WiFi changed: re-joining " + Prefs.letter(new Prefs(RadioService.this).activeSlot()));
+            join((String) j[0], (String) j[1], (Integer) j[2], (Integer) j[3], (String) j[4]);
+        }
+    };
+
     private void scheduleRotation() {
         main.removeCallbacks(rotate);
         long ms = Prefs.msToNextRotation(new Prefs(this).keyRotation(), System.currentTimeMillis());
@@ -1637,6 +1692,8 @@ public final class RadioService extends Service implements RadioEngine.Listener 
         super.onCreate();
         watchScreen();
         instance = this;
+        if (android.os.Build.VERSION.SDK_INT >= 22) UdpLink.binder = wifiBinder(this);
+        if (android.os.Build.VERSION.SDK_INT >= 21) watchWifi();
         ReolinkMonitor.acquire(this, "bg"); // watches only if Reolink background watching is on
         BatteryMonitor.acquire(this, "bg"); // only if Bluetti power > Watch in the background is ticked
         restoreRapidShare(); // still sharing after a crash: carries on once back on a channel
@@ -3451,6 +3508,37 @@ public final class RadioService extends Service implements RadioEngine.Listener 
      * Where packets go. With an interface chosen (Advanced network), only that interface's
      * broadcast address is used; a VPN tunnel usually has none, so it falls back to multicast.
      */
+    /**
+     * Android 5.1+: broadcasts go out on a socket tied to the WiFi network. A WiFi without internet (an OpenMANET
+     * node, the "!" icon) is not the default network while mobile data is on, so an unbound socket sent the channel's
+     * broadcasts over mobile data: this phone heard everyone, nobody heard it.
+     */
+    @android.annotation.TargetApi(22)
+    static UdpLink.NetBinder wifiBinder(final android.content.Context c) {
+        return new UdpLink.NetBinder() {
+            @Override
+            public java.net.MulticastSocket wifiSocket() throws java.io.IOException {
+                android.net.ConnectivityManager cm = (android.net.ConnectivityManager) c.getApplicationContext().getSystemService(CONNECTIVITY_SERVICE);
+                if (cm == null) return null;
+                for (android.net.Network n : cm.getAllNetworks()) {
+                    android.net.NetworkCapabilities nc = cm.getNetworkCapabilities(n);
+                    if (nc == null || !nc.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI)) continue;
+                    java.net.MulticastSocket s = new java.net.MulticastSocket();
+                    s.setBroadcast(true);
+                    s.setTimeToLive(8);
+                    try {
+                        n.bindSocket(s);
+                    } catch (java.io.IOException e) {
+                        s.close();
+                        throw e;
+                    }
+                    return s;
+                }
+                return null;
+            }
+        };
+    }
+
     static List<InetSocketAddress> destinations(int netMode, int port, String extraPeers, NetworkInterface only)
             throws Exception {
         List<InetSocketAddress> out = new ArrayList<InetSocketAddress>();

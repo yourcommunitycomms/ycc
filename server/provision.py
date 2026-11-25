@@ -19,6 +19,7 @@ People are kept in <store>/.ycc_people.json (hidden, never served). Personal APK
 import base64
 import json
 import os
+import re
 import secrets
 import struct
 import threading
@@ -206,6 +207,7 @@ def _embed(st, who):
         if who.get("fakeCentre"):
             st["fakeCentre"] = who["fakeCentre"]
     st.update(_data(who))  # Data control is stage 1 too, with its lock
+    st.update(_ro(who))  # the read-only mesh node login (it can only read): stage 1
     return st
 
 
@@ -306,8 +308,22 @@ SETTINGS = (
     ("fakeGps", "Fake GPS", (("", "(the phone chooses)"), ("1", "On, near the coordinates below"), ("0", "Off")),
      "In the APK itself (stage 1): the phone uses and shares a made-up spot near these coordinates, for training or demos."),
     ("fakeCentre", "Fake GPS coordinates", None, "Latitude, longitude in decimal degrees, e.g. -37.81360, 144.96310."),
+    ("roUser", "Read-only mesh node login: user", None, "Usually ycc-ro. Set it up on the nodes from a phone: Mesh controller > More > "
+     "Read-only login for team phones."),
+    ("roPass", "Read-only mesh node login: password", None, "Letters and numbers only, 8 to 32 (e.g. MAPLERIVER42), the same on every node. "
+     "It can only READ radio data (neighbours, signal, layout), so it goes in the APK itself (stage 1) and the setup code."),
+    ("roUse", "Phones use the read-only login", (("", "Yes (default)"), ("0", "No: keep it but don't use it")), ""),
 )
-NUMERIC = ("lead", "burst", "anchored", "autoLoc", "obscure", "shareLocPub", "mapsOnline", "fakeGps", "dataLock")
+NUMERIC = ("lead", "burst", "anchored", "autoLoc", "obscure", "shareLocPub", "mapsOnline", "fakeGps", "dataLock", "roUse")
+
+
+def _ro(who):
+    """The read-only mesh node login as the app wants it ({"ro": {u, p, use}}), or {} when no valid password is set."""
+    p = re.sub(r"[^A-Z0-9]", "", str(who.get("roPass", "") or "").upper())
+    if not (8 <= len(p) <= 32):
+        return {}
+    u = str(who.get("roUser", "") or "").strip() or "ycc-ro"
+    return {"ro": {"u": u, "p": p, "use": 0 if str(who.get("roUse", "")) == "0" else 1}}
 
 
 def _data(who):
@@ -348,6 +364,9 @@ def _settings_to(o, who):
         if v:
             o[k] = int(v) if k in NUMERIC and v.lstrip("-").isdigit() else v
     o.pop("dataLock", None)
+    for k in ("roUser", "roPass", "roUse"):
+        o.pop(k, None)
+    o.update(_ro(who))
     o.update(_data(who))  # Data control: the lock defaults to on when a preset is chosen
     if who.get("features"):
         o["features"] = who["features"]

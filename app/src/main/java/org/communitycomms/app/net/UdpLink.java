@@ -26,7 +26,25 @@ public final class UdpLink implements Tunnel.Local {
     public static final String DEFAULT_GROUP = "239.47.47.47";
 
     private final MulticastSocket socket;
-    private final List<InetSocketAddress> destinations;
+    private volatile List<InetSocketAddress> destinations;
+    /** Destinations that are not network broadcasts (extra peers, multicast): kept as they are. */
+    private final List<InetSocketAddress> fixed = new ArrayList<InetSocketAddress>();
+    /** Follow WiFi changes: the subnet broadcast address(es) are worked out again every few seconds. */
+    private final boolean followNetwork;
+    private long lastNetCheck;
+
+    /**
+     * A sending socket tied to the WiFi network. On Android 5.1+ a WiFi without internet (the "!" icon, e.g. an
+     * OpenMANET mesh node) is not the default network while mobile data is on, so broadcasts from an unbound socket
+     * went out mobile data and were lost: the phone heard everyone, nobody heard it. Set by RadioService.
+     */
+    public interface NetBinder {
+        /** A new socket bound to the WiFi network (broadcast allowed), or null when there is no WiFi. */
+        MulticastSocket wifiSocket() throws IOException;
+    }
+
+    public static volatile NetBinder binder;
+    private volatile MulticastSocket wifiTx;
     private final Thread rxThread;
     private volatile boolean running = true;
 
@@ -38,6 +56,18 @@ public final class UdpLink implements Tunnel.Local {
     public UdpLink(int port, List<InetSocketAddress> destinations, InetAddress joinGroup,
                    java.net.NetworkInterface iface, final Receiver receiver) throws IOException {
         this.destinations = new ArrayList<InetSocketAddress>(destinations);
+        // Broadcast destinations (no network chosen, not multicast): the WiFi can change while on air (driving from
+        // home WiFi onto a mesh node, mobile data to WiFi). Without this the old network's broadcast address kept
+        // being used: this phone still HEARD everyone but nobody heard it (seen 2026-11-25 on the OpenMANET mesh).
+        java.util.Set<InetAddress> bc = broadcasts();
+        boolean anyBroadcast = false;
+        for (InetSocketAddress d : destinations) {
+            InetAddress a = d.getAddress();
+            if (a != null && (bc.contains(a) || "255.255.255.255".equals(a.getHostAddress()))) anyBroadcast = true;
+            else fixed.add(d);
+        }
+        followNetwork = iface == null && anyBroadcast;
+        Log.i(TAG, "sending to " + destinations + (followNetwork ? " (follows WiFi changes)" : ""));
         socket = new MulticastSocket(null);
         socket.setReuseAddress(true);
         socket.bind(new InetSocketAddress(port));
@@ -157,7 +187,63 @@ public final class UdpLink implements Tunnel.Local {
         }
     }, "udp-tx");
 
+    private static java.util.Set<InetAddress> broadcasts() {
+        java.util.Set<InetAddress> out = new java.util.LinkedHashSet<InetAddress>();
+        try {
+            java.util.Enumeration<java.net.NetworkInterface> e = java.net.NetworkInterface.getNetworkInterfaces();
+            while (e != null && e.hasMoreElements()) {
+                java.net.NetworkInterface ni = e.nextElement();
+                if (!ni.isUp() || ni.isLoopback()) continue;
+                for (java.net.InterfaceAddress ia : ni.getInterfaceAddresses()) {
+                    if (ia.getAddress() instanceof java.net.Inet4Address && ia.getBroadcast() != null) out.add(ia.getBroadcast());
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        return out;
+    }
+
+    /** Every 5 s while sending: the broadcast address(es) of the networks up now (plus the fixed ones). */
+    private void followNetworkNow() {
+        long now = System.currentTimeMillis();
+        if (!followNetwork || now - lastNetCheck < 5000) return;
+        lastNetCheck = now;
+        NetBinder nb = binder;
+        if (nb != null) {
+            MulticastSocket old = wifiTx;
+            try {
+                wifiTx = nb.wifiSocket();
+            } catch (IOException e) {
+                wifiTx = null;
+            }
+            if (old != null) old.close();
+        }
+        java.util.Set<InetAddress> bc = broadcasts();
+        List<InetSocketAddress> next = new ArrayList<InetSocketAddress>();
+        if (bc.isEmpty()) bc.add(InetAddressAll.ALL);
+        for (InetAddress a : bc) next.add(new InetSocketAddress(a, port));
+        for (InetSocketAddress d : fixed) if (!next.contains(d)) next.add(d);
+        if (!next.equals(destinations)) {
+            Log.i(TAG, "network changed: sending to " + next + " (was " + destinations + ")");
+            destinations = next;
+        }
+    }
+
+    private static final class InetAddressAll {
+        static final InetAddress ALL;
+
+        static {
+            InetAddress a = null;
+            try {
+                a = InetAddress.getByName("255.255.255.255");
+            } catch (Exception ignored) {
+            }
+            ALL = a;
+        }
+    }
+
     private void sendNow(byte[] data) {
+        followNetworkNow();
         // Tunnel comms: a remote phone also sends everything through the relay. It keeps sending on the
         // network here too, so a phone back on the group's WiFi still works while the tunnel is on (or
         // the relay cannot be reached from inside); copies that arrive both ways are dropped as repeats.
@@ -169,9 +255,11 @@ public final class UdpLink implements Tunnel.Local {
         if (cg != null) cg.send(data);
         Tunnel.Relay r = Tunnel.relay;
         if (r != null) r.onOwnSend(data, data.length);
+        MulticastSocket w = wifiTx;
         for (InetSocketAddress d : destinations) {
             try {
-                socket.send(new DatagramPacket(data, data.length, d));
+                if (w != null && !fixed.contains(d)) w.send(new DatagramPacket(data, data.length, d)); // the mesh / WiFi broadcast
+                else socket.send(new DatagramPacket(data, data.length, d));
             } catch (IOException e) {
                 // Unreachable networks are normal while WiFi is coming and going.
                 Log.d(TAG, "send to " + d + " failed: " + e.getMessage());
@@ -189,6 +277,8 @@ public final class UdpLink implements Tunnel.Local {
         running = false;
         txThread.interrupt();
         socket.close();
+        MulticastSocket w = wifiTx;
+        if (w != null) w.close();
         try {
             rxThread.join(500);
         } catch (InterruptedException ignored) {

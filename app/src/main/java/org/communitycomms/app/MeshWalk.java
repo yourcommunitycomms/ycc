@@ -47,6 +47,18 @@ public final class MeshWalk {
         public int status;
         public long t;
         public int rtt = -1, hops = MeshTest.HOPS_UNKNOWN, signalDbm = Integer.MIN_VALUE, kbps = -1, lossPm = -1, jitterMs = -1;
+        /** The walker's own node's side: signal and throughput to its next hop toward the fixed node, and its hop count. */
+        public int mySignalDbm = Integer.MIN_VALUE, myKbps = -1, myHops = -1;
+        public String nextHop = "";
+        /** Taken from fake GPS (testing only): not real coverage. */
+        public boolean fake;
+
+        /** The weaker of the two sides' signal (fixed node's view, walker node's view), or MIN_VALUE. */
+        public int worseSignal() {
+            if (signalDbm == Integer.MIN_VALUE) return mySignalDbm;
+            if (mySignalDbm == Integer.MIN_VALUE) return signalDbm;
+            return Math.min(signalDbm, mySignalDbm);
+        }
 
         /** "Direct link OK", "Working via relay (2 hops)", "Weak / losing packets", "No link to fixed station". */
         public String statusText() {
@@ -55,6 +67,7 @@ public final class MeshWalk {
 
         public String details() {
             StringBuilder b = new StringBuilder(statusText());
+            if (fake) b.append(" (FAKE GPS: testing only)");
             b.append("\n").append(new java.text.SimpleDateFormat("HH:mm:ss", Locale.US).format(new java.util.Date(t)));
             b.append("\nRound trip: ").append(rtt < 0 ? "no answer" : rtt + " ms");
             b.append("\nHops: ").append(MeshTest.hopsWord(hops));
@@ -62,6 +75,11 @@ public final class MeshWalk {
             if (jitterMs >= 0) b.append("\nJitter: ").append(jitterMs).append(" ms");
             if (signalDbm != Integer.MIN_VALUE) b.append("\nSignal: ").append(signalDbm).append(" dBm");
             if (kbps >= 0) b.append("\nThroughput: ").append(kbps).append(" kbit/s");
+            if (mySignalDbm != Integer.MIN_VALUE || myKbps >= 0 || nextHop.length() > 0) {
+                b.append("\nMy node's side: ").append(nextHop.length() > 0 ? "next hop " + nextHop + " " : "")
+                        .append(mySignalDbm != Integer.MIN_VALUE ? mySignalDbm + " dBm " : "").append(myKbps >= 0 ? myKbps + " kbit/s" : "")
+                        .append(myHops >= 0 ? " (" + myHops + (myHops == 1 ? " hop" : " hops") + " to the fixed node)" : "");
+            }
             b.append(String.format(Locale.US, "\n%.5f, %.5f", lat, lon));
             return b.toString();
         }
@@ -122,8 +140,13 @@ public final class MeshWalk {
         return Math.max(2, Math.min(60, MeshTest.sp().getInt("walk_every", 5)));
     }
 
+    /** My mesh node: picked, or found from the WiFi name (MeshRadio). */
     public static String myNode() {
-        return MeshTest.sp().getString("walk_node", "").trim();
+        return MeshRadio.myNode();
+    }
+
+    static boolean walkLocal() {
+        return MeshRadio.walkLocal();
     }
 
     public static boolean vibrate() {
@@ -188,8 +211,22 @@ public final class MeshWalk {
         b.append(" · jitter: ").append(lastJitter < 0 ? "–" : lastJitter + " ms");
         b.append("\nHops: ").append(MeshTest.hopsWord(lastHops));
         if (lastSignal != Integer.MIN_VALUE || lastKbps >= 0) {
-            b.append("\nMy node ").append(myNode().length() > 0 ? myNode() : "?").append(" to the fixed node: ")
+            b.append("\nFixed node's side (it hears my node ").append(myNode().length() > 0 ? myNode() : "?").append("): ")
                     .append(lastSignal == Integer.MIN_VALUE ? "" : lastSignal + " dBm ").append(lastKbps < 0 ? "" : lastKbps + " kbit/s");
+        }
+        if (MeshRadio.onMyNode()) {
+            MeshRadio.Toward t = MeshRadio.toward(fixedNode);
+            b.append("\nMy node's side (").append(myNode()).append(", ").append(MeshRadio.howFound()).append("): ");
+            if (t != null) {
+                b.append(t.hops == 0 ? "same node as the fixed station" : t.hops == 1 ? "1 hop to the fixed node" : t.hops > 1 ? t.hops + " hops to the fixed node" : "hops ?").append(t.nextHop.length() > 0 ? ", next hop " + t.nextHop : "")
+                        .append(t.signalDbm != Integer.MIN_VALUE ? ", " + t.signalDbm + " dBm" : "").append(t.kbps >= 0 ? ", " + t.kbps + " kbit/s" : "");
+            } else b.append(fixedNode.length() > 0 ? "fixed node " + fixedNode + " not in its view" : "waiting for the fixed node's name");
+            b.append("\nIts neighbours: ").append(MeshRadio.neighboursLine(4));
+            if (MeshNode.LOCAL.busy()) b.append("\nMy node is busy or slow: reading it every 30 s");
+        } else if (walkLocal()) {
+            String le = MeshNode.LOCAL.lastError();
+            b.append("\nMy node: ").append(!MeshRadio.hasLogin() ? "not read (no login)" : le.length() > 0 ? le
+                    : myNode().length() == 0 ? MeshRadio.howFound() : "reading " + myNode() + "…");
         }
         b.append("\nLast answer: ").append(lastAckMs == 0 ? "none yet" : (now - lastAckMs) / 1000 + " s ago");
         double[] f = fixedAt;
@@ -197,7 +234,7 @@ public final class MeshWalk {
         if (f != null && me != null) {
             float[] r = new float[2];
             Location.distanceBetween(me.getLatitude(), me.getLongitude(), f[0], f[1], r);
-            b.append(" · fixed station ").append(org.communitycomms.app.geo.Geo.distance(r[0])).append(" away");
+            b.append(" · antenna ").append(org.communitycomms.app.geo.Geo.distance(r[0])).append(" away");
         }
         if (lastNote.length() > 0) b.append("\n").append(lastNote);
         return b.toString();
@@ -246,6 +283,10 @@ public final class MeshWalk {
         startedMs = System.currentTimeMillis();
         probesSent = 0;
         probesAnswered = 0;
+        if (walkLocal() && MeshTest.app != null) {
+            MeshRadio.ensure(MeshTest.app);
+            MeshNode.LOCAL.nudge();
+        }
         clearTrail(); // the trail of this walk only (old walks are saved and can be reopened)
         shownOld = null;
         synchronized (outstanding) {
@@ -319,9 +360,10 @@ public final class MeshWalk {
                 .append(", ").append(hm(end - start));
         double walked = 0;
         int[] count = new int[4];
+        int fakeN = 0;
         long lossSum = 0;
         int lossN = 0, lossMax = -1, rttSum = 0, rttN = 0, rttMax = -1, jitSum = 0, jitN = 0, jitMax = -1;
-        int sigMin = Integer.MAX_VALUE, sigMax = Integer.MIN_VALUE;
+        int sigMin = Integer.MAX_VALUE, sigMax = Integer.MIN_VALUE, mySigMin = Integer.MAX_VALUE, mySigMax = Integer.MIN_VALUE;
         Map<String, Integer> hopCount = new java.util.TreeMap<String, Integer>();
         long outStart = -1, bestOut = 0;
         TrailPoint outFirst = null, bestOutAt = null;
@@ -330,6 +372,7 @@ public final class MeshWalk {
         for (TrailPoint p : pts) {
             if (prev != null && !Double.isNaN(p.lat) && !Double.isNaN(prev.lat)) walked += dist(prev.lat, prev.lon, p.lat, p.lon);
             if (p.status >= 0 && p.status < 4) count[p.status]++;
+            if (p.fake) fakeN++;
             if (p.lossPm >= 0) {
                 lossSum += p.lossPm;
                 lossN++;
@@ -348,6 +391,10 @@ public final class MeshWalk {
             if (p.signalDbm != Integer.MIN_VALUE) {
                 sigMin = Math.min(sigMin, p.signalDbm);
                 sigMax = Math.max(sigMax, p.signalDbm);
+            }
+            if (p.mySignalDbm != Integer.MIN_VALUE) {
+                mySigMin = Math.min(mySigMin, p.mySignalDbm);
+                mySigMax = Math.max(mySigMax, p.mySignalDbm);
             }
             if (p.rtt >= 0) {
                 String h = MeshTest.hopsWord(p.hops);
@@ -369,6 +416,8 @@ public final class MeshWalk {
             if (p.status == ST_DIRECT && fixedPt != null && !Double.isNaN(p.lat)) furthest = Math.max(furthest, dist(fixedPt[0], fixedPt[1], p.lat, p.lon));
             prev = p;
         }
+        if (fakeN > 0) b.append("\nFAKE GPS: ").append(fakeN).append(" of ").append(pts.size())
+                .append(" positions were fake (testing only, NOT real coverage)");
         b.append("\nDistance walked: ").append(org.communitycomms.app.geo.Geo.distance(walked));
         b.append("\nProbes: ").append(sent).append(" sent, ").append(answered).append(" answered")
                 .append(sent > 0 ? " (" + Math.round(100.0 * answered / sent) + "%)" : "");
@@ -381,10 +430,11 @@ public final class MeshWalk {
         b.append("\nLoss at the fixed station: ").append(lossN == 0 ? "–" : String.format(Locale.US, "average %.1f%%, worst %.1f%%", lossSum / 10.0 / lossN, lossMax / 10.0));
         b.append("\nRound trip: ").append(rttN == 0 ? "–" : "average " + rttSum / rttN + " ms, max " + rttMax + " ms");
         b.append("\nJitter: ").append(jitN == 0 ? "–" : "average " + jitSum / jitN + " ms, max " + jitMax + " ms");
-        b.append("\nSignal: ").append(sigMin == Integer.MAX_VALUE ? "not read (fixed node not polled)" : sigMin + " to " + sigMax + " dBm");
+        b.append("\nSignal (fixed node's side): ").append(sigMin == Integer.MAX_VALUE ? "not read (fixed node not polled)" : sigMin + " to " + sigMax + " dBm");
+        b.append("\nSignal (my node's side): ").append(mySigMin == Integer.MAX_VALUE ? "not read (my node not polled)" : mySigMin + " to " + mySigMax + " dBm");
         b.append("\nLongest no-link outage: ").append(bestOutAt == null ? "none"
                 : hm(Math.max(bestOut, intervalSec() * 1000L)) + String.format(Locale.US, " starting at %.5f, %.5f", bestOutAt.lat, bestOutAt.lon));
-        b.append("\nFurthest direct point from the fixed station: ").append(furthest < 0 ? "–" : org.communitycomms.app.geo.Geo.distance(furthest));
+        b.append("\nFurthest direct point from the antenna: ").append(furthest < 0 ? "–" : org.communitycomms.app.geo.Geo.distance(furthest));
         b.append("\nHops (answered probes):");
         if (hopCount.isEmpty()) b.append(" –");
         for (Map.Entry<String, Integer> en : hopCount.entrySet()) b.append("\n  ").append(en.getKey()).append(": ").append(en.getValue());
@@ -408,7 +458,8 @@ public final class MeshWalk {
         org.json.JSONArray a = new org.json.JSONArray();
         for (TrailPoint p : trail()) {
             a.put(new org.json.JSONArray().put(p.t).put(p.lat).put(p.lon).put(p.status).put(p.rtt).put(p.hops)
-                    .put(p.signalDbm == Integer.MIN_VALUE ? 999 : p.signalDbm).put(p.kbps).put(p.lossPm).put(p.jitterMs));
+                    .put(p.signalDbm == Integer.MIN_VALUE ? 999 : p.signalDbm).put(p.kbps).put(p.lossPm).put(p.jitterMs)
+                    .put(p.mySignalDbm == Integer.MIN_VALUE ? 999 : p.mySignalDbm).put(p.myKbps).put(p.myHops).put(p.nextHop).put(p.fake ? 1 : 0));
         }
         o.put("points", a);
         java.io.File f = new java.io.File(walksDir(), "walk-" + startedMs + ".json");
@@ -460,6 +511,14 @@ public final class MeshWalk {
             p.kbps = q.getInt(7);
             p.lossPm = q.getInt(8);
             p.jitterMs = q.getInt(9);
+            if (q.length() > 13) { // walks saved with the walker's own node's side
+                int ms = q.getInt(10);
+                p.mySignalDbm = ms == 999 ? Integer.MIN_VALUE : ms;
+                p.myKbps = q.getInt(11);
+                p.myHops = q.getInt(12);
+                p.nextHop = q.optString(13, "");
+            }
+            p.fake = q.length() > 14 && q.optInt(14) == 1;
             out.add(p);
         }
         return out;
@@ -499,8 +558,8 @@ public final class MeshWalk {
     public static List<TileMapView.Dot> trailDots() {
         List<TileMapView.Dot> out = new ArrayList<TileMapView.Dot>();
         List<TrailPoint> old = shownOld;
-        if (old != null) for (TrailPoint p : old) out.add(new TileMapView.Dot(p.lat, p.lon, colourFor(p.status), TileMapView.Dot.FILLED).tag(p));
-        for (TrailPoint p : trail()) out.add(new TileMapView.Dot(p.lat, p.lon, colourFor(p.status), TileMapView.Dot.FILLED).tag(p));
+        if (old != null) for (TrailPoint p : old) out.add(new TileMapView.Dot(p.lat, p.lon, colourFor(p.status), TileMapView.Dot.FILLED).tag(p).mark(p.fake));
+        for (TrailPoint p : trail()) out.add(new TileMapView.Dot(p.lat, p.lon, colourFor(p.status), TileMapView.Dot.FILLED).tag(p).mark(p.fake));
         double[] f = fixedAt;
         if (f != null && !out.isEmpty()) out.add(new TileMapView.Dot(f[0], f[1], 0xff263238, TileMapView.Dot.STATION));
         return out;
@@ -512,6 +571,7 @@ public final class MeshWalk {
         p.lat = lat;
         p.lon = lon;
         p.status = st;
+        p.fake = MeshTest.app != null && org.communitycomms.app.geo.FakeGps.enabled(MeshTest.app);
         p.t = System.currentTimeMillis();
         p.rtt = rtt;
         p.hops = lastHops;
@@ -523,6 +583,14 @@ public final class MeshWalk {
             p.hops = MeshTest.HOPS_UNKNOWN;
             p.signalDbm = Integer.MIN_VALUE;
             p.kbps = -1;
+        }
+        // The walker's own node's side, read now (also where the fixed station does not answer).
+        MeshRadio.Toward t = MeshRadio.toward(fixedNode);
+        if (t != null) {
+            p.mySignalDbm = t.signalDbm;
+            p.myKbps = t.kbps;
+            p.myHops = t.hops;
+            p.nextHop = t.nextHop;
         }
         synchronized (trail) {
             trail.add(p);
@@ -631,7 +699,9 @@ public final class MeshWalk {
         b.putDouble(l == null ? Double.NaN : l.getLatitude()).putDouble(l == null ? Double.NaN : l.getLongitude());
         b.putFloat(l == null ? 0f : l.getAccuracy());
         b.put((byte) intervalSec());
-        b.put((byte) (nodeList.isEmpty() || p.seq % 12 == 1 ? 1 : 0)); // bit0: send me the node list
+        int fl = nodeList.isEmpty() || p.seq % 12 == 1 ? 1 : 0; // bit0: send me the node list
+        if (org.communitycomms.app.geo.FakeGps.location() != null) fl |= 2; // bit1: my position is fake GPS (testing)
+        b.put((byte) fl);
         b.put((byte) t.length).put(t).put((byte) n.length).put(n);
         return b.array();
     }
@@ -679,6 +749,10 @@ public final class MeshWalk {
         lastAckMs = now;
         unanswered = 0;
         lastRtt = (int) (now - sentAt);
+        fixedNode = fnode;
+        // The fixed side could not tell the hops: use my node's view of the path to the fixed node.
+        MeshRadio.Toward tw = hops == MeshTest.HOPS_UNKNOWN ? MeshRadio.toward(fnode) : null;
+        if (tw != null && tw.hops >= 0) hops = tw.hops <= 1 ? 1 : tw.hops;
         lastHops = hops;
         lastLossPm = loss == 0xffff ? -1 : loss;
         lastJitter = jit == 0xffff ? -1 : jit;
@@ -792,6 +866,7 @@ public final class MeshWalk {
             mp.kbps = kbps;
             mp.src = MeshMap.SRC_PROBE;
             mp.node = node;
+            mp.fake = (flags & 2) != 0;
             MeshMap.add(mp);
         }
         // The answer.
@@ -856,13 +931,16 @@ public final class MeshWalk {
                 w.write("</trkseg></trk>\n</gpx>\n");
             } else {
                 if (summary != null) for (String l : summary.split("\n")) w.write("# " + l + "\n");
-                w.write("time_utc,lat,lon,status_colour,status,rtt_ms,hops,loss_permille,jitter_ms,signal_dbm,throughput_kbps\n");
+                w.write("time_utc,lat,lon,status_colour,status,rtt_ms,hops,loss_permille,jitter_ms,signal_dbm,throughput_kbps,"
+                        + "my_node_signal_dbm,my_node_throughput_kbps,my_node_hops,next_hop,worse_signal_dbm,fake_gps\n");
                 for (TrailPoint p : pts) {
                     w.write(iso.format(new java.util.Date(p.t)) + "," + String.format(Locale.US, "%.6f,%.6f", p.lat, p.lon) + ","
                             + colourName(p.status) + "," + p.statusText().replace(',', ' ') + "," + (p.rtt < 0 ? "" : p.rtt) + ","
                             + (p.hops == MeshTest.HOPS_UNKNOWN ? "unknown" : String.valueOf(p.hops)) + "," + (p.lossPm < 0 ? "" : p.lossPm) + ","
                             + (p.jitterMs < 0 ? "" : p.jitterMs) + "," + (p.signalDbm == Integer.MIN_VALUE ? "" : p.signalDbm) + ","
-                            + (p.kbps < 0 ? "" : p.kbps) + "\n");
+                            + (p.kbps < 0 ? "" : p.kbps) + "," + (p.mySignalDbm == Integer.MIN_VALUE ? "" : p.mySignalDbm) + ","
+                            + (p.myKbps < 0 ? "" : p.myKbps) + "," + (p.myHops < 0 ? "" : p.myHops) + "," + p.nextHop.replace(',', ' ') + ","
+                            + (p.worseSignal() == Integer.MIN_VALUE ? "" : p.worseSignal()) + "," + (p.fake ? "yes" : "") + "\n");
                 }
             }
         } finally {

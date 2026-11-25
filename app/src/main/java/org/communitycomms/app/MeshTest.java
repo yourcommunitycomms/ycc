@@ -296,6 +296,11 @@ public final class MeshTest implements RadioEngine.RxHook {
         if (app == null) return;
         long now = System.currentTimeMillis();
         Link l = link(e, sender);
+        // Field diagnosis (logcat tag "YccRx"): the first packet from each sender, and again after 2 minutes of silence.
+        if (l.lastMs == 0 || now - l.lastMs > 120000) {
+            Log.i("YccRx", "heard " + name + " on " + label(e) + " from " + (from == null ? "?" : from.getHostAddress())
+                    + (l.lastMs == 0 ? " (first time)" : " (after " + (now - l.lastMs) / 1000 + " s quiet)"));
+        }
         l.add(seq, now);
         l.lastViaRelay = e.viaRelay(from);
         l.lastFrom = from == null ? null : from.getHostAddress();
@@ -337,12 +342,43 @@ public final class MeshTest implements RadioEngine.RxHook {
                 MeshWalk.onAnswer(e, sender, name, p, off + 1);
                 return true;
             }
+            if (kind >= NodeShare.KIND_OFFER && kind <= NodeShare.KIND_FORGET) return NodeShare.onChat(e, sender, name, kind, p, off + 1);
             if (kind == org.communitycomms.app.msg.MessageCenter.KIND_TEXT) EchoTest.onChat(e, sender, name, from, p, off + 1);
         } catch (RuntimeException ex) {
             Log.d(TAG, "bad test body: " + ex);
             return kind == KIND_PROBE || kind == KIND_PROBE_ACK;
         }
         return false;
+    }
+
+    // ---- fake GPS check before Map mesh / a walk ----
+
+    /** Fake GPS on: ask to turn it off (Map mesh needs real positions). go runs after Turn off or Keep; cancel otherwise. */
+    public static void fakeGpsGate(final android.app.Activity a, final Runnable go, final Runnable cancel) {
+        if (!org.communitycomms.app.geo.FakeGps.enabled(a)) {
+            go.run();
+            return;
+        }
+        new android.app.AlertDialog.Builder(a).setTitle("Fake GPS is on")
+                .setMessage("Map mesh needs real positions or the coverage map will be wrong. Positions taken while Fake GPS is on "
+                        + "are marked FAKE GPS (a cross on the map, the summary and the CSV) so they are not mistaken for real coverage.")
+                .setPositiveButton("Turn off Fake GPS", new android.content.DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(android.content.DialogInterface d, int w) {
+                        org.communitycomms.app.geo.FakeGps.set(a, false, org.communitycomms.app.geo.FakeGps.centre(a));
+                        go.run();
+                    }
+                }).setNeutralButton("Keep it (testing only)", new android.content.DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(android.content.DialogInterface d, int w) {
+                        go.run();
+                    }
+                }).setNegativeButton(android.R.string.cancel, new android.content.DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(android.content.DialogInterface d, int w) {
+                        if (cancel != null) cancel.run();
+                    }
+                }).setCancelable(false).show();
     }
 
     // ---- the home screen banner ----

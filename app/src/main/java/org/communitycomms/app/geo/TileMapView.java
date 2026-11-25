@@ -761,6 +761,13 @@ public final class TileMapView extends View {
         public final int colour, style;
         /** What the dot stands for (tapping a dot with a tag calls OnDotTap), or null. */
         public Object tag;
+        /** Marked with a small cross (e.g. a fake GPS position, not real coverage). */
+        public boolean mark;
+
+        public Dot mark(boolean m) {
+            mark = m;
+            return this;
+        }
 
         public Dot(double lat, double lon, int colour, int style) {
             this.lat = lat;
@@ -833,15 +840,25 @@ public final class TileMapView extends View {
                 dotPaint.setStrokeWidth(2.2f * d);
                 c.drawCircle(x, y, r, dotEdge);
                 c.drawCircle(x, y, r, dotPaint);
-            } else if (p.style == Dot.STATION) {
+            } else if (p.style == Dot.STATION) { // the base antenna: a mast on a white disc with two radio waves each side
                 dotPaint.setStyle(Paint.Style.FILL);
-                c.drawCircle(x, y, r * 2.4f, dotEdge);
                 dotPaint.setColor(0xffffffff);
-                c.drawCircle(x, y, r * 2.4f, dotPaint);
+                c.drawCircle(x, y, r * 2.6f, dotPaint);
+                c.drawCircle(x, y, r * 2.6f, dotEdge);
                 dotPaint.setColor(p.colour);
-                c.drawCircle(x, y, r * 1.6f, dotPaint);
-                c.drawLine(x - r * 3.4f, y, x + r * 3.4f, y, dotEdge);
-                c.drawLine(x, y - r * 3.4f, x, y + r * 3.4f, dotEdge);
+                dotPaint.setStyle(Paint.Style.STROKE);
+                dotPaint.setStrokeWidth(1.8f * d);
+                c.drawLine(x, y - r * 1.2f, x, y + r * 1.9f, dotPaint); // mast
+                c.drawLine(x, y - r * 0.2f, x - r * 0.9f, y + r * 1.9f, dotPaint); // legs
+                c.drawLine(x, y - r * 0.2f, x + r * 0.9f, y + r * 1.9f, dotPaint);
+                android.graphics.RectF w1 = new android.graphics.RectF(x - r * 1.2f, y - r * 2.4f, x + r * 1.2f, y);
+                android.graphics.RectF w2 = new android.graphics.RectF(x - r * 2.0f, y - r * 3.2f, x + r * 2.0f, y + r * 0.8f);
+                c.drawArc(w1, 200, 50, false, dotPaint);
+                c.drawArc(w1, 290, 50, false, dotPaint);
+                c.drawArc(w2, 205, 40, false, dotPaint);
+                c.drawArc(w2, 295, 40, false, dotPaint);
+                dotPaint.setStyle(Paint.Style.FILL);
+                c.drawCircle(x, y - r * 1.2f, r * 0.45f, dotPaint);
             } else if (p.style == Dot.SQUARE) {
                 dotPaint.setStyle(Paint.Style.FILL);
                 c.drawRect(x - r, y - r, x + r, y + r, dotPaint);
@@ -850,6 +867,10 @@ public final class TileMapView extends View {
                 dotPaint.setStyle(Paint.Style.FILL);
                 c.drawCircle(x, y, r, dotPaint);
                 c.drawCircle(x, y, r, dotEdge);
+            }
+            if (p.mark) { // fake GPS: a small black cross through the dot
+                c.drawLine(x - r * 1.3f, y - r * 1.3f, x + r * 1.3f, y + r * 1.3f, dotEdge);
+                c.drawLine(x - r * 1.3f, y + r * 1.3f, x + r * 1.3f, y - r * 1.3f, dotEdge);
             }
         }
     }

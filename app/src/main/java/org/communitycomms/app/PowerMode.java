@@ -228,6 +228,12 @@ public final class PowerMode {
         return mode == ULTRA ? Math.max(600000, maxSleepMs * 2) : mode == SAVER ? 180000 : 60000;
     }
 
+    /** The title bar mesh signal icon may poll this phone's node in the background: not in Ultra low, Away or Offline, nor with the screen off. */
+    public static boolean meshIconPollOk() {
+        int m = now();
+        return m != ULTRA && m != OFFLINE && screenOn;
+    }
+
     static boolean lanSyncOn() {
         return now() == NORMAL;
     }

@@ -210,13 +210,18 @@ A station whose app restarts gets a new senderId; replace the old entry with the
             2 REQUEST "show me your path" (the receiver is asked before anything is sent)
             3 REPLY   code(1): 1 declined, 2 not tracking and did not start
 30 PROBE    ver(1)=1 probeSeq(4) sentAt(8, walker's clock ms) lat(8, double, NaN = no fix) lon(8)
-            accuracy(4, float) interval(1, s) flags(1, bit0 = send me the node list)
+            accuracy(4, float) interval(1, s) flags(1, bit0 = send me the node list, bit1 = fake GPS position)
             targetLen(1) target callsign  nodeLen(1) walker's mesh node name   (Mapping walk, sent once)
 31 PROBEACK ver(1)=1 probeSeq(4) sentAt(8, copied back) walkerLen(1) walker callsign
             hops(1, signed: 1 direct, 2, 3.., -1 unknown, -2 through a relay / the internet)
             lossPermille(2, 0xffff unknown) jitterMs(2, 0xffff unknown) window(1, probes measured)
             signalDbm(1, signed, 127 unknown) throughputKbps(4, -1 unknown) fixedLat(8) fixedLon(8)
             fixedNodeLen(1) fixed node name  listLen(2) node names joined by ',' (<=300 bytes)
+32 NODEOFFER  ver(1)=1 offerId(4) targetLen(1) target callsign ("" = everyone)   (node login share)
+33 NODEACCEPT ver(1)=1 offerId(4) adminLen(1) admin callsign keyLen(2) receiver P-256 public key (X.509)
+34 NODELOGIN  ver(1)=1 offerId(4) targetLen(1) target callsign keyLen(2) admin's fresh P-256 public key
+              sealedLen(2) sealed { "u": user, "p": password, "n": [{name, ip}] }
+35 NODEFORGET ver(1)=1 randomId(4) 0(1)   (forget a login this sender shared)
 ```
 - **Mapping walk (kinds 30, 31):** private channels unless the user allows public ones. Only the phone
   named as target (its callsign, or its Echo Test name) answers, at most about once a second per
@@ -225,6 +230,14 @@ A station whose app restarts gets a new senderId; replace the old entry with the
   MeshTopologyService/GetMeshTopology `hopsFromSelf` and MeshNeighborService/ListMeshNeighbors, read
   only): the walker's node is the fixed node or a direct neighbour = 1, otherwise its hop count. Phones
   without these kinds ignore them. Receivers never pass kinds 30 and 31 to the chat.
+- **Node login share (kinds 32-35):** Mesh controller > More, private channels only, each body sent 3 times
+  (deduplicated by kind, sender and id). Never sealed with the channel key: the receiver makes a fresh P-256
+  key pair when it accepts; secret = ECDH(admin fresh key, receiver key); master = HMAC-SHA256("YCCN1 " + offerId,
+  secret); encKey / macKey = HMAC-SHA256(master, "YCCN1 enc" / "YCCN1 mac"); sealed = IV(16) | AES-256-CBC |
+  HMAC-SHA256(macKey, "YCCP1" | IV | ct) (the protected-notes format). Key check number = first 4 bytes of
+  SHA-256(receiver key) mod 1,000,000. FORGET is acted on only by phones holding a login from that sender.
+  QR form: "YCCNODE1:" + base64url( fromLen(1) from salt(16) sealed ), keys from PBKDF2-HMAC-SHA1(PIN of 6+
+  characters, salt, 20,000) as for protected notes. Receivers never pass kinds 32-35 to the chat.
 - **Path tracking (kind 9):** sent only on a private channel (never Public). A phone that is not named in
   `to` (its callsign or "team callsign") drops the body. POINTS go when sharing starts (everything recorded,
   at most the last 2000 points), then live every 15 s at most (one point of overlap so the line joins), and

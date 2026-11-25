@@ -341,6 +341,16 @@ public final class QrScanActivity extends Activity implements SurfaceHolder.Call
             finish();
             return;
         }
+        if (text.startsWith(RoLogin.QR_PREFIX)) { // the team's read-only node login
+            startActivity(new android.content.Intent(this, MeshRadioActivity.class).putExtra(RoLogin.EXTRA_QR, text));
+            finish();
+            return;
+        }
+        if (text.startsWith(NodeShare.QR_PREFIX)) { // a PIN-sealed node login from a Mesh controller
+            startActivity(new android.content.Intent(this, MeshRadioActivity.class).putExtra(NodeShare.EXTRA_QR, text));
+            finish();
+            return;
+        }
         if (text.startsWith(EnigmaActivity.QR_PREFIX)) {
             if (getCallingActivity() != null) {
                 setResult(RESULT_OK, new android.content.Intent().putExtra(EXTRA_RESULT, text));

@@ -76,6 +76,14 @@ ALL-FEATURES.txt the one-list summary, PROTOCOL.md the wire format, UPDATES.md t
   points, offline), Mapping walk (probes and answers, live status, trail, exports), fixed node polling of the
   base Pi only (read only, 5 s or slower). Play audio private channels only (no public option); the others private unless allowed with a warning; home banner with
   Stop; off by default and carried in the setup QR.
+- Walker reads its own Heltec node during a Mapping walk (auto "My mesh node" from the WiFi name, manual pick,
+  login once per walk, 10 s / 5-60 s, 30 s and "busy" when slow, one request at a time; both sides' signal and
+  next hop per trail point, CSV / GPX and summary). OpenMANET Mesh page with OpenMANET on only (my node, neighbours,
+  layout, load / uptime, per-contact link; title bar signal icon, 60 s background poll, off in Ultra low / Away;
+  reachable from Mesh controller, Shortcuts and More).
+- Share the node admin login to team phones (interim, openmanetd has no read-only logins): warnings, typed SHARE,
+  private channels only, sealed per receiving phone (never the channel key) or PIN-sealed QR, never shown, read use
+  only, Forget / Revoke / log. Later (on the owner's go): a read-only rpcd login per node over /ubus instead.
 
 ## Open (asked for, not built yet)
 - Automatic location sending after moving a set distance, a native Windows app, MeshCore support.

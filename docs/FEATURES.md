@@ -634,7 +634,13 @@ the APK installs and updates like the plain one (Android 4.1 and newer).
   (one announces, the others leave those out); they arrive unread in Chat.
 
 ## Mesh testing (Settings > Advanced and Region features > Mesh testing; all off by default)
-Four tools for testing a mesh, on the **Mesh testing** page (More > Network, Settings, or the Shortcuts row).
+Four tools for testing a mesh, on the **Mesh testing** page (Feature menus > Network, Settings, or the Shortcuts row).
+The page starts with two buttons, **Stationary** and **Roaming**, neither chosen until you pick one (remembered;
+a setup QR can set it with "mtRole"). Stationary shows Map mesh ("Set antenna fixed here": the base node's antenna point, by GPS or a long-press on the map, drawn as an antenna; walk distances are measured from it; polling the base node) and the Echo
+Test; Roaming shows the Mapping walk (fixed station, my mesh node, Start walk; the rarely used settings under
+"More options"). Play audio is under "Other tests" in both. A red line at the top warns when nobody else is heard on
+the channel (check the channel name and the mesh WiFi), and, roaming, when the chosen stationary phone has not been
+heard for 30 s, with a Channels button.
 **Play audio to channel works on private channels only**: never on Public, the cloud group or OM/TAK (no tick,
 no setup QR can allow it; switching to one while it plays stops it). Echo Test, Map mesh and Mapping walk are for
 private channels too, but each can be allowed on public ones with "Allow on public channels", and then warns every
@@ -674,15 +680,22 @@ The ticks travel in the phone setup QR like the other Advanced features.
   full map. Works offline.
 - **The fixed station's node**: the fixed phone can poll its own OpenMANET node (normally the Raspberry Pi
   base), read only, every 5 s or slower: its neighbours (name, signal, throughput) and hops to every node.
-  Only the fixed phone polls and only that one node, so the walkers' small Heltec nodes are never asked.
-  The node login is held in memory unless "Remember" is ticked.
+  The node login is held in memory unless "Remember" is ticked. The walkers can also read their own Heltec
+  node (below).
 - **Mapping walk**: the moving phone picks the fixed station from its contacts and probes it every 5 s
   (2-60). The fixed station answers each probe with what it measured. Big status: green **Direct link OK**,
   blue **Working via relay (N hops)**, amber **Weak / losing packets** (20% of probes lost, high loss at the
   fixed end, over 1.5 s round trip or high jitter), red **No link to fixed station** (3 probes unanswered),
   with loss, round trip, jitter, hops, the walker's node signal and throughput, and the time since the last
-  answer. The walker picks **My mesh node** from the list the fixed station sends, so it can tell direct from
-  relayed. A coloured trail of the walk; the fixed station plots the probes on its Map mesh layer too.
+  answer. **My mesh node** is found from the phone's WiFi name (an OpenMANET node's access point is named after
+  it, e.g. localnetHT01 for HT01), or picked from the list; it lets the fixed station tell direct from relayed.
+  **Also read MY node** (on by default; asks for the nodes' login once per walk, Skip is fine): the walker reads
+  its own node read-only every 10 s (5-60; every 30 s and "busy" when the node is slow or does not answer; one
+  request at a time): its neighbours with signal and throughput, its hops and next hop toward the fixed node.
+  So both sides of the link are shown (the fixed node's view of the walker's node and the walker's node's view of
+  its next hop), stored with every trail point (CSV columns my_node_signal_dbm, my_node_throughput_kbps,
+  my_node_hops, next_hop, worse_signal_dbm) and summarised at the end. When the fixed station cannot tell the
+  hops, the walker's node's count is used. A coloured trail of the walk; the fixed station plots the probes on its Map mesh layer too.
   Optional gentle vibration on status changes (no sound). Walk CSV / GPX.
   **From the full map:** menu > Mapping walk starts a walk (pick the fixed station), shows a status strip above
   the map (colour, status, loss, round trip, hops, last answer; tap it to stop) and draws the trail live. Leaving
@@ -694,6 +707,49 @@ The ticks travel in the phone setup QR like the other Advanced features.
   the fixed station, and the hop breakdown. Share it as text, CSV or GPX (with the status colour per point), or
   view it on the map. Past walks are listed (Mesh testing page or the map menu) and can be reopened. "Post the
   walk summary to the channel chat" is off by default.
+
+## OpenMANET Mesh (needs only OpenMANET on; Feature menus > Network, Shortcuts, Mesh controller > More, or the title bar icon)
+What this phone's OpenMANET node sees, read-only: **my node** (found from the WiFi name, or picked, or a typed
+address in its Settings), its **neighbours** (signal in dBm with bars, throughput, last seen), the **mesh layout**
+from it (hops and next hop to every node), its **load and uptime**, and each **contact's link** (YCC's own loss
+and jitter, plus the node's view of the contact's node when it is known from their walk probes). It reads the node
+every 10 s while the page is open. A small **signal bars icon** in the title bar shows the best neighbour's signal
+(grey when not read) and opens the page; it reads every 60 s (30-600), never in Ultra low, Away or Offline or with
+the screen off; turn it off in the page's Settings. A slow node is read every 30 s and shown as busy; never more
+than one request at a time. The login is the Mesh controller's (its user name; its password only if Remember was
+ticked there or here), otherwise held in memory until YCC closes. Without a login the page shows YCC's own
+figures and a **Log in for radio data** button.
+
+**Sharing the node login with team phones (Mesh controller > More, off unless the Mesh controller is on).**
+OpenMANET's openmanetd has no read-only accounts (it logs in the node's system users and has no roles), so for now
+the admin can share the ADMIN login they are logged in with, so team phones can read radio data. Five warnings must
+be ticked and SHARE typed. Then: send to everyone on the **private** channel or one callsign (never Public, the
+cloud group or OM/TAK), or show a QR sealed with a share PIN of 6+ characters (tell it by voice; the QR hides after
+60 s, screenshots blocked). Over the channel each phone that **Accepts** sends a fresh key of its own; the admin sees
+its 6-digit key check number (both screens show it, compare by voice if you like) and taps Send; the login is
+sealed to that phone's key only (the channel name alone is never enough). Receivers never see the password
+("●●●●● from BRAVO7"); it is kept in YCC's private storage (no backups, not in the setup QR, exports or logs) and
+used only to read (OpenMANET Mesh, Mapping walk); a phone with the Mesh controller on can use it there too, under a red
+"Admin login from ..." banner. **Forget** (OpenMANET Mesh, or Mesh controller > More) clears it; the admin's **Revoke**
+asks the phones that hear it to forget, but the real revoke is a new password on every node. A log keeps who
+shared, accepted, sent, revoked or forgot, and when (never the password).
+
+**Read-only node login "ycc-ro" (the better way; Mesh controller > More > Read-only login for team phones).** One user and ONE
+password for the whole team, the same on every node, letters and digits only (8-32, one case: easy to read out over
+another radio or send in Morse; a suggestion like MAPLERIVER42 can be edited). **Set on all nodes** logs in to each node
+in the list with the admin login over OpenWrt's web API (/ubus) and adds an rpcd login allowed ONLY to read: the HaLow
+neighbours and signal (mesh11s), wifi info, system info (load, uptime) and a small YCC script that prints the batman
+neighbour and route tables and the node names. Each node shows ✓ or ✗ with the reason; press again to retry the failed
+ones; the same button changes the password; **Remove from nodes** takes it off. Phones get it by typing it in (OpenMANET Mesh >
+Read-only login, or the walk's login prompt: user ycc-ro already filled in), a plain QR (**Show QR** / **Read QR**), the
+setup QR, or the server's Phone setup (site / personal APK, stage 1). OpenMANET Mesh and walk polling use it first and the
+admin login only as a fallback. With it, hops are 1 or "2+" (batman knows only the next hop).
+**Finding "my node":** first the WiFi lease (each OpenMANET node runs its own DHCP pool and is its own gateway, e.g. the
+Pi 4 hands out 10.41.0.100-115 and HT01 10.41.0.116-131): the DHCP server when it differs from the gateway, else the
+gateway; then the WiFi name; then a manual pick. The page says how it was found, e.g. "found by gateway 10.41.254.238".
+**Fake GPS and Map mesh:** turning Map mesh / "fixed here" on or starting a walk with Fake GPS on asks: Turn off Fake GPS,
+Keep it (testing only) or Cancel. Kept, every position is marked FAKE GPS (a cross on the map dot, a line in the walk
+summary, a fake_gps CSV column); walkers also flag fake positions in their probes, so the fixed station marks them too.
 
 ## More comms features
 - **Burst voice** (Audio page): record while PTT is held, sent as one file on release, plays by

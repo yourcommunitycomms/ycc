@@ -82,6 +82,9 @@ public final class SetupQr {
                 if (x.nameLock) o.put("nameLock", true);
             }
             if (x.anchored) o.put("anchored", 1);
+            if (MeshTest.app != null && RoLogin.held() && x.features) { // the read-only node login (it can only read)
+                o.put("ro", new JSONObject().put("u", RoLogin.user()).put("p", RoLogin.pass()));
+            }
             int dm = DataControl.mode(c); // the group's data preset (and its lock, if this phone has one)
             if (dm != DataControl.USER) {
                 o.put("data", DataControl.KEYS[dm]);
@@ -259,6 +262,8 @@ public final class SetupQr {
         if (o.optString("home").length() > 0) sb.append("Home WiFi: ").append(o.optString("home")).append('\n');
         String f = o.optString("features").length() > 0 ? o.optString("features") : o.optString("menus");
         if (f.length() > 0) sb.append("Advanced and Region features: ").append(f.replace(",", ", ")).append('\n');
+        if (o.optJSONObject("ro") != null) sb.append("Read-only mesh node login: ").append(o.optJSONObject("ro").optString("u", RoLogin.DEFAULT_USER)).append('\n');
+        if (o.optString("mtRole").length() > 0) sb.append("Mesh testing: ").append(o.optString("mtRole")).append('\n');
         if (o.has("burst")) sb.append("Voice: ").append(o.optInt("burst") == 1 ? "burst mode" : "live").append('\n');
         if (o.optString("prof").length() > 0) sb.append("Profile: ").append(o.optString("prof")).append('\n');
         if (o.optJSONObject("cloud") != null) sb.append("Cloud group: ").append(o.optJSONObject("cloud").optString("n")).append('\n');
@@ -413,6 +418,10 @@ public final class SetupQr {
         if (o.has("obscure")) org.communitycomms.app.geo.FakeGps.setObscureM(a, o.optInt("obscure", org.communitycomms.app.geo.FakeGps.OBSCURE_DEFAULT_M));
         if (o.has("shareLocPub")) p.setShareLocationPublic(o.optInt("shareLocPub") == 1);
         if (o.has("mapsOnline")) new org.communitycomms.app.geo.MapPrefs(a).setOnlineEnabled(o.optInt("mapsOnline") == 1);
+        JSONObject ro = o.optJSONObject("ro"); // the read-only node login (server Phone setup, a site APK or a phone's QR)
+        RoLogin.applySetup(a, ro);
+        String mt = o.optString("mtRole"); // Mesh testing: this phone's job ("stationary" / "roaming")
+        if (("stationary".equals(mt) || "roaming".equals(mt)) && MeshTest.app != null) MeshTest.sp().edit().putString("mt_role", mt).commit();
         DataControl.apply(a, o); // "data" preset and "dataLock" (after mapsOnline, so the preset wins)
         String up = o.optString("update").trim(); // a personal APK's own update address
         if (up.startsWith("http://") || up.startsWith("https://")) {

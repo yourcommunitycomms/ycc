@@ -456,6 +456,16 @@ public final class MainActivity extends Activity implements RadioService.Ui {
             showMenuList();
             return;
         }
+        if (i.getBooleanExtra(EXTRA_SHOW_SHORTCUTS, false)) { // the full map's Shortcuts icon
+            i.removeExtra(EXTRA_SHOW_SHORTCUTS);
+            handler.postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    showShortcuts();
+                }
+            }, 300);
+            return;
+        }
         String action = i.getStringExtra(ChannelsActivity.EXTRA_ACTION);
         if (action != null) handleChannelAction(action, i.getIntExtra(ChannelsActivity.EXTRA_SLOT, slot));
     }
@@ -534,6 +544,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         super.onResume();
         meshBannerUi.removeCallbacks(meshBannerTick);
         meshBannerUi.post(meshBannerTick);
+        if (MeshRadio.iconOn()) MeshRadio.ensure(this); // a remembered node login: the title bar signal icon
         anchorWatch = AnchorButton.watch(this);
         screenTimeoutHint();
         if (wantMapHome() != mapHome || (wantMapHome() && commander()) != builtCommander) {
@@ -1815,7 +1826,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
     private static final int MENU_DRYAD = 1, MENU_PIGPEN = 2, MENU_CHANNEL_QR = 3, MENU_SCAN = 4, MENU_FILES = 5,
             MENU_OPENMANET = 6, MENU_BLACKOUT = 7, MENU_RED = 8, MENU_SETTINGS = 9, MENU_CHAT = 10, MENU_AUDIO = 11, MENU_ABOUT = 12, MENU_EXIT = 13,
             MENU_STREAMS = 14, MENU_INTERCOM = 15, MENU_VIDEOS = 16, MENU_TV = 17, MENU_GATEWAY = 18,
-            MENU_HOME_TOGGLE = 19, MENU_TOP_CHAT = 20, MENU_TOP_BLACK = 21, MENU_NOMAD = 22, MENU_TV_MENU = 23, MENU_TASKS = 24, MENU_ARRAY = 25, MENU_REPORT_UP = 26, MENU_CAST = 27, MENU_CALENDAR = 28, MENU_RELAY_ADMIN = 29, MENU_BLUETTI = 30, MENU_SHORTCUTS = 31, MENU_MORE = 32, MENU_MESHCTL = 33;
+            MENU_HOME_TOGGLE = 19, MENU_TOP_CHAT = 20, MENU_TOP_BLACK = 21, MENU_NOMAD = 22, MENU_TV_MENU = 23, MENU_TASKS = 24, MENU_ARRAY = 25, MENU_REPORT_UP = 26, MENU_CAST = 27, MENU_CALENDAR = 28, MENU_RELAY_ADMIN = 29, MENU_BLUETTI = 30, MENU_SHORTCUTS = 31, MENU_MORE = 32, MENU_MESHCTL = 33, MENU_MESHRADIO = 34;
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
@@ -1840,6 +1851,8 @@ public final class MainActivity extends Activity implements RadioService.Ui {
                 .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS);
         menu.add(0, MENU_SHORTCUTS, 0, "Shortcuts").setIcon(shortcutsIcon(shortcutsDot()))
                 .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS);
+        menu.add(0, MENU_MESHRADIO, 0, "OpenMANET Mesh").setIcon(meshBarsIcon(MeshRadio.bars()))
+                .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS);
         menu.add(0, MENU_TOP_CHAT, 0, "Chat").setIcon(android.R.drawable.sym_action_chat)
                 .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS);
         menu.add(0, MENU_TOP_BLACK, 0, "Blackout (double-tap to wake)").setIcon(android.R.drawable.ic_lock_power_off)
@@ -1857,7 +1870,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         menu.add(0, MENU_BLUETTI, 2, "Battery power");
         menu.add(0, MENU_GATEWAY, 6, "OpenMANET internet gateway");
         menu.add(0, MENU_EXIT, 10, "Exit (go off air and close)");
-        menu.add(0, MENU_MORE, 8, "More… (everything else, grouped)");
+        menu.add(0, MENU_MORE, 8, "Feature menus…");
         AnchorButton.add(this, menu); // shows while plugged in (or anchored): one tap sets or clears Anchored
         if (needMenuButton()) { // a TV: the title bar has its own buttons and ⋮ list (tvBar), so nothing doubles up
             for (int i = 0; i < menu.size(); i++) menu.getItem(i).setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER);
@@ -2008,6 +2021,17 @@ public final class MainActivity extends Activity implements RadioService.Ui {
                 toggleRadioSilent();
             }
         });
+        if (MeshRadio.available(this)) {
+            int best = MeshNode.LOCAL.bestSignal();
+            String node = MeshRadio.myNode();
+            stateRow(box, "OpenMANET Mesh: " + (!MeshRadio.hasLogin() ? "not logged in" : (node.length() > 0 ? node : "my node ?")
+                    + (best != Integer.MIN_VALUE ? ", best neighbour " + best + " dBm" : "")) + "  ›", new Runnable() {
+                @Override
+                public void run() {
+                    MeshRadioActivity.open(MainActivity.this);
+                }
+            });
+        }
         if (MeshTest.anyOn(prefs)) {
             String mt = MeshTest.bannerText();
             stateRow(box, "Mesh testing: " + (mt.length() > 0 ? mt : "nothing running") + "  ›", new Runnable() {
@@ -2344,7 +2368,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
                 {"Codes", MENU_DRYAD, "DRYAD sheets", "pigpen", "Pigpen", "enigma", "Enigma / CW (Morse)", "challenge", "Challenge and response"},
                 {"Network", "cloud", "Cloud group", MENU_RELAY_ADMIN, "Relay admin (Cloud Server)", MENU_OPENMANET, "OpenMANET node (browser)",
                         MENU_MESHCTL, "Mesh controller (OpenMANET channel, mesh name)", MENU_GATEWAY, "OpenMANET internet gateway", MENU_NOMAD, "Project NOMAD (local AI, library)",
-                        "meshtest", "Mesh testing (test audio, Echo Test, Map mesh, walk)"},
+                        "meshradio", "OpenMANET Mesh (my node's neighbours and signal)", "meshtest", "Mesh testing (test audio, Echo Test, Map mesh, walk)"},
                 {"Tools", "tools", "Tools (QR codes, open in browser)", "scan", "Scan a QR code"},
                 {"Screen", MENU_BLACKOUT, "Blackout screen", MENU_RED, LightDiscipline.redMode(this) ? "Red light mode: on (tap for off)" : "Red light mode"}};
         for (Object[] g : groups) {
@@ -2357,6 +2381,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
                 else if ("challenge".equals(what)) show = prefs.appMode() == Prefs.MODE_ADVANCED;
                 else if ("cloud".equals(what)) show = prefs.cloudFeature();
                 else if ("meshtest".equals(what)) show = MeshTest.anyOn(prefs);
+                else if ("meshradio".equals(what)) show = MeshRadio.available(this);
                 else show = true;
                 if (!show) continue;
                 Button b = new Button(this);
@@ -2380,9 +2405,27 @@ public final class MainActivity extends Activity implements RadioService.Ui {
             box.addView(h);
             for (Button b : buttons) box.addView(b, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
         }
+        // At the bottom: where the specialised menus are switched on and off.
+        TextView eh = new TextView(this);
+        eh.setText("Not seeing a menu you need?");
+        eh.setTextColor(0xfff0c75e);
+        eh.setPadding(0, (int) (14 * d), 0, (int) (2 * d));
+        box.addView(eh);
+        Button ex = new Button(this);
+        ex.setText("Enable extra features… (Advanced and Region features)");
+        ex.setAllCaps(false);
+        ex.setGravity(android.view.Gravity.START | android.view.Gravity.CENTER_VERTICAL);
+        ex.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                dlg[0].dismiss();
+                if (!blockedByLock()) SettingsActivity.open(MainActivity.this, "features");
+            }
+        });
+        box.addView(ex, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
         android.widget.ScrollView sv = new android.widget.ScrollView(this);
         sv.addView(box);
-        dlg[0] = new android.app.AlertDialog.Builder(this).setTitle("More").setView(sv).setNegativeButton("Close", null).show();
+        dlg[0] = new android.app.AlertDialog.Builder(this).setTitle("Feature menus").setView(sv).setNegativeButton("Close", null).show();
     }
 
     private void moreAction(Object what) {
@@ -2393,6 +2436,8 @@ public final class MainActivity extends Activity implements RadioService.Ui {
             startActivity(new Intent(this, MapActivity.class));
         } else if ("meshtest".equals(what)) {
             startActivity(new Intent(this, MeshTestingActivity.class));
+        } else if ("meshradio".equals(what)) {
+            MeshRadioActivity.open(this);
         } else if ("pigpen".equals(what)) {
             startActivity(new Intent(this, PigpenActivity.class));
         } else if ("enigma".equals(what)) {
@@ -2410,6 +2455,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
 
     private Menu lastMenu;
     static final String EXTRA_SHOW_MENU = "showMenu";
+    static final String EXTRA_SHOW_SHORTCUTS = "showShortcuts";
 
     /**
      * A TV (or TV box): it has a remote's Menu key and so no ⋮ dots in the title bar, so a ⋮ button is added and the
@@ -2513,6 +2559,16 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         }
         MenuItem tb = menu.findItem(MENU_TOP_BLACK);
         if (tb != null) tb.setIcon(blackIcon(blackDot()));
+        MenuItem mr = menu.findItem(MENU_MESHRADIO);
+        if (mr != null) {
+            shownBars = MeshRadio.bars();
+            shownMeshIcon = TitleIcons.meshShown(this);
+            mr.setVisible(shownMeshIcon); // only on the OpenMANET network (10.41.x.x by default)
+            mr.setIcon(meshBarsIcon(shownBars));
+            String dn = MeshRadio.myNode();
+            mr.setTitle(shownBars < 0 ? "OpenMANET Mesh" + (dn.length() > 0 ? " (" + dn + (MeshRadio.hasLogin() ? ")" : ", log in for signal)") : "")
+                    : "OpenMANET Mesh (" + MeshNode.LOCAL.bestSignal() + " dBm best neighbour)");
+        }
         MenuItem tc = menu.findItem(MENU_TOP_CHAT);
         if (tc != null) tc.setVisible(adv);
         // The title bar Black screen button: every mode with a home screen (not intercom).
@@ -2819,7 +2875,29 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         }
     };
 
+    private int shownBars = -2;
+    private boolean shownMeshIcon;
+
+    /** The title bar mesh signal icon: four bars, lit by my node's best neighbour signal; grey when not read. */
+    private android.graphics.drawable.BitmapDrawable meshBarsIcon(int bars) {
+        float d = getResources().getDisplayMetrics().density;
+        int s = (int) (32 * d);
+        android.graphics.Bitmap bm = android.graphics.Bitmap.createBitmap(s, s, android.graphics.Bitmap.Config.ARGB_8888);
+        android.graphics.Canvas c = new android.graphics.Canvas(bm);
+        android.graphics.Paint p = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+        float w = s / 7f, gap = s / 14f, x = s / 2f - 2 * w - 1.5f * gap;
+        for (int i = 0; i < 4; i++) {
+            p.setColor(bars < 0 ? 0xff78909c : i < bars ? 0xff9ccc65 : 0x55cfd8dc);
+            float h = s * (0.3f + 0.18f * i);
+            c.drawRect(x, s * 0.88f - h, x + w, s * 0.88f, p);
+            x += w + gap;
+        }
+        return new android.graphics.drawable.BitmapDrawable(getResources(), bm);
+    }
+
     private void renderMeshBanner() {
+        if ((MeshRadio.bars() != shownBars || TitleIcons.meshShown(this) != shownMeshIcon) && lastMenu != null) invalidateOptionsMenu(); // the signal icon changed
+        NodeShare.showPending(this); // a node login offer or acceptance waiting
         String t = MeshTest.bannerText();
         if (t.length() == 0) {
             if (meshBanner != null) meshBanner.setVisibility(View.GONE);
@@ -3007,6 +3085,8 @@ public final class MainActivity extends Activity implements RadioService.Ui {
             startActivity(new Intent(this, RelayAdminActivity.class));
         } else if (id == MENU_MESHCTL) {
             startActivity(new Intent(this, MeshControllerActivity.class));
+        } else if (id == MENU_MESHRADIO) {
+            MeshRadioActivity.open(this);
         } else if (id == MENU_CAST) {
             castScreen(this);
         } else if (id == MENU_TASKS) {
