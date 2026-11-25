@@ -39,12 +39,78 @@ public final class UdpLink implements Tunnel.Local {
      * went out mobile data and were lost: the phone heard everyone, nobody heard it. Set by RadioService.
      */
     public interface NetBinder {
-        /** A new socket bound to the WiFi network (broadcast allowed), or null when there is no WiFi. */
-        MulticastSocket wifiSocket() throws IOException;
+        /**
+         * One new socket per local LAN network this phone is on (WiFi, Ethernet / USB Ethernet), each bound to its
+         * network (broadcast allowed), keyed by interface name (wlan0, eth0...). Empty when none.
+         */
+        java.util.Map<String, MulticastSocket> lanSockets();
     }
 
+    /** Subnet broadcast address -> the socket bound to that LAN: each LAN's broadcast goes out on its own network. */
+    private volatile java.util.Map<InetAddress, MulticastSocket> lanTx = new java.util.HashMap<InetAddress, MulticastSocket>();
+
     public static volatile NetBinder binder;
-    private volatile MulticastSocket wifiTx;
+
+    /**
+     * "Bridge my LANs" (Settings > Network, off by default): a channel packet heard on one local LAN is passed on,
+     * once, to this phone's other LANs. Never the same packet twice (seen list), never one this phone sent, never
+     * from a relay / tunnel (loopback). Packets stay encrypted: nothing is opened or changed.
+     */
+    public static volatile boolean bridgeLans;
+    private final java.util.LinkedHashMap<Long, Boolean> seen = new java.util.LinkedHashMap<Long, Boolean>(512, 0.75f, false) {
+        @Override
+        protected boolean removeEldestEntry(java.util.Map.Entry<Long, Boolean> e) {
+            return size() > 4000;
+        }
+    };
+    /** The local LANs (address, prefix, broadcast) as last read: which LAN a packet came from. */
+    private volatile List<java.net.InterfaceAddress> lans = new ArrayList<java.net.InterfaceAddress>();
+
+    private static long key(byte[] b, int n) {
+        long h = 1125899906842597L;
+        for (int i = 0; i < n; i++) h = 31 * h + b[i];
+        return h ^ n;
+    }
+
+    /** The local LAN (its broadcast address) a packet from this address came in on, or null (a relay, unknown). */
+    private InetAddress lanOf(InetAddress from) {
+        if (!(from instanceof java.net.Inet4Address)) return null;
+        byte[] f = from.getAddress();
+        for (java.net.InterfaceAddress ia : lans) {
+            if (!(ia.getAddress() instanceof java.net.Inet4Address) || ia.getBroadcast() == null) continue;
+            byte[] a = ia.getAddress().getAddress();
+            int bits = ia.getNetworkPrefixLength(), i = 0;
+            boolean same = true;
+            for (; bits >= 8 && i < 4; bits -= 8, i++) if (a[i] != f[i]) same = false;
+            if (same && bits > 0 && i < 4) {
+                int m = (0xff << (8 - bits)) & 0xff;
+                if ((a[i] & m) != (f[i] & m)) same = false;
+            }
+            if (same) return ia.getBroadcast();
+        }
+        return null;
+    }
+
+    /** Bridge my LANs: pass a packet heard on one LAN to the other LANs, once. */
+    private void bridge(byte[] buf, int n, InetAddress from) {
+        if (!bridgeLans || from == null || from.isLoopbackAddress()) return;
+        long k = key(buf, n);
+        synchronized (seen) {
+            if (seen.put(k, Boolean.TRUE) != null) return; // had it already (or sent it ourselves)
+        }
+        InetAddress in = lanOf(from);
+        if (in == null) return; // not from a local LAN (relay, extra peer far away)
+        byte[] copy = java.util.Arrays.copyOf(buf, n);
+        for (InetSocketAddress d : destinations) {
+            if (fixed.contains(d) || d.getAddress().equals(in) || "255.255.255.255".equals(d.getAddress().getHostAddress())) continue;
+            try {
+                MulticastSocket s = lanTx.get(d.getAddress());
+                (s != null ? s : socket).send(new DatagramPacket(copy, n, d));
+            } catch (IOException e) {
+                Log.d(TAG, "bridge to " + d + " failed: " + e.getMessage());
+            }
+        }
+    }
     private final Thread rxThread;
     private volatile boolean running = true;
 
@@ -56,6 +122,8 @@ public final class UdpLink implements Tunnel.Local {
     public UdpLink(int port, List<InetSocketAddress> destinations, InetAddress joinGroup,
                    java.net.NetworkInterface iface, final Receiver receiver) throws IOException {
         this.destinations = new ArrayList<InetSocketAddress>(destinations);
+        this.group = joinGroup;
+        this.groupIface = iface;
         // Broadcast destinations (no network chosen, not multicast): the WiFi can change while on air (driving from
         // home WiFi onto a mesh node, mobile data to WiFi). Without this the old network's broadcast address kept
         // being used: this phone still HEARD everyone but nobody heard it (seen 2026-11-25 on the OpenMANET mesh).
@@ -107,6 +175,7 @@ public final class UdpLink implements Tunnel.Local {
                         if (r != null && !r.onLanReceive(buf, n)) continue; // already had it
                         Tunnel.Client g = Tunnel.vps;
                         if (g != null && g.gateway && !dp.getAddress().isLoopbackAddress()) g.fromLan(buf, n); // shared channels up to the internet relay
+                        bridge(buf, n, dp.getAddress()); // Bridge my LANs (off by default)
                         receiver.onDatagram(buf, dp.getLength(), dp.getAddress());
                     } catch (SocketException e) {
                         if (running) Log.w(TAG, "socket error", e);
@@ -203,20 +272,66 @@ public final class UdpLink implements Tunnel.Local {
         return out;
     }
 
+    private final InetAddress group;
+    private final java.net.NetworkInterface groupIface;
+
+    /**
+     * WiFi changed (RadioService): only the LAN side is redone, at once: the send addresses and the WiFi socket,
+     * and the multicast group joined again on the new network. Relays, tunnels and cloud groups have their own
+     * sockets on the normal network and are not touched; nothing is torn down.
+     */
+    public void networkChanged() {
+        lastNetCheck = 0;
+        if (group != null && groupIface == null) {
+            try {
+                socket.leaveGroup(group);
+            } catch (IOException ignored) {
+            }
+            try {
+                socket.joinGroup(group);
+            } catch (IOException e) {
+                Log.d(TAG, "multicast join after a WiFi change: " + e.getMessage());
+            }
+        }
+        Log.i(TAG, "WiFi changed: LAN send addresses and multicast group refreshed");
+    }
+
     /** Every 5 s while sending: the broadcast address(es) of the networks up now (plus the fixed ones). */
     private void followNetworkNow() {
         long now = System.currentTimeMillis();
         if (!followNetwork || now - lastNetCheck < 5000) return;
         lastNetCheck = now;
+        List<java.net.InterfaceAddress> ls = new ArrayList<java.net.InterfaceAddress>();
+        try {
+            for (java.net.NetworkInterface ni : java.util.Collections.list(java.net.NetworkInterface.getNetworkInterfaces())) {
+                if (!ni.isUp() || ni.isLoopback()) continue;
+                for (java.net.InterfaceAddress ia : ni.getInterfaceAddresses()) {
+                    if (ia.getAddress() instanceof java.net.Inet4Address && ia.getBroadcast() != null) ls.add(ia);
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        lans = ls;
         NetBinder nb = binder;
         if (nb != null) {
-            MulticastSocket old = wifiTx;
-            try {
-                wifiTx = nb.wifiSocket();
-            } catch (IOException e) {
-                wifiTx = null;
+            java.util.Map<InetAddress, MulticastSocket> old = lanTx, next = new java.util.HashMap<InetAddress, MulticastSocket>();
+            java.util.Map<String, MulticastSocket> socks = nb.lanSockets();
+            for (java.util.Map.Entry<String, MulticastSocket> en : socks.entrySet()) {
+                boolean used = false;
+                try {
+                    java.net.NetworkInterface ni = java.net.NetworkInterface.getByName(en.getKey());
+                    if (ni != null) for (java.net.InterfaceAddress ia : ni.getInterfaceAddresses()) {
+                        if (ia.getAddress() instanceof java.net.Inet4Address && ia.getBroadcast() != null) {
+                            next.put(ia.getBroadcast(), en.getValue());
+                            used = true;
+                        }
+                    }
+                } catch (Exception ignored) {
+                }
+                if (!used) en.getValue().close();
             }
-            if (old != null) old.close();
+            lanTx = next;
+            for (MulticastSocket s : new java.util.HashSet<MulticastSocket>(old.values())) s.close();
         }
         java.util.Set<InetAddress> bc = broadcasts();
         List<InetSocketAddress> next = new ArrayList<InetSocketAddress>();
@@ -255,10 +370,18 @@ public final class UdpLink implements Tunnel.Local {
         if (cg != null) cg.send(data);
         Tunnel.Relay r = Tunnel.relay;
         if (r != null) r.onOwnSend(data, data.length);
-        MulticastSocket w = wifiTx;
+        if (bridgeLans) {
+            synchronized (seen) {
+                seen.put(key(data, data.length), Boolean.TRUE); // never bridge our own packets back
+            }
+        }
+        java.util.Map<InetAddress, MulticastSocket> lt = lanTx;
         for (InetSocketAddress d : destinations) {
             try {
-                if (w != null && !fixed.contains(d)) w.send(new DatagramPacket(data, data.length, d)); // the mesh / WiFi broadcast
+                // Each local LAN's subnet broadcast goes out on a socket tied to that LAN (WiFi, Ethernet); everything
+                // else (extra peers, relays, a hotspot's broadcast, 255.255.255.255) goes as before on the normal socket.
+                MulticastSocket w = lt.get(d.getAddress());
+                if (w != null) w.send(new DatagramPacket(data, data.length, d));
                 else socket.send(new DatagramPacket(data, data.length, d));
             } catch (IOException e) {
                 // Unreachable networks are normal while WiFi is coming and going.
@@ -277,8 +400,7 @@ public final class UdpLink implements Tunnel.Local {
         running = false;
         txThread.interrupt();
         socket.close();
-        MulticastSocket w = wifiTx;
-        if (w != null) w.close();
+        for (MulticastSocket s : new java.util.HashSet<MulticastSocket>(lanTx.values())) s.close();
         try {
             rxThread.join(500);
         } catch (InterruptedException ignored) {

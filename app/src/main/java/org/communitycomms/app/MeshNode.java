@@ -38,6 +38,8 @@ public final class MeshNode {
         public long lastSeenMs = -1;
         public String nextHop = "";
         public boolean neighbour;
+        /** In the mesh layout but not reachable now (openmanetd reports a large "hops" for those). */
+        public boolean unreachable;
         /** The radio link rates to this neighbour (openmanetd tx / rx bitrate), kbit/s, or -1. */
         public int txKbps = -1, rxKbps = -1;
     }
@@ -358,7 +360,11 @@ public final class MeshNode {
                     n.name = clean(o.optString("hostname", ""));
                     n.mac = o.optString("mac", "");
                     n.hops = o.optInt("hopsFromSelf", o.optBoolean("isSelf") ? 0 : -1);
-                    if (o.optBoolean("isSelf", false)) {
+                    if (n.hops >= 32) { // a "no route" value (seen: 99), never a real hop count
+                        n.hops = -1;
+                        n.unreachable = true;
+                    }
+                    if (o.optBoolean("isSelf", false) || o.optBoolean("is_self", false)) {
                         n.hops = 0;
                         selfName = n.name;
                     }
@@ -430,7 +436,7 @@ public final class MeshNode {
                         double cpu = res.optDouble("cpuLoadPercent", -1);
                         load = cpu >= 0 ? Math.round(cpu) + "% CPU" : "";
                         Object up = res.opt("uptime");
-                        uptime = up == null ? "" : up.toString().replace("\"", "");
+                        uptime = up == null ? "" : upText(up.toString().replace("\"", ""));
                     }
                     JSONObject dev = d.optJSONObject("deviceInfo");
                     if (dev != null && selfName.length() == 0) selfName = clean(dev.optString("hostname", ""));
@@ -454,9 +460,28 @@ public final class MeshNode {
                     }
                 }
             }
+            Info me = selfName.length() > 0 ? next.get(key(selfName)) : null;
+            if (me != null) { // the polled node itself (when the layout did not mark it)
+                me.hops = 0;
+                me.unreachable = false;
+                me.neighbour = false;
+            }
             nodes = next;
             Runnable after = afterPoll;
             if (after != null) after.run();
+        }
+
+        /** "47974.760s", "47974", "3d 4h": a readable uptime ("13 h 19 min"). */
+        static String upText(String raw) {
+            if (raw == null) return "";
+            String s = raw.trim();
+            try {
+                double sec = Double.parseDouble(s.endsWith("s") ? s.substring(0, s.length() - 1) : s);
+                long t = (long) sec;
+                return t >= 86400 ? (t / 86400) + " d " + (t % 86400 / 3600) + " h" : t >= 3600 ? (t / 3600) + " h " + (t % 3600 / 60) + " min" : (t / 60) + " min";
+            } catch (NumberFormatException e) {
+                return s;
+            }
         }
 
         /** What this node knows of another node (by name), or null. Only while fresh (last good poll within 45 s). */

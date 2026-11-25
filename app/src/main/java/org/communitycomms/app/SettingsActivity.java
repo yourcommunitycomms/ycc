@@ -740,6 +740,23 @@ public final class SettingsActivity extends Activity {
                 pickInterface();
             }
         });
+        { // Bridge my LANs (off by default): under the network choice
+            View row = (View) findViewById(R.id.iface_pick).getParent();
+            android.view.ViewGroup parent = (android.view.ViewGroup) row.getParent();
+            final android.content.SharedPreferences ss = getSharedPreferences("settings", MODE_PRIVATE);
+            CheckBox br = new CheckBox(this);
+            br.setText("Bridge my LANs: pass the channel between this phone's networks (e.g. USB Ethernet to the mesh and "
+                    + "WiFi to another LAN). Off: each network only hears what is sent on it.");
+            br.setChecked(ss.getBoolean("bridgeLans", false));
+            br.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+                @Override
+                public void onCheckedChanged(CompoundButton b, boolean on) {
+                    ss.edit().putBoolean("bridgeLans", on).commit();
+                    org.communitycomms.app.net.UdpLink.bridgeLans = on;
+                }
+            });
+            parent.addView(br, parent.indexOfChild(row) + 1);
+        }
         findViewById(R.id.pin).setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {

@@ -207,6 +207,7 @@ public final class MeshRadioActivity extends Activity {
             if (mine.length() > 0 && p.selfName().length() > 0 && !mine.equalsIgnoreCase(p.selfName()))
                 h.append("\n(Reading ").append(p.selfName()).append(" until ").append(mine).append("'s address is found)");
         }
+        h.append("\n").append(lansText());
         head.setText(h.toString());
         boolean fresh = login && p.fresh(60000);
         StringBuilder nb = new StringBuilder(), tp = new StringBuilder();
@@ -222,12 +223,12 @@ public final class MeshRadioActivity extends Activity {
                 }
                 if (i.hops != 0) {
                     tp.append(tp.length() > 0 ? "\n" : "").append(i.name).append(": ")
-                            .append(i.hops < 0 ? "hops ?" : i.hops == 1 ? "1 hop (direct)" : i.hops + " hops")
+                            .append(i.unreachable ? "unreachable now" : i.hops < 0 ? "hops ?" : i.hops == 1 ? "1 hop (direct)" : i.hops + " hops")
                             .append(i.nextHop.length() > 0 && i.hops != 1 ? ", via " + i.nextHop : "");
                 }
             }
             if (nb.length() == 0) nb.append("None heard.");
-            if (tp.length() == 0) tp.append("Only this node.");
+            if (tp.length() == 0) tp.append("No other nodes in the mesh.");
         } else {
             String why = !login ? "Log in to see them." : "Waiting for the node…";
             nb.append(why);
@@ -256,7 +257,7 @@ public final class MeshRadioActivity extends Activity {
             b.append(b.length() > 0 ? "\n" : "").append(s.name).append(": ").append(MeshTest.gradeWord(g))
                     .append(loss >= 0 ? String.format(Locale.US, ", loss %.0f%%", loss * 100) : "")
                     .append(jit >= 0 ? ", jitter " + jit + " ms" : "")
-                    .append(l.lastViaRelay ? ", via a relay" : "");
+                    .append(l.lastViaRelay ? ", via a relay" : netOf(l.lastFrom).length() > 0 ? ", on " + netOf(l.lastFrom) : "");
             String node = nodeOf(s.name);
             if (node != null) {
                 b.append("\n    node ").append(node);
@@ -269,6 +270,58 @@ public final class MeshRadioActivity extends Activity {
             }
         }
         return b.length() == 0 ? "Nobody heard yet." : b.toString();
+    }
+
+    /** This phone's local networks: interface, address, and which is on the OpenMANET network. */
+    private String lansText() {
+        StringBuilder b = new StringBuilder("This phone's networks: ");
+        String range = new Prefs(this).manetRange();
+        int n = 0;
+        try {
+            for (java.net.NetworkInterface ni : java.util.Collections.list(java.net.NetworkInterface.getNetworkInterfaces())) {
+                if (!ni.isUp() || ni.isLoopback()) continue;
+                for (java.net.InterfaceAddress ia : ni.getInterfaceAddresses()) {
+                    if (!(ia.getAddress() instanceof java.net.Inet4Address)) continue;
+                    byte[] ab = ia.getAddress().getAddress();
+                    if ((ab[0] & 0xff) == 192 && ab[1] == 0 && ab[2] == 0 && (ab[3] & 0xff) < 8) continue; // mobile data's IPv4 helper (CLAT), not a LAN
+                    java.util.List<java.net.Inet4Address> one = new java.util.ArrayList<java.net.Inet4Address>();
+                    one.add((java.net.Inet4Address) ia.getAddress());
+                    boolean mesh = RadioService.inRange(one, range);
+                    String nm = ni.getName().toLowerCase(java.util.Locale.US);
+                    String kind = nm.startsWith("rmnet") || nm.startsWith("ccmni") || nm.startsWith("v4-") || nm.startsWith("clat") || nm.startsWith("pdp")
+                            ? "Mobile" : MainActivity.kindOf(ni.getName());
+                    b.append(n++ > 0 ? ", " : "").append(kind).append(" ").append(ia.getAddress().getHostAddress())
+                            .append("/").append(ia.getNetworkPrefixLength()).append(mesh ? " (OpenMANET)" : "");
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        return n == 0 ? "No network." : b.toString();
+    }
+
+    /** Which of this phone's networks an address is on ("WiFi", "Ethernet"...), or "". */
+    private static String netOf(String ip) {
+        if (ip == null) return "";
+        try {
+            byte[] f = java.net.InetAddress.getByName(ip).getAddress();
+            for (java.net.NetworkInterface ni : java.util.Collections.list(java.net.NetworkInterface.getNetworkInterfaces())) {
+                if (!ni.isUp() || ni.isLoopback()) continue;
+                for (java.net.InterfaceAddress ia : ni.getInterfaceAddresses()) {
+                    if (!(ia.getAddress() instanceof java.net.Inet4Address) || f.length != 4) continue;
+                    byte[] a = ia.getAddress().getAddress();
+                    int bits = ia.getNetworkPrefixLength(), i = 0;
+                    boolean same = true;
+                    for (; bits >= 8 && i < 4; bits -= 8, i++) if (a[i] != f[i]) same = false;
+                    if (same && bits > 0 && i < 4) {
+                        int m = (0xff << (8 - bits)) & 0xff;
+                        if ((a[i] & m) != (f[i] & m)) same = false;
+                    }
+                    if (same) return MainActivity.kindOf(ni.getName());
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        return "";
     }
 
     /** A contact's node, when known: from their Mapping walk probes (Map mesh) on this phone. */

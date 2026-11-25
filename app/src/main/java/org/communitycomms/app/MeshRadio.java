@@ -216,6 +216,32 @@ public final class MeshRadio {
         return lab.length() > 0 ? lab : MeshNode.gateway(c);
     }
 
+    /** The gateway of the local LAN (any type, e.g. USB Ethernet) whose address is in the MANET range: {gw, "gateway x (eth0)"}. */
+    @android.annotation.TargetApi(21)
+    static String[] lanGateway(Context c) {
+        try {
+            android.net.ConnectivityManager cm = (android.net.ConnectivityManager) c.getApplicationContext().getSystemService(Context.CONNECTIVITY_SERVICE);
+            String range = new Prefs(c).manetRange();
+            for (android.net.Network n : cm.getAllNetworks()) {
+                android.net.LinkProperties lp = cm.getLinkProperties(n);
+                if (lp == null) continue;
+                java.util.List<java.net.Inet4Address> mine = new java.util.ArrayList<java.net.Inet4Address>();
+                for (android.net.LinkAddress la : lp.getLinkAddresses()) {
+                    if (la.getAddress() instanceof java.net.Inet4Address) mine.add((java.net.Inet4Address) la.getAddress());
+                }
+                if (mine.isEmpty() || !RadioService.inRange(mine, range)) continue;
+                for (android.net.RouteInfo r : lp.getRoutes()) {
+                    java.net.InetAddress g = r.getGateway();
+                    if (r.isDefaultRoute() && g instanceof java.net.Inet4Address && !g.isAnyLocalAddress()) {
+                        return new String[]{g.getHostAddress(), "gateway " + g.getHostAddress() + " (" + lp.getInterfaceName() + ")"};
+                    }
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        return null;
+    }
+
     private static String ip4(int a) {
         return (a & 0xff) + "." + ((a >> 8) & 0xff) + "." + ((a >> 16) & 0xff) + "." + ((a >> 24) & 0xff);
     }
@@ -242,6 +268,17 @@ public final class MeshRadio {
                 }
             } catch (RuntimeException ignored) {
             }
+        }
+        boolean wifiOnMesh = false;
+        try {
+            java.util.List<java.net.Inet4Address> g = new java.util.ArrayList<java.net.Inet4Address>();
+            if (gw != null) g.add((java.net.Inet4Address) java.net.InetAddress.getByName(gw));
+            wifiOnMesh = !g.isEmpty() && RadioService.inRange(g, new Prefs(c).manetRange());
+        } catch (Exception ignored) {
+        }
+        if (lg.length() == 0 && !wifiOnMesh && android.os.Build.VERSION.SDK_INT >= 21) { // WiFi not on the mesh: USB Ethernet or another LAN that is
+            String[] lp = lanGateway(c);
+            if (lp != null) return lp;
         }
         if (srv != null && gw != null && !srv.equals(gw)) return new String[]{srv, "DHCP server " + srv};
         if (gw != null) return new String[]{gw, "gateway " + gw};
