@@ -682,8 +682,8 @@ The ticks travel in the phone setup QR like the other Advanced features.
   base), read only, every 5 s or slower: its neighbours (name, signal, throughput) and hops to every node.
   The node login is held in memory unless "Remember" is ticked. The walkers can also read their own Heltec
   node (below).
-- **Mapping walk**: the moving phone picks the fixed station from its contacts and probes it every 5 s
-  (2-60). The fixed station answers each probe with what it measured. Big status: green **Direct link OK**,
+- **Mapping walk**: the moving phone picks the fixed station from its contacts and probes it every second
+  (1-60 s; walks set up before 2026-11-26 move to 1 s once). The fixed station answers each probe with what it measured. Big status: green **Direct link OK**,
   blue **Working via relay (N hops)**, amber **Weak / losing packets** (20% of probes lost, high loss at the
   fixed end, over 1.5 s round trip or high jitter), red **No link to fixed station** (3 probes unanswered),
   with loss, round trip, jitter, hops, the walker's node signal and throughput, and the time since the last
@@ -701,6 +701,18 @@ The ticks travel in the phone setup QR like the other Advanced features.
   the map (colour, status, loss, round trip, hops, last answer; tap it to stop) and draws the trail live. Leaving
   the map or the Mesh testing page never stops the walk. Every probe is stored with its status colour (green
   direct, blue via relay with hops, amber weak, red no link); tap a trail or Map mesh dot for its figures.
+  **Own GPS during a walk:** the walker asks the GPS for a fix every second while the walk runs, so every probe
+  has its own position (before, probes used the app's shared last fix, which could be minutes old when location
+  sharing was off or resting, and a whole stretch of the walk landed on one spot).
+  **Live graph (last 30 s):** under the big status on the Mesh testing page and under the strip on the full map:
+  one bar per probe, per second, right = now. Green answered, amber slow (over 500 ms, taller = slower), red lost
+  (full height), grey waiting; above it "Last 30 s: 26 answered, 3 lost (10%)" and the round trip average / max.
+  **Flags:** the ⚑ Flag button beside the graph (or tap the map strip > Flag this spot…) marks where you are
+  (taken when the dialog opens) with an optional comment, e.g. "drops behind the shed". Flags show as pennants
+  on the map (tap one for its comment and time), are listed in the summary, and go into the CSV (status "flag")
+  and GPX (waypoints named "Flag: …").
+  **Notes:** the summary has a notes box (saved with the walk as you type, shown again in Past walks, added to
+  Share and the exports). Summary buttons: On map, Done, Share.
   **When the walk stops** a summary is shown and saved with the walk: start and end, duration, distance walked,
   probes sent and answered, count and share of time per colour, average and worst loss, average and max round
   trip and jitter, signal range, the longest no-link outage and where it began, the furthest direct point from
@@ -744,6 +756,28 @@ ones; the same button changes the password; **Remove from nodes** takes it off. 
 Read-only login, or the walk's login prompt: user ycc-ro already filled in), a plain QR (**Show QR** / **Read QR**), the
 setup QR, or the server's Phone setup (site / personal APK, stage 1). OpenMANET Mesh and walk polling use it first and the
 admin login only as a fallback. With it, hops are 1 or "2+" (batman knows only the next hop).
+**Customize OpenMANET (Mesh controller > More > Customize OpenMANET).** Node-side tweaks pushed with the admin login over
+/ubus, node by node with a tick or cross each (press again to retry). **WiFi mode** (pick a mode, then Apply to nodes… and tick the nodes; none are ticked to start with): **Normal** (WiFi and Ethernet both on, bridged, as OpenMANET ships: removes the service below and switches WiFi back on if Ethernet only had switched it off), **Ethernet preferred** (the service below: WiFi off when the node finds its cable), **Ethernet only** (the 2.4 GHz radio is switched off in the node's wireless settings and stays off after restarts and with the cable out; HaLow stays on; the old setting is kept in /etc/ycc-ethonly so Normal puts it back; skipped where radio0 is also a WiFi uplink). Check nodes shows each node's mode. **WiFi off while Ethernet is plugged in** (less RF
+to be found, less power and noise): installs a small service (/etc/init.d/ycc-ap-auto) that turns the node's 2.4 GHz
+access point off 10 s after its Ethernet port gets a link and back on when it is unplugged. Runtime only (a reboot always
+starts with WiFi on), skipped while the 2.4 GHz radio is also a WiFi client uplink, failsafe: cable in but cut off from the
+gateway (and mesh) for 2 minutes = radios back on. Heltec nodes only unless "Also on non-Heltec nodes" is ticked (on a Pi
+gateway the Ethernet is usually the internet uplink). Optional "Also turn the HaLow mesh radio off" (warning: the node then
+leaves the mesh while wired; only for nodes whose cable carries their traffic). No polling (these nodes are CPU limited): the service looks at the port a few times in the first 2 minutes after each start (installing counts as one), acts once and exits; what it decided stays until the node restarts (unplugging later does not bring WiFi back; restart the node). There is no failsafe any more. Only a cable on the mesh LAN counts (an Ethernet port bridged into br-ahwlan); a WAN / internet uplink (the default route, e.g. a Pi gateway's eth0) never does, so on a Pi gateway the service does nothing. **Turn off (remove)** stops it (radios back
+on) and deletes it. **Each node its own DHCP range:** every node hands out addresses on the same mesh LAN, so overlapping
+pools can give two phones the same address. **Check nodes** lists each node's board, WiFi-off state and DHCP range;
+**Fix overlaps…** keeps the lowest-addressed node (the gateway) and moves each overlapping node to the first free block of
+the same size from .100 up, shows the plan, and only changes after you press Change (dhcp start, commit, dnsmasq restart;
+the old value is in the Node login sharing log). Timed burst mode (radios on only in short bursts) is planned, not built.
+**HaLow on / off (radio silence; OpenMANET Mesh > HaLow on / off, or Customize OpenMANET).** Turns the HaLow radio of the
+node this phone is connected to (its WiFi / Ethernet gateway or DHCP server; never a node reached over the mesh, which could
+not be switched back) off or back on with the admin login (/ubus network.wireless down/up of the morse radio). Off asks
+first: the node leaves the mesh, stops relaying, a gateway node cuts the mesh's internet, and phones on it reach only that
+node. Runtime only: a node restart brings HaLow back. Once used, a bar under the home screen's title bar shows the state:
+green "HaLow ON on HT02", red "HaLow OFF on HT02: mesh radio silent" (tap it to turn HaLow back on), grey "not checked".
+The bar shows only on the mesh LAN and can be switched off in the dialog. If HaLow neighbours are seen again on that node
+(it restarted) the bar turns green by itself. If the WiFi-off service runs with "HaLow off too", unplugging the cable
+turns HaLow back on.
 **Finding "my node":** first the WiFi lease (each OpenMANET node runs its own DHCP pool and is its own gateway, e.g. the
 Pi 4 hands out 10.41.0.100-115 and HT01 10.41.0.116-131): the DHCP server when it differs from the gateway, else the
 gateway; then the WiFi name; then a manual pick. The page says how it was found, e.g. "found by gateway 10.41.254.238".

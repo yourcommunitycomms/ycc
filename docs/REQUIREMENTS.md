@@ -84,6 +84,13 @@ ALL-FEATURES.txt the one-list summary, PROTOCOL.md the wire format, UPDATES.md t
 - Share the node admin login to team phones (interim, openmanetd has no read-only logins): warnings, typed SHARE,
   private channels only, sealed per receiving phone (never the channel key) or PIN-sealed QR, never shown, read use
   only, Forget / Revoke / log. Later (on the owner's go): a read-only rpcd login per node over /ubus instead.
+- Customize OpenMANET (Mesh controller > More), pushed like the read-only login: "Disable WiFi when Ethernet connected" to
+  reduce the trackable RF footprint, with an option to disable HaLow too; give each node its own DHCP range.
+  WiFi modes per node: Normal (both bridged), Ethernet preferred, Ethernet only (WiFi stays disabled).
+  Later: a timed burst mode.
+- HaLow disable / enable toggle with an on-screen bar below the menus: red when off, green when on.
+- Mapping walk: every probe at its own GPS position; 1 s probing; a live bar graph of the last 30 s (answered / lost);
+  flag a spot with a comment while walking; notes on the walk when it ends.
 
 ## Open (asked for, not built yet)
 - Automatic location sending after moving a set distance, a native Windows app, MeshCore support.

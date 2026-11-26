@@ -85,6 +85,99 @@ public final class MeshWalk {
         }
     }
 
+    /** A spot flagged during a walk, with an optional comment ("dead spot behind the shed"). */
+    public static final class Flag {
+        public long t;
+        public double lat, lon;
+        public String text = "";
+
+        public String details() {
+            return (text.length() > 0 ? text : "(no comment)") + "\n"
+                    + new java.text.SimpleDateFormat("HH:mm:ss", Locale.US).format(new java.util.Date(t))
+                    + String.format(Locale.US, "\n%.5f, %.5f", lat, lon);
+        }
+
+        String line() {
+            return new java.text.SimpleDateFormat("HH:mm:ss", Locale.US).format(new java.util.Date(t))
+                    + String.format(Locale.US, " (%.5f, %.5f)", lat, lon) + (text.length() > 0 ? ": " + text : "");
+        }
+    }
+
+    private static final List<Flag> flags = new ArrayList<Flag>();
+    private static volatile List<Flag> shownOldFlags;
+
+    /** Flags this spot (at lat/lon, taken when the flag dialog opened). */
+    public static void addFlag(double lat, double lon, String text) {
+        Flag f = new Flag();
+        f.t = System.currentTimeMillis();
+        f.lat = lat;
+        f.lon = lon;
+        f.text = text == null ? "" : text.trim();
+        synchronized (flags) {
+            flags.add(f);
+        }
+        trailVersion++;
+        Log.i(TAG, "flag " + f.line());
+    }
+
+    public static List<Flag> flags() {
+        synchronized (flags) {
+            return new ArrayList<Flag>(flags);
+        }
+    }
+
+    /** Where I am now for a flag: {lat, lon}, or null. */
+    public static double[] hereNow() {
+        Location l = myLocationNow();
+        return l == null ? null : new double[]{l.getLatitude(), l.getLongitude()};
+    }
+
+    public static List<Flag> flagsOf(org.json.JSONObject o) {
+        List<Flag> out = new ArrayList<Flag>();
+        org.json.JSONArray a = o.optJSONArray("flags");
+        if (a == null) return out;
+        for (int i = 0; i < a.length(); i++) {
+            org.json.JSONArray q = a.optJSONArray(i);
+            if (q == null) continue;
+            Flag f = new Flag();
+            f.t = q.optLong(0);
+            f.lat = q.optDouble(1);
+            f.lon = q.optDouble(2);
+            f.text = q.optString(3, "");
+            out.add(f);
+        }
+        return out;
+    }
+
+    /** The walk's notes (typed after it ended), saved in its file. */
+    public static void setNotes(java.io.File walk, String notes) {
+        if (walk == null) return;
+        try {
+            org.json.JSONObject o = readWalk(walk);
+            if (notes.equals(o.optString("notes", ""))) return;
+            o.put("notes", notes);
+            java.io.Writer w = new java.io.OutputStreamWriter(new java.io.FileOutputStream(walk), "UTF-8");
+            try {
+                w.write(o.toString());
+            } finally {
+                w.close();
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "notes: " + e.getMessage());
+        }
+    }
+
+    /** The summary with the flags and notes, as shared / exported. */
+    public static String fullText(String summary, List<Flag> fl, String notes) {
+        StringBuilder b = new StringBuilder(summary == null ? "" : summary);
+        if (fl != null && !fl.isEmpty() && !b.toString().contains("\nFlags (")) {
+            b.append("\nFlags (").append(fl.size()).append("):");
+            for (Flag f : fl) b.append("\n  ").append(f.line());
+        }
+        if (notes != null && notes.trim().length() > 0) b.append("\nNotes: ").append(notes.trim());
+        return b.toString();
+    }
+
     static String wordFor(int st, int hops) {
         switch (st) {
             case ST_DIRECT:
@@ -137,7 +230,9 @@ public final class MeshWalk {
     }
 
     public static int intervalSec() {
-        return Math.max(2, Math.min(60, MeshTest.sp().getInt("walk_every", 5)));
+        if (!MeshTest.sp().getBoolean("walk_every_v2", false)) // 2026-11-26: probes every second by default (was 5 s)
+            MeshTest.sp().edit().putInt("walk_every", 1).putBoolean("walk_every_v2", true).commit();
+        return Math.max(1, Math.min(60, MeshTest.sp().getInt("walk_every", 1)));
     }
 
     /** My mesh node: picked, or found from the WiFi name (MeshRadio). */
@@ -242,6 +337,95 @@ public final class MeshWalk {
 
     // ---- position (real GPS, fake GPS, or a simulated walk for testing) ----
 
+    // ---- the walk's own GPS: one fix a second while walking (the shared "last fix" can be minutes old when location
+    // sharing is off or resting, which stacked every probe of a stretch on one spot) ----
+    private static volatile Location walkFix;
+    private static android.location.LocationListener gpsListener;
+
+    @android.annotation.SuppressLint("MissingPermission")
+    private static void gpsOn() {
+        final Context c = MeshTest.app;
+        if (c == null) return;
+        new android.os.Handler(android.os.Looper.getMainLooper()).post(new Runnable() {
+            @Override
+            public void run() {
+                if (!on || gpsListener != null) return;
+                android.location.LocationManager lm = (android.location.LocationManager) c.getSystemService(Context.LOCATION_SERVICE);
+                if (lm == null) return;
+                gpsListener = new android.location.LocationListener() {
+                    @Override
+                    public void onLocationChanged(Location l) {
+                        Location w = walkFix;
+                        boolean gps = android.location.LocationManager.GPS_PROVIDER.equals(l.getProvider());
+                        // network fixes only until GPS has one (they are coarse)
+                        if (gps || w == null || !android.location.LocationManager.GPS_PROVIDER.equals(w.getProvider())
+                                || System.currentTimeMillis() - w.getTime() > 10000) walkFix = l;
+                    }
+
+                    @Override
+                    public void onStatusChanged(String p, int s, android.os.Bundle e) {
+                    }
+
+                    @Override
+                    public void onProviderEnabled(String p) {
+                    }
+
+                    @Override
+                    public void onProviderDisabled(String p) {
+                    }
+                };
+                try {
+                    for (String p : new String[]{android.location.LocationManager.GPS_PROVIDER, android.location.LocationManager.NETWORK_PROVIDER})
+                        if (lm.getAllProviders().contains(p)) lm.requestLocationUpdates(p, 1000, 0, gpsListener, android.os.Looper.getMainLooper());
+                } catch (RuntimeException e) {
+                    Log.w(TAG, "walk GPS: " + e.getMessage());
+                }
+            }
+        });
+    }
+
+    private static void gpsOff() {
+        final Context c = MeshTest.app;
+        if (c == null) return;
+        new android.os.Handler(android.os.Looper.getMainLooper()).post(new Runnable() {
+            @Override
+            public void run() {
+                if (gpsListener == null) return;
+                android.location.LocationManager lm = (android.location.LocationManager) c.getSystemService(Context.LOCATION_SERVICE);
+                try {
+                    if (lm != null) lm.removeUpdates(gpsListener);
+                } catch (RuntimeException ignored) {
+                }
+                gpsListener = null;
+                walkFix = null;
+            }
+        });
+    }
+
+    // ---- the last 30 s for the live graph: {sentAt, rtt ms | R_LOST | R_WAIT} ----
+    public static final long R_LOST = -1, R_WAIT = -2;
+    private static final ArrayDeque<long[]> recent = new ArrayDeque<long[]>(); // {seq, sentAt, result}
+
+    private static void recentSet(int seqNo, long sentAt, long result) {
+        synchronized (recent) {
+            for (long[] x : recent)
+                if (x[0] == seqNo) {
+                    x[2] = result;
+                    return;
+                }
+            recent.addLast(new long[]{seqNo, sentAt, result});
+            while (recent.size() > 300) recent.removeFirst();
+        }
+    }
+
+    public static List<long[]> recent(long since) {
+        List<long[]> out = new ArrayList<long[]>();
+        synchronized (recent) {
+            for (long[] x : recent) if (x[1] >= since) out.add(new long[]{x[1], x[2]});
+        }
+        return out;
+    }
+
     static Location myLocation(RadioService rs) {
         Location f = org.communitycomms.app.geo.FakeGps.location(rs);
         if (f != null) {
@@ -255,6 +439,8 @@ public final class MeshWalk {
             }
             return f;
         }
+        Location w = walkFix;
+        if (on && w != null && System.currentTimeMillis() - w.getTime() < 15000) return w;
         return rs.lastFix();
     }
 
@@ -295,6 +481,14 @@ public final class MeshWalk {
         synchronized (window) {
             window.clear();
         }
+        synchronized (recent) {
+            recent.clear();
+        }
+        synchronized (flags) {
+            flags.clear();
+        }
+        shownOldFlags = null;
+        gpsOn();
         thread = new Thread(new Runnable() {
             @Override
             public void run() {
@@ -311,9 +505,10 @@ public final class MeshWalk {
         on = false;
         if (thread != null) thread.interrupt();
         thread = null;
+        gpsOff();
         Log.i(TAG, "walk stopped");
         try {
-            String s = summary(trail(), target, startedMs, System.currentTimeMillis(), probesSent, probesAnswered, fixedAt);
+            String s = fullText(summary(trail(), target, startedMs, System.currentTimeMillis(), probesSent, probesAnswered, fixedAt), flags(), null);
             saveWalk(s);
             pendingSummary = s;
             Log.i(TAG, "SUMMARY " + s.replace("\n", " | "));
@@ -462,6 +657,10 @@ public final class MeshWalk {
                     .put(p.mySignalDbm == Integer.MIN_VALUE ? 999 : p.mySignalDbm).put(p.myKbps).put(p.myHops).put(p.nextHop).put(p.fake ? 1 : 0));
         }
         o.put("points", a);
+        org.json.JSONArray fa = new org.json.JSONArray();
+        for (Flag f : flags()) fa.put(new org.json.JSONArray().put(f.t).put(f.lat).put(f.lon).put(f.text));
+        o.put("flags", fa);
+        o.put("notes", "");
         java.io.File f = new java.io.File(walksDir(), "walk-" + startedMs + ".json");
         java.io.Writer w = new java.io.OutputStreamWriter(new java.io.FileOutputStream(f), "UTF-8");
         try {
@@ -526,7 +725,12 @@ public final class MeshWalk {
 
     /** Show an old walk's trail on the maps (null = none). */
     public static void showOld(List<TrailPoint> pts) {
+        showOld(pts, null);
+    }
+
+    public static void showOld(List<TrailPoint> pts, List<Flag> fl) {
         shownOld = pts;
+        shownOldFlags = fl;
         trailVersion++;
         if (pts != null && !pts.isEmpty()) focus = new double[]{pts.get(0).lat, pts.get(0).lon};
     }
@@ -560,6 +764,9 @@ public final class MeshWalk {
         List<TrailPoint> old = shownOld;
         if (old != null) for (TrailPoint p : old) out.add(new TileMapView.Dot(p.lat, p.lon, colourFor(p.status), TileMapView.Dot.FILLED).tag(p).mark(p.fake));
         for (TrailPoint p : trail()) out.add(new TileMapView.Dot(p.lat, p.lon, colourFor(p.status), TileMapView.Dot.FILLED).tag(p).mark(p.fake));
+        List<Flag> of = shownOldFlags;
+        if (of != null) for (Flag g : of) out.add(new TileMapView.Dot(g.lat, g.lon, 0xffd81b60, TileMapView.Dot.FLAG).tag(g));
+        for (Flag g : flags()) out.add(new TileMapView.Dot(g.lat, g.lon, 0xffd81b60, TileMapView.Dot.FLAG).tag(g));
         double[] f = fixedAt;
         if (f != null && !out.isEmpty()) out.add(new TileMapView.Dot(f[0], f[1], 0xff263238, TileMapView.Dot.STATION));
         return out;
@@ -594,7 +801,7 @@ public final class MeshWalk {
         }
         synchronized (trail) {
             trail.add(p);
-            if (trail.size() > 5000) trail.remove(0);
+            if (trail.size() > 20000) trail.remove(0);
         }
         trailVersion++;
     }
@@ -638,6 +845,7 @@ public final class MeshWalk {
                 synchronized (outstanding) {
                     outstanding.put(p.seq, p);
                 }
+                recentSet(p.seq, p.sentAt, R_WAIT);
                 e.sendTestBody(probeBody(p, l, rs));
                 probesSent++;
                 if (l == null) lastNote = "No GPS fix yet: probes go without a position";
@@ -667,6 +875,7 @@ public final class MeshWalk {
         }
         for (Probe p : lost) {
             p.lost = true;
+            recentSet(p.seq, p.sentAt, R_LOST);
             unanswered++;
             noteWindow(false);
             if (unanswered >= 3) setStatus(ST_NONE);
@@ -746,6 +955,7 @@ public final class MeshWalk {
         if (pr == null) return; // a second copy of an answer, or one so late the probe already counted as lost
         probesAnswered++;
         long now = System.currentTimeMillis();
+        recentSet(s, pr.sentAt, now - sentAt);
         lastAckMs = now;
         unanswered = 0;
         lastRtt = (int) (now - sentAt);
@@ -900,14 +1110,19 @@ public final class MeshWalk {
     // ---- export of the walker's own trail ----
 
     public static java.io.File exportTrail(Context c, boolean gpx) throws java.io.IOException {
-        return exportWalk(c, trail(), gpx, null, System.currentTimeMillis());
+        return exportWalk(c, trail(), flags(), gpx, null, System.currentTimeMillis());
+    }
+
+    public static java.io.File exportWalk(Context c, List<TrailPoint> pts, boolean gpx, String summary, long when) throws java.io.IOException {
+        return exportWalk(c, pts, null, gpx, summary, when);
     }
 
     /**
      * A walk as CSV (one row per probe, with its status colour) or GPX (a track plus a waypoint per probe, the status
      * in the name, description and a ycc:status extension), with the summary at the top of the file when known.
      */
-    public static java.io.File exportWalk(Context c, List<TrailPoint> pts, boolean gpx, String summary, long when) throws java.io.IOException {
+    public static java.io.File exportWalk(Context c, List<TrailPoint> pts, List<Flag> fl, boolean gpx, String summary, long when) throws java.io.IOException {
+        if (fl == null) fl = new ArrayList<Flag>();
         String stamp = new java.text.SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(new java.util.Date(when));
         java.io.File f = new java.io.File(RadioService.receivedDir(c), "walk-" + stamp + (gpx ? ".gpx" : ".csv"));
         java.text.SimpleDateFormat iso = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US);
@@ -923,6 +1138,10 @@ public final class MeshWalk {
                                     + "<extensions><ycc:status>%s</ycc:status></extensions></wpt>\n", p.lat, p.lon, iso.format(new java.util.Date(p.t)),
                             colourName(p.status), xml(p.details().replace('\n', ';')), colourName(p.status)));
                 }
+                for (Flag g : fl)
+                    w.write(String.format(Locale.US, "<wpt lat=\"%.6f\" lon=\"%.6f\"><time>%s</time><name>%s</name><sym>Flag</sym>"
+                                    + "<extensions><ycc:status>flag</ycc:status></extensions></wpt>\n", g.lat, g.lon, iso.format(new java.util.Date(g.t)),
+                            xml("Flag" + (g.text.length() > 0 ? ": " + g.text : ""))));
                 w.write("<trk><name>Mapping walk</name><trkseg>\n");
                 for (TrailPoint p : pts) {
                     w.write(String.format(Locale.US, "<trkpt lat=\"%.6f\" lon=\"%.6f\"><time>%s</time><desc>%s</desc></trkpt>\n",
@@ -942,6 +1161,9 @@ public final class MeshWalk {
                             + (p.myKbps < 0 ? "" : p.myKbps) + "," + (p.myHops < 0 ? "" : p.myHops) + "," + p.nextHop.replace(',', ' ') + ","
                             + (p.worseSignal() == Integer.MIN_VALUE ? "" : p.worseSignal()) + "," + (p.fake ? "yes" : "") + "\n");
                 }
+                for (Flag g : fl) // flag rows: status_colour "flag", the comment in the status column
+                    w.write(iso.format(new java.util.Date(g.t)) + "," + String.format(Locale.US, "%.6f,%.6f", g.lat, g.lon) + ",flag,"
+                            + g.text.replace(',', ' ').replace('\n', ' ') + ",,,,,,,,,,,,\n");
             }
         } finally {
             w.close();

@@ -279,7 +279,7 @@ public final class RoLogin {
 
     /** Puts (or updates) the read-only login on one node. Returns null when done, else why not. */
     static String install(String host, String rootUser, String rootPass, String roUser, String roPass) {
-        UbusApi u = new UbusApi(host, 8000);
+        UbusApi u = new UbusApi(host, 20000);
         try {
             u.login(rootUser == null || rootUser.length() == 0 ? "root" : rootUser, rootPass);
             u.call("file", "write", new JSONObject().put("path", ACL_PATH).put("data", aclJson("ycc-ro")));
@@ -302,7 +302,7 @@ public final class RoLogin {
             }
             u.logout();
             Thread.sleep(2500);
-            UbusApi check = new UbusApi(host, 8000);
+            UbusApi check = new UbusApi(host, 20000);
             check.login(roUser, roPass);
             check.call("mesh11s", "get_topology", null);
             check.logout();
@@ -315,7 +315,7 @@ public final class RoLogin {
     }
 
     static String remove(String host, String rootUser, String rootPass, String roUser) {
-        UbusApi u = new UbusApi(host, 8000);
+        UbusApi u = new UbusApi(host, 20000);
         try {
             u.login(rootUser == null || rootUser.length() == 0 ? "root" : rootUser, rootPass);
             String section = findSection(u, roUser);

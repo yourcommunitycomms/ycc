@@ -826,7 +826,8 @@ public final class MeshControllerActivity extends Activity {
                 "About the Mesh controller", "OpenMANET Mesh (my node's neighbours and signal, read-only)",
                 "Share the node ADMIN login to team phones…", "Revoke the shared login (ask phones to forget it)…",
                 "Node login sharing log", NodeShare.held() ? "Forget the login shared with me" : "(no login shared with me)",
-                "Read-only login for team phones (one password, all nodes)…"};
+                "Read-only login for team phones (one password, all nodes)…",
+                "Customize OpenMANET (WiFi off with Ethernet, DHCP ranges)…"};
         new AlertDialog.Builder(this).setItems(items, new DialogInterface.OnClickListener() {
             @Override
             public void onClick(DialogInterface dlg, int which) {
@@ -878,6 +879,25 @@ public final class MeshControllerActivity extends Activity {
                                     return pass;
                                 }
                             }, sp.getString("nodes", "[]"));
+                        }
+                    });
+                } else if (which == 11) {
+                    askLogin(new Runnable() {
+                        @Override
+                        public void run() {
+                            java.util.List<CustomizeOm.Target> ts = new java.util.ArrayList<CustomizeOm.Target>();
+                            for (Node n : nodes) if (n.ip != null && n.ip.length() > 0) ts.add(new CustomizeOm.Target(n.label(), n.ip));
+                            CustomizeOm.dialog(MeshControllerActivity.this, ts, new RoLogin.Login() {
+                                @Override
+                                public String user() {
+                                    return user;
+                                }
+
+                                @Override
+                                public String pass() {
+                                    return pass;
+                                }
+                            });
                         }
                     });
                 } else if (which == 9) {

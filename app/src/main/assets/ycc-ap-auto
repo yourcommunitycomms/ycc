@@ -1,0 +1,82 @@
+#!/bin/sh /etc/rc.common
+START=99
+USE_PROCD=1
+# YCC "Customize OpenMANET", WiFi mode "Ethernet preferred": at start-up, if the Ethernet port has a link, turn the
+# 2.4 GHz WiFi access point off (and the HaLow radio too with HALOW=1 in /etc/ycc-ap-auto.conf).
+# No polling (these nodes are CPU limited): it looks at the port a few times in the first ~2 minutes after start-up
+# (the link can take a moment to come up), acts once, and exits. What it decided stays until the next restart;
+# unplugging the cable later does not bring WiFi back (restart the node for that).
+# Installed by the YCC Mesh controller. Undo: /etc/init.d/ycc-ap-auto stop; /etc/init.d/ycc-ap-auto disable;
+# rm /etc/init.d/ycc-ap-auto /etc/ycc-ap-auto.conf (stopping turns the radios back on).
+# Runtime only ("wifi down", nothing written to /etc/config/wireless, so a restart starts with every radio on).
+# Skips if radio0 is also a WiFi client uplink. Only Ethernet ports bridged into the mesh LAN (br-ahwlan) count; the
+# WAN / default-route uplink never does (so a Pi gateway whose eth0 is its internet link is left alone). HT-HD01: the
+# Ethernet link is switch0 port 0 (eth0 is the switch CPU port and always shows carrier); other boards: carrier.
+
+PROG=/usr/bin/ycc-ap-auto-once
+
+start_service() {
+	cat > "$PROG" <<'EOF'
+#!/bin/sh
+HALOW=0
+[ -f /etc/ycc-ap-auto.conf ] && . /etc/ycc-ap-auto.conf
+log() { logger -t ycc-ap-auto "$*"; }
+[ "$(uci -q get wireless.sta_radio0.disabled)" = "0" ] && { log "radio0 is a WiFi uplink: doing nothing"; exit 0; }
+WIFI=""; MESH=""
+for r in radio0 radio1 radio2; do
+	t=$(uci -q get wireless.$r.type)
+	[ "$t" = "mac80211" ] && [ -z "$WIFI" ] && WIFI=$r
+	[ "$t" = "morse" ] && MESH=$r
+done
+[ -n "$WIFI" ] || { log "no 2.4 GHz WiFi radio: doing nothing"; exit 0; }
+RADIOS=$WIFI
+[ "$HALOW" = "1" ] && [ -n "$MESH" ] && RADIOS="$WIFI $MESH"
+board=$(cat /tmp/sysinfo/board_name 2>/dev/null)
+# Only a cable on the mesh LAN counts: the Ethernet ports bridged into br-ahwlan. A WAN / internet uplink (not in that
+# bridge, or the device of the default route, e.g. a Pi gateway's eth0) is never a reason to turn WiFi off.
+uplink=$(ip -4 route show default 2>/dev/null | awk '{for (i = 1; i < NF; i++) if ($i == "dev") { print $(i + 1); exit }}')
+sec=$(uci -q show network | grep "\.name='br-ahwlan'" | head -n1 | cut -d. -f2)
+LAN=""
+for p in $( [ -n "$sec" ] && uci -q get network.$sec.ports ); do
+	base=${p%%.*}
+	case "$base" in eth*|lan*|usb*|enx*) ;; *) continue ;; esac
+	[ "$base" = "$uplink" ] || [ "$p" = "$uplink" ] && continue
+	case " $LAN " in *" $base "*) ;; *) LAN="$LAN $base" ;; esac
+done
+[ -n "$LAN" ] || { log "no Ethernet port on the mesh LAN (br-ahwlan); a WAN uplink does not count: doing nothing"; exit 0; }
+link_up() {
+	for d in $LAN; do
+		if [ "$board" = "heltec,ht-hd01-v2" ] && [ "$d" = "eth0" ]; then # eth0 is the switch CPU port: read the real port
+			swconfig dev switch0 port 0 get link 2>/dev/null | grep -q "link:up" && return 0
+		elif [ "$(cat /sys/class/net/$d/carrier 2>/dev/null)" = "1" ]; then return 0; fi
+	done
+	return 1
+}
+# a few looks, spaced out (sleeping costs nothing): about 20 s, 50 s, 80 s and 120 s after start-up
+for wait in 20 30 30 40; do
+	sleep $wait
+	if link_up; then
+		sleep 5
+		if link_up; then
+			log "Ethernet link found: radios off ($RADIOS) until the next restart"
+			for r in $RADIOS; do wifi down $r; done
+			exit 0
+		fi
+	fi
+done
+log "no Ethernet link at start-up: radios stay on"
+exit 0
+EOF
+	chmod +x "$PROG"
+	procd_open_instance
+	procd_set_param command "$PROG"
+	procd_close_instance
+}
+
+stop_service() {
+	# never leave a radio off when the service is stopped; radios that are already up are left alone (no blip)
+	for r in radio0 radio1 radio2; do
+		[ -n "$(uci -q get wireless.$r.type)" ] || continue
+		ubus call network.wireless status "{\"device\":\"$r\"}" 2>/dev/null | grep -q '"up": true' || wifi up $r 2>/dev/null
+	done
+}

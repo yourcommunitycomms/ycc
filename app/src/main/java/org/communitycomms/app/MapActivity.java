@@ -986,6 +986,8 @@ public final class MapActivity extends Activity {
         }
         mapSide.addView(mapBox, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, land ? 1 : 3));
         mapSide.addView(walkStrip, mapSide.indexOfChild(mapBox)); // mesh testing walk status, just above the map
+        walkLive = WalkUi.liveRow(this); // and the last 30 s graph with a Flag button
+        mapSide.addView(walkLive, mapSide.indexOfChild(mapBox));
         final LinearLayout panel = new LinearLayout(this);
         panel.setOrientation(LinearLayout.VERTICAL);
         final android.content.SharedPreferences ui = getSharedPreferences("settings", MODE_PRIVATE);
@@ -1310,6 +1312,7 @@ public final class MapActivity extends Activity {
     };
     /** Once a second: the bar's clock, and the path line. */
     private TextView walkStrip;
+    private LinearLayout walkLive;
     private final Runnable trackTick = new Runnable() {
         @Override
         public void run() {
@@ -1325,6 +1328,7 @@ public final class MapActivity extends Activity {
             if (walkStrip != null) {
                 boolean w = MeshWalk.running();
                 walkStrip.setVisibility(w ? View.VISIBLE : View.GONE);
+                if (walkLive != null) walkLive.setVisibility(w ? View.VISIBLE : View.GONE);
                 if (w) {
                     walkStrip.setText(MeshWalk.stripText() + "   [ tap to stop ]");
                     walkStrip.setBackgroundColor((MeshWalk.statusColour() & 0x00ffffff) | 0xe0000000);

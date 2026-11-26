@@ -65,6 +65,7 @@ public final class MeshTestingActivity extends Activity {
     private Spinner walkTarget, walkNode;
     private EditText walkEvery;
     private TextView walkBig, walkDetails;
+    private LinearLayout walkLive;
     private Button walkBtn;
     private CheckBox simBox;
 
@@ -1065,7 +1066,7 @@ public final class MeshTestingActivity extends Activity {
 
     private void buildWalk(LinearLayout root) {
         heading(root, "Mapping walk");
-        text(root, "On the MOVING phone: probes the fixed station every few seconds; it answers with what it measured. Shows the link "
+        text(root, "On the MOVING phone: probes the fixed station every second; it answers with what it measured. Shows the link "
                 + "live and leaves a coloured trail of the walk.", 13);
         LinearLayout r = row(root);
         TextView l = new TextView(this);
@@ -1087,7 +1088,7 @@ public final class MeshTestingActivity extends Activity {
         fillTargets();
         final LinearLayout walkMore = new LinearLayout(this); // filled below, shown under "More options"
         walkMore.setOrientation(LinearLayout.VERTICAL);
-        walkEvery = number(walkMore, "Probe every (seconds)", MeshWalk.intervalSec());
+        walkEvery = number(walkMore, "Probe every (seconds, 1-60)", MeshWalk.intervalSec());
         LinearLayout nr = row(root);
         TextView nl = new TextView(this);
         nl.setText("My mesh node ");
@@ -1124,7 +1125,7 @@ public final class MeshTestingActivity extends Activity {
                     refresh();
                     return;
                 }
-                MeshTest.sp().edit().putInt("walk_every", Math.max(2, Math.min(60, num(walkEvery, 5))))
+                MeshTest.sp().edit().putInt("walk_every", Math.max(1, Math.min(60, num(walkEvery, 1))))
                         .putInt("walk_local_every", Math.max(5, Math.min(60, num(walkLocalEvery, 10)))).commit();
                 final Object t = walkTarget.getSelectedItem();
                 MeshTest.fakeGpsGate(MeshTestingActivity.this, new Runnable() {
@@ -1141,6 +1142,8 @@ public final class MeshTestingActivity extends Activity {
         walkBig.setGravity(android.view.Gravity.CENTER);
         walkBig.setPadding((int) (8 * d), (int) (14 * d), (int) (8 * d), (int) (14 * d));
         root.addView(walkBig);
+        walkLive = WalkUi.liveRow(this);
+        root.addView(walkLive);
         walkDetails = text(root, "", 14);
         LinearLayout er = row(root);
         rowButton(er, "Walk CSV", new View.OnClickListener() {
@@ -1292,6 +1295,7 @@ public final class MeshTestingActivity extends Activity {
             walkBig.setText(w ? MeshWalk.statusWord() : "Walk stopped");
             walkBig.setBackgroundColor(w ? MeshWalk.statusColour() : 0xff546e7a);
             walkDetails.setText(w ? MeshWalk.details() : "");
+            walkLive.setVisibility(w ? View.VISIBLE : View.GONE);
             simBox.setVisibility(org.communitycomms.app.geo.FakeGps.enabled(this) ? View.VISIBLE : View.GONE);
             WalkUi.showPendingSummary(this);
             MeshRadio.nameFromWeb(this); // my node by the gateway (no login), every 30 s at most
@@ -1314,6 +1318,6 @@ public final class MeshTestingActivity extends Activity {
         saveEcho();
         if (urlEdit != null) MeshTest.sp().edit().putString("ta_url", urlEdit.getText().toString().trim())
                 .putInt("ta_auto", Math.max(0, num(autoEdit, 10))).commit();
-        if (walkEvery != null) MeshTest.sp().edit().putInt("walk_every", Math.max(2, Math.min(60, num(walkEvery, 5)))).commit();
+        if (walkEvery != null) MeshTest.sp().edit().putInt("walk_every", Math.max(1, Math.min(60, num(walkEvery, 1)))).commit();
     }
 }

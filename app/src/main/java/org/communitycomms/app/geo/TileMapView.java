@@ -756,7 +756,7 @@ public final class TileMapView extends View {
 
     /** A small coverage dot (mesh testing: Map mesh, Mapping walk). */
     public static final class Dot {
-        public static final int FILLED = 0, RING = 1, STATION = 2, SQUARE = 3;
+        public static final int FILLED = 0, RING = 1, STATION = 2, SQUARE = 3, FLAG = 4;
         public final double lat, lon;
         public final int colour, style;
         /** What the dot stands for (tapping a dot with a tag calls OnDotTap), or null. */
@@ -863,6 +863,21 @@ public final class TileMapView extends View {
                 dotPaint.setStyle(Paint.Style.FILL);
                 c.drawRect(x - r, y - r, x + r, y + r, dotPaint);
                 c.drawRect(x - r, y - r, x + r, y + r, dotEdge);
+            } else if (p.style == Dot.FLAG) { // a walk flag: a pole standing on the spot with a pennant
+                dotPaint.setStyle(Paint.Style.STROKE);
+                dotPaint.setStrokeWidth(2f * d);
+                dotPaint.setColor(0xff212121);
+                c.drawLine(x, y, x, y - r * 4.2f, dotPaint);
+                android.graphics.Path f = new android.graphics.Path();
+                f.moveTo(x, y - r * 4.2f);
+                f.lineTo(x + r * 2.8f, y - r * 3.4f);
+                f.lineTo(x, y - r * 2.6f);
+                f.close();
+                dotPaint.setStyle(Paint.Style.FILL);
+                dotPaint.setColor(p.colour);
+                c.drawPath(f, dotPaint);
+                c.drawPath(f, dotEdge);
+                c.drawCircle(x, y, r * 0.5f, dotEdge);
             } else {
                 dotPaint.setStyle(Paint.Style.FILL);
                 c.drawCircle(x, y, r, dotPaint);

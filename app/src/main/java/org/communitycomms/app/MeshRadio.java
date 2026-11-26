@@ -110,6 +110,11 @@ public final class MeshRadio {
         return pass != null || savedPass() != null || NodeShare.held() || RoLogin.held();
     }
 
+    /** The admin password held now (own, remembered or shared), or null. */
+    static String adminPass() {
+        return pass != null ? pass : savedPass() != null ? savedPass() : NodeShare.pass();
+    }
+
     /** An admin login (own, remembered or shared), not counting the read-only one. */
     public static boolean hasAdmin() {
         return pass != null || savedPass() != null || NodeShare.held();

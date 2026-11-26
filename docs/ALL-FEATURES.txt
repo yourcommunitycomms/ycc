@@ -199,6 +199,9 @@ NETWORKS
   remove (cut off within seconds), and change the admin key.
 - OpenMANET support (off by default): talk groups and an internet gateway switch for the node
   (untested on a real node).
+- Customize OpenMANET (Mesh controller > More): turn a node's WiFi off while its Ethernet is plugged in
+  (optionally HaLow too), and give each node its own DHCP range.
+- HaLow on / off for the node you are connected to (radio silence), with a green / red bar on the home screen.
 - Project NOMAD screen: ask its AI and open its Command Center.
 
 LAN STORAGE AND SYNC (ON THE PHONE)
@@ -252,5 +255,7 @@ ADDED SOON AFTER RELEASE 1 (everything since is in the lists above and in UPDATE
   coverage map from a fixed station (direct, 2 hops, 3 or more, signal); a Mapping walk with a live link
   status and a coloured trail. Private channels unless allowed, with a warning. The walker can also read its
   own mesh node, so both sides of the link are shown.
+- Mapping walk extras: one probe a second, a live 30-second graph of answered and lost probes, flag a spot
+  with a comment while walking, and notes on the walk when it ends.
 - OpenMANET Mesh (with OpenMANET on): what this phone's own mesh node sees, its neighbours, their signal and
   speed, hops to every node, and each contact's link; a small signal bars icon in the title bar.

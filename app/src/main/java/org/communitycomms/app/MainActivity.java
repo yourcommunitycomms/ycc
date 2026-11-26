@@ -2898,6 +2898,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
     private void renderMeshBanner() {
         if ((MeshRadio.bars() != shownBars || TitleIcons.meshShown(this) != shownMeshIcon) && lastMenu != null) invalidateOptionsMenu(); // the signal icon changed
         NodeShare.showPending(this); // a node login offer or acceptance waiting
+        renderHalowBar();
         String t = MeshTest.bannerText();
         if (t.length() == 0) {
             if (meshBanner != null) meshBanner.setVisibility(View.GONE);
@@ -2936,6 +2937,52 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         meshBanner.setText("● " + t + "   [ STOP ]");
         meshBanner.setVisibility(View.VISIBLE);
         meshBanner.bringToFront();
+    }
+
+    private TextView halowBar;
+    private int halowBarH;
+
+    /** Under the title bar: my node's HaLow state (green on, red off) once the HaLow toggle has been used; the screen moves down for it. */
+    private void renderHalowBar() {
+        android.widget.FrameLayout content = (android.widget.FrameLayout) findViewById(android.R.id.content);
+        if (content == null || content.getChildCount() == 0) return;
+        Object[] b = HalowToggle.bar(this);
+        View screen = content.getChildAt(0);
+        if (halowBar == null && b == null) return;
+        if (halowBar == null) {
+            float d = getResources().getDisplayMetrics().density;
+            halowBarH = (int) (28 * d);
+            halowBar = new TextView(this);
+            halowBar.setTextColor(0xffffffff);
+            halowBar.setTextSize(14);
+            halowBar.setSingleLine(true);
+            halowBar.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            halowBar.setGravity(android.view.Gravity.CENTER_VERTICAL);
+            halowBar.setPadding((int) (10 * d), 0, (int) (10 * d), 0);
+            halowBar.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    HalowToggle.dialog(MainActivity.this);
+                }
+            });
+            content.addView(halowBar, new android.widget.FrameLayout.LayoutParams(android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+                    halowBarH, android.view.Gravity.TOP));
+        }
+        int want = b == null ? 0 : halowBarH;
+        if (screen != halowBar && screen.getLayoutParams() instanceof android.view.ViewGroup.MarginLayoutParams) {
+            android.view.ViewGroup.MarginLayoutParams lp = (android.view.ViewGroup.MarginLayoutParams) screen.getLayoutParams();
+            if (lp.topMargin != want) {
+                lp.topMargin = want;
+                screen.setLayoutParams(lp);
+            }
+        }
+        if (b == null) {
+            halowBar.setVisibility(View.GONE);
+            return;
+        }
+        halowBar.setText((String) b[0]);
+        halowBar.setBackgroundColor((Integer) b[1]);
+        halowBar.setVisibility(View.VISIBLE);
     }
 
     /** A smaller button beside PTT: type a message that every phone on the channel reads aloud. */

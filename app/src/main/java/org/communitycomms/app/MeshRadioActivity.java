@@ -101,6 +101,12 @@ public final class MeshRadioActivity extends Activity {
                 RoLogin.enterDialog(MeshRadioActivity.this, null);
             }
         });
+        button(r2, "HaLow on / off…", new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                HalowToggle.dialog(MeshRadioActivity.this);
+            }
+        });
         root.addView(r2);
         ScrollView sv = new ScrollView(this);
         LinearLayout body = new LinearLayout(this);
@@ -113,7 +119,7 @@ public final class MeshRadioActivity extends Activity {
         topology = text(body, "", 14);
         heading(body, "Contacts on this channel");
         contacts = text(body, "", 14);
-        TextView foot = text(body, "Read-only: nothing is changed on any node. Read every 10 s while this page is open; the title bar "
+        TextView foot = text(body, "Read-only (only HaLow on / off changes anything, and only when you press it). Read every 10 s while this page is open; the title bar "
                 + "icon reads it every " + MeshRadio.bgSec() + " s (not in Ultra low, Away or with the screen off). A busy node is read "
                 + "every 30 s. Signal: -60 dBm or better is strong, below -85 is weak.", 12);
         foot.setTextColor(0xffb0bec5);

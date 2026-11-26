@@ -29,7 +29,10 @@ public final class WalkUi {
     public static void dotTapped(Activity a, TileMapView.Dot d) {
         String text;
         if (d.tag instanceof MeshWalk.TrailPoint) text = ((MeshWalk.TrailPoint) d.tag).details();
-        else if (d.tag instanceof MeshMap.Point) {
+        else if (d.tag instanceof MeshWalk.Flag) {
+            new AlertDialog.Builder(a).setTitle("Flag").setMessage(((MeshWalk.Flag) d.tag).details()).setPositiveButton("OK", null).show();
+            return;
+        } else if (d.tag instanceof MeshMap.Point) {
             MeshMap.Point p = (MeshMap.Point) d.tag;
             text = p.name + "\n" + new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(new Date(p.t)) + "\n" + MeshMap.describe(p);
         } else return;
@@ -47,10 +50,10 @@ public final class WalkUi {
                             showPendingSummary(a);
                         }
                     })
-                    .setNeutralButton("Past walks", new DialogInterface.OnClickListener() {
+                    .setNeutralButton("Flag this spot…", new DialogInterface.OnClickListener() {
                         @Override
                         public void onClick(DialogInterface d, int w) {
-                            history(a);
+                            flagDialog(a);
                         }
                     })
                     .setNegativeButton("Keep walking", null).show();
@@ -103,6 +106,58 @@ public final class WalkUi {
         }).setNegativeButton(android.R.string.cancel, null).show();
     }
 
+    /** The live row shown while walking: the 30 s graph and a Flag button beside it. */
+    public static android.widget.LinearLayout liveRow(final Activity a) {
+        float d = a.getResources().getDisplayMetrics().density;
+        android.widget.LinearLayout row = new android.widget.LinearLayout(a);
+        row.setOrientation(android.widget.LinearLayout.HORIZONTAL);
+        row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        row.setBackgroundColor(0xe0102027);
+        row.addView(new WalkGraph(a), new android.widget.LinearLayout.LayoutParams(0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        android.widget.Button f = new android.widget.Button(a);
+        f.setAllCaps(false);
+        f.setText("⚑ Flag");
+        f.setMinWidth((int) (72 * d));
+        f.setOnClickListener(new android.view.View.OnClickListener() {
+            @Override
+            public void onClick(android.view.View v) {
+                flagDialog(a);
+            }
+        });
+        row.addView(f, new android.widget.LinearLayout.LayoutParams(android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT));
+        row.setVisibility(android.view.View.GONE);
+        return row;
+    }
+
+    /** While walking: flag where I am now (taken when this opens, so typing while walking does not move it), with a comment. */
+    public static void flagDialog(final Activity a) {
+        final double[] here = MeshWalk.hereNow();
+        if (here == null) {
+            Toast.makeText(a, "No GPS position yet: can't flag this spot", Toast.LENGTH_LONG).show();
+            return;
+        }
+        float d = a.getResources().getDisplayMetrics().density;
+        android.widget.LinearLayout box = new android.widget.LinearLayout(a);
+        box.setOrientation(android.widget.LinearLayout.VERTICAL);
+        box.setPadding((int) (18 * d), (int) (8 * d), (int) (18 * d), 0);
+        android.widget.TextView t = new android.widget.TextView(a);
+        t.setText(String.format(Locale.US, "Flag at %.5f, %.5f (where you are now). A comment is optional.", here[0], here[1]));
+        box.addView(t);
+        final android.widget.EditText e = new android.widget.EditText(a);
+        e.setHint("Comment, e.g. drops behind the shed");
+        e.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
+        box.addView(e);
+        new AlertDialog.Builder(a).setTitle("Flag this spot").setView(box)
+                .setPositiveButton("Flag", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface di, int w) {
+                        MeshWalk.addFlag(here[0], here[1], e.getText().toString());
+                        Toast.makeText(a, "Flagged (" + MeshWalk.flags().size() + " on this walk)", Toast.LENGTH_SHORT).show();
+                    }
+                }).setNegativeButton(android.R.string.cancel, null).show();
+    }
+
     /** Before a walk: the nodes' login once (to read my own node), unless it is held, not wanted, or OpenMANET is off. */
     static void loginThen(Activity a, Runnable start) {
         if (!MeshRadio.walkLocal() || MeshRadio.hasLogin() || !MeshRadio.available(a)) {
@@ -122,31 +177,90 @@ public final class WalkUi {
 
     static void summaryDialog(final Activity a, final String summary, final File walk) {
         android.widget.ScrollView sv = new android.widget.ScrollView(a);
+        android.widget.LinearLayout box = new android.widget.LinearLayout(a);
+        box.setOrientation(android.widget.LinearLayout.VERTICAL);
         android.widget.TextView t = new android.widget.TextView(a);
         float d = a.getResources().getDisplayMetrics().density;
-        t.setPadding((int) (18 * d), (int) (10 * d), (int) (18 * d), 0);
+        box.setPadding((int) (18 * d), (int) (10 * d), (int) (18 * d), 0);
         t.setTextSize(14);
         t.setText(summary);
         t.setTextIsSelectable(true);
-        sv.addView(t);
-        new AlertDialog.Builder(a).setTitle("Walk summary").setView(sv)
-                .setPositiveButton("Share / export", new DialogInterface.OnClickListener() {
+        box.addView(t);
+        String old = "";
+        try {
+            if (walk != null) old = MeshWalk.readWalk(walk).optString("notes", "");
+        } catch (Exception ignored) {
+        }
+        android.widget.TextView nh = new android.widget.TextView(a);
+        nh.setText("Notes on this walk (saved with it, included when shared):");
+        nh.setPadding(0, (int) (10 * d), 0, 0);
+        box.addView(nh);
+        final android.widget.EditText notes = new android.widget.EditText(a);
+        notes.setHint("e.g. antenna on the roof at 6 m, raining, walked the road both ways");
+        notes.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE
+                | android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
+        notes.setMinLines(2);
+        notes.setText(old);
+        notes.setEnabled(walk != null);
+        box.addView(notes);
+        final android.os.Handler saver = new android.os.Handler();
+        final Runnable save = new Runnable() {
+            @Override
+            public void run() {
+                MeshWalk.setNotes(walk, notes.getText().toString().trim());
+            }
+        };
+        notes.addTextChangedListener(new android.text.TextWatcher() { // saved as you type (a second after you stop)
+            @Override
+            public void beforeTextChanged(CharSequence s, int st, int c, int af) {
+            }
+
+            @Override
+            public void onTextChanged(CharSequence s, int st, int b, int c) {
+            }
+
+            @Override
+            public void afterTextChanged(android.text.Editable e) {
+                saver.removeCallbacks(save);
+                saver.postDelayed(save, 1200);
+            }
+        });
+        sv.addView(box);
+        AlertDialog dlg = new AlertDialog.Builder(a).setTitle("Walk summary").setView(sv)
+                .setPositiveButton("Share", new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface di, int w) {
-                        exportChoice(a, summary, walk);
+                        MeshWalk.setNotes(walk, notes.getText().toString().trim());
+                        exportChoice(a, MeshWalk.fullText(summary, null, notes.getText().toString()), walk);
                     }
                 })
-                .setNeutralButton("View on map", new DialogInterface.OnClickListener() {
+                .setNeutralButton("On map", new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface di, int w) {
+                        MeshWalk.setNotes(walk, notes.getText().toString().trim());
                         try {
-                            if (walk != null) MeshWalk.showOld(MeshWalk.pointsOf(MeshWalk.readWalk(walk)));
+                            if (walk != null) {
+                                org.json.JSONObject o = MeshWalk.readWalk(walk);
+                                MeshWalk.showOld(MeshWalk.pointsOf(o), MeshWalk.flagsOf(o));
+                            }
                         } catch (Exception ignored) {
                         }
                         if (!(a instanceof MapActivity)) a.startActivity(new Intent(a, MapActivity.class));
                     }
                 })
-                .setNegativeButton("Close", null).show();
+                .setNegativeButton("Done", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface di, int w) {
+                        MeshWalk.setNotes(walk, notes.getText().toString().trim());
+                    }
+                }).create();
+        dlg.setOnDismissListener(new DialogInterface.OnDismissListener() { // tapped outside or Back: keep what was typed
+            @Override
+            public void onDismiss(DialogInterface di) {
+                MeshWalk.setNotes(walk, notes.getText().toString().trim());
+            }
+        });
+        dlg.show();
     }
 
     private static void exportChoice(final Activity a, final String summary, final File walk) {
@@ -163,7 +277,8 @@ public final class WalkUi {
                                 try {
                                     org.json.JSONObject o = walk == null ? null : MeshWalk.readWalk(walk);
                                     List<MeshWalk.TrailPoint> pts = o == null ? MeshWalk.trail() : MeshWalk.pointsOf(o);
-                                    File f = MeshWalk.exportWalk(a, pts, w == 2, summary, o == null ? System.currentTimeMillis() : o.optLong("start"));
+                                    List<MeshWalk.Flag> fl = o == null ? MeshWalk.flags() : MeshWalk.flagsOf(o);
+                                    File f = MeshWalk.exportWalk(a, pts, fl, w == 2, summary, o == null ? System.currentTimeMillis() : o.optLong("start"));
                                     Toast.makeText(a, "Saved " + f.getName() + " (Data / files)", Toast.LENGTH_LONG).show();
                                     Intent s = new Intent(Intent.ACTION_SEND).setType(w == 2 ? "application/gpx+xml" : "text/csv")
                                             .putExtra(Intent.EXTRA_STREAM, FilesProvider.received(f)).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
