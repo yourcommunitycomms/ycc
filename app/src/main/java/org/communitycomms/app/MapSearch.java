@@ -139,7 +139,7 @@ final class MapSearch {
     }
 
     private static HttpURLConnection open(String url) throws Exception {
-        HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
+        HttpURLConnection c = org.communitycomms.app.net.LanNet.open(new java.net.URL(url));
         c.setConnectTimeout(10000);
         c.setReadTimeout(90000);
         c.setRequestProperty("User-Agent", UA);

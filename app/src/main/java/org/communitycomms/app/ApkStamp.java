@@ -103,7 +103,7 @@ final class ApkStamp {
         if (!u.startsWith("http://") && !u.startsWith("https://")) return "!This app's setup address is missing.";
         java.net.HttpURLConnection h = null;
         try {
-            h = (java.net.HttpURLConnection) new java.net.URL(u).openConnection();
+            h = org.communitycomms.app.net.LanNet.open(new java.net.URL(u));
             h.setConnectTimeout(8000);
             h.setReadTimeout(15000);
             int code = h.getResponseCode();

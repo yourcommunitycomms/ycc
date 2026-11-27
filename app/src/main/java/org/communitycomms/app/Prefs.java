@@ -709,7 +709,9 @@ public final class Prefs {
     /** Advanced and Region features, grouped (all keys are in MENU_KEYS; all off by default). */
     public static final String[] FEATURES_ADVANCED = {"array", "report", "tasks", "calendar", "bluetti", "cast", "relayadmin", "cloud", "trex"};
     public static final String[] FEATURES_REGION = {"vicemergency", "trains", "stopnames", "artc"};
-    public static final String[] FEATURES_MORE = {"nomad", "atak", "openmanet", "meshctl", "streams"};
+    public static final String[] FEATURES_MORE = {"nomad", "atak", "streams"};
+    /** Shown in their own group (were under More…, where the Mesh controller was easy to lose). */
+    public static final String[] FEATURES_OPENMANET = {"openmanet", "meshctl"};
 
     public static String menuLabel(String key) {
         int i = java.util.Arrays.asList(MENU_KEYS).indexOf(key);

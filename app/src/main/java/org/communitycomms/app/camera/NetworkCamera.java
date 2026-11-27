@@ -25,7 +25,7 @@ public final class NetworkCamera {
         HttpURLConnection c = null;
         try {
             URL u = new URL(address);
-            c = (HttpURLConnection) u.openConnection();
+            c = org.communitycomms.app.net.LanNet.open(u);
             c.setConnectTimeout(6000);
             c.setReadTimeout(10000);
             c.setUseCaches(false);

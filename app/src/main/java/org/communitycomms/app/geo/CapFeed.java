@@ -186,7 +186,7 @@ public final class CapFeed {
 
     static String get(String address, String accept) throws Exception {
         org.communitycomms.app.DataControl.check(address, true);
-        HttpURLConnection c = (HttpURLConnection) new URL(address).openConnection();
+        HttpURLConnection c = org.communitycomms.app.net.LanNet.open(new java.net.URL(address));
         c.setConnectTimeout(8000);
         c.setReadTimeout(20000);
         c.setRequestProperty("User-Agent", "YourCommunityCommunications (emergency alerts map)");

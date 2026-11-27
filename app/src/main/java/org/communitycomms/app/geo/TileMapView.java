@@ -1514,7 +1514,7 @@ public final class TileMapView extends View {
         String u = onlineUrl.replace("{z}", String.valueOf(t[0])).replace("{x}", String.valueOf(t[1]))
                 .replace("{y}", String.valueOf(t[2]));
         try {
-            HttpURLConnection c = (HttpURLConnection) new URL(u).openConnection();
+            HttpURLConnection c = org.communitycomms.app.net.LanNet.open(new java.net.URL(u));
             Tls12SocketFactory.apply(c);
             c.setConnectTimeout(6000);
             c.setReadTimeout(8000);

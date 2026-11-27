@@ -821,17 +821,39 @@ public final class MeshControllerActivity extends Activity {
     }
 
     private void more() {
-        String[] items = {"Suggest an order (farthest first)", "Check which nodes answer (no login)",
-                "Undo: put the last settings back", sp.contains("savedPass") ? "Forget the saved login (remembered on this phone)" : "Forget the login now",
-                "About the Mesh controller", "OpenMANET Mesh (my node's neighbours and signal, read-only)",
-                "Share the node ADMIN login to team phones…", "Revoke the shared login (ask phones to forget it)…",
-                "Node login sharing log", NodeShare.held() ? "Forget the login shared with me" : "(no login shared with me)",
-                "Read-only login for team phones (one password, all nodes)…",
-                "Customize OpenMANET (WiFi off with Ethernet, DHCP ranges)…"};
-        new AlertDialog.Builder(this).setItems(items, new DialogInterface.OnClickListener() {
+        // Grouped: nodes, node tools, logins, then About. Codes are the actions below.
+        final java.util.List<String> labels = new java.util.ArrayList<String>();
+        final java.util.List<Integer> codes = new java.util.ArrayList<Integer>();
+        labels.add("Check which nodes answer (no login)"); codes.add(1);
+        labels.add("Suggest an order (farthest first)"); codes.add(0);
+        labels.add("Undo: put the last settings back"); codes.add(2);
+        labels.add("HT-HD01 v2 mods (WiFi mode, LEDs, NTP, DNS, mDNS, HaLow)…"); codes.add(11);
+        labels.add("Mesh troubleshooting (openmanetd down, DHCP clash)…"); codes.add(12);
+        labels.add("OpenMANET Mesh (my node's neighbours and signal, read-only)"); codes.add(5);
+        labels.add("Configure read-only nodes (one password, all nodes)…"); codes.add(10);
+        labels.add("Share the read-only login to team phones…"); codes.add(13);
+        labels.add("Share the node ADMIN login to team phones…"); codes.add(6);
+        labels.add("Revoke the shared admin login (ask phones to forget it)…"); codes.add(7);
+        if (NodeShare.held()) {
+            labels.add("Forget the admin login " + NodeShare.from() + " shared with me"); codes.add(9);
+        }
+        labels.add("Node login sharing log"); codes.add(8);
+        labels.add(sp.contains("savedPass") ? "Forget the saved login (remembered on this phone)" : "Forget the login now"); codes.add(3);
+        labels.add("About the Mesh controller"); codes.add(4);
+        final float dd = getResources().getDisplayMetrics().density;
+        android.widget.ArrayAdapter<String> ad = new android.widget.ArrayAdapter<String>(this, android.R.layout.simple_list_item_1, labels) {
             @Override
-            public void onClick(DialogInterface dlg, int which) {
-                if (busy) return;
+            public android.view.View getView(int pos, android.view.View cv, android.view.ViewGroup parent) {
+                android.view.View v = super.getView(pos, cv, parent);
+                v.setBackgroundColor(pos % 2 == 0 ? 0x00000000 : 0x22ffffff); // alternating rows
+                ((TextView) v).setPadding((int) (20 * dd), (int) (12 * dd), (int) (20 * dd), (int) (12 * dd));
+                return v;
+            }
+        };
+        new AlertDialog.Builder(this).setAdapter(ad, new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dlg, int pick) {
+                int which = codes.get(pick);                if (busy) return;
                 if (which == 0) {
                     suggestOrder();
                     saveNodes();
@@ -881,13 +903,14 @@ public final class MeshControllerActivity extends Activity {
                             }, sp.getString("nodes", "[]"));
                         }
                     });
-                } else if (which == 11) {
+                } else if (which == 11 || which == 12) {
+                    final boolean mods = which == 11;
                     askLogin(new Runnable() {
                         @Override
                         public void run() {
                             java.util.List<CustomizeOm.Target> ts = new java.util.ArrayList<CustomizeOm.Target>();
                             for (Node n : nodes) if (n.ip != null && n.ip.length() > 0) ts.add(new CustomizeOm.Target(n.label(), n.ip));
-                            CustomizeOm.dialog(MeshControllerActivity.this, ts, new RoLogin.Login() {
+                            RoLogin.Login lg = new RoLogin.Login() {
                                 @Override
                                 public String user() {
                                     return user;
@@ -897,9 +920,27 @@ public final class MeshControllerActivity extends Activity {
                                 public String pass() {
                                     return pass;
                                 }
-                            });
+                            };
+                            if (mods) HdMods.dialog(MeshControllerActivity.this, ts, lg);
+                            else HdMods.troubleshoot(MeshControllerActivity.this, ts, lg);
                         }
                     });
+                } else if (which == 13) {
+                    if (!RoLogin.held() && !RoLogin.valid(RoLogin.sp().getString("p", ""))) {
+                        toast("No read-only login yet: set one up with Configure read-only nodes first.");
+                        return;
+                    }
+                    final String ru = RoLogin.sp().getString("u", RoLogin.DEFAULT_USER), rp = RoLogin.sp().getString("p", "");
+                    new AlertDialog.Builder(MeshControllerActivity.this).setTitle("Share the read-only login")
+                            .setMessage("Send the read-only login " + ru + " (it can only read radio data, never change a node) to everyone on "
+                                    + MeshTest.channelNow() + "? Each phone is asked before using it. It goes over the private channel (not Public).")
+                            .setPositiveButton("Share", new DialogInterface.OnClickListener() {
+                                @Override
+                                public void onClick(DialogInterface d2, int w) {
+                                    String why = NodeShare.shareRo(ru, rp, sp.getString("nodes", "[]"));
+                                    toast(why == null ? "Read-only login sent to everyone on the channel" : why);
+                                }
+                            }).setNegativeButton(android.R.string.cancel, null).show();
                 } else if (which == 9) {
                     if (NodeShare.held()) NodeShare.confirmForget(MeshControllerActivity.this, new Runnable() {
                         @Override

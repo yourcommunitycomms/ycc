@@ -703,7 +703,7 @@ public final class TestAudio {
             URL u = new URL(url);
             Conn c = new Conn();
             if ("https".equalsIgnoreCase(u.getProtocol())) {
-                java.net.HttpURLConnection h = (java.net.HttpURLConnection) u.openConnection();
+                java.net.HttpURLConnection h = org.communitycomms.app.net.LanNet.open(u);
                 org.communitycomms.app.geo.Tls12SocketFactory.apply(h);
                 h.setConnectTimeout(10000);
                 h.setReadTimeout(15000);

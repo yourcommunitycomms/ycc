@@ -13,6 +13,8 @@ public final class CommsApp extends Application {
     public void onCreate() {
         super.onCreate();
         app = this;
+        org.communitycomms.app.net.LanNet.app = this; // node / LAN calls go over the WiFi the node is on, not mobile data
+        org.communitycomms.app.net.LanNet.keepWifi(this); // ...and Android lets us use that WiFi even when it has no internet
         if (TvActivity.isTv(this)) { // a TV plays voice through its speakers / HDMI (the media stream), not a call path
             org.communitycomms.app.audio.AudioLevels.tv = true;
             org.communitycomms.app.audio.AudioLevels.voiceStream = android.media.AudioManager.STREAM_MUSIC;
@@ -46,6 +48,7 @@ public final class CommsApp extends Application {
         FloatingPtt.install(this); // floating PTT button over other apps (off by default)
         registerActivityLifecycleCallbacks(new ScreenAwake()); // never let the screen sleep (off by default)
         ScreenAwake.load(this);
+        HalowWindows.arm(this); // phone-controlled radio windows: the next start / end alarm
     }
 
     /**

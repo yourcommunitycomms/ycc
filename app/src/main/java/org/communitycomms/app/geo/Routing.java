@@ -147,7 +147,7 @@ public final class Routing {
     private static void fromNet(String server, int la, int lo, File out) throws Exception {
         double s = la * CELL, w = lo * CELL, n = s + CELL, e = w + CELL;
         org.communitycomms.app.DataControl.check(server, false);
-        HttpURLConnection c = (HttpURLConnection) new URL(server).openConnection();
+        HttpURLConnection c = org.communitycomms.app.net.LanNet.open(new java.net.URL(server));
         Tls12SocketFactory.apply(c);
         c.setConnectTimeout(15000);
         c.setReadTimeout(330000); // the server may think for minutes over a city

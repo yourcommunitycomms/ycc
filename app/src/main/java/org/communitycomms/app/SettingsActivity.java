@@ -2100,6 +2100,7 @@ public final class SettingsActivity extends Activity {
         sec.addView(moreBtn);
         featureGroup(more, null, Prefs.FEATURES_MORE);
         sec.addView(more);
+        featureGroup(sec, "OpenMANET", Prefs.FEATURES_OPENMANET);
         featureGroup(sec, "Mesh testing", Prefs.FEATURES_MESHTEST);
         Button mt = new Button(this);
         mt.setAllCaps(false);

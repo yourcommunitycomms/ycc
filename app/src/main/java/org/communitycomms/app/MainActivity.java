@@ -2024,7 +2024,9 @@ public final class MainActivity extends Activity implements RadioService.Ui {
         if (MeshRadio.available(this)) {
             int best = MeshNode.LOCAL.bestSignal();
             String node = MeshRadio.myNode();
-            stateRow(box, "OpenMANET Mesh: " + (!MeshRadio.hasLogin() ? "not logged in" : (node.length() > 0 ? node : "my node ?")
+            boolean onMesh = MeshRadio.onMeshLan(this);
+            if (!onMesh) best = Integer.MIN_VALUE; // the last reading is from a node this phone no longer reaches
+            stateRow(box, "OpenMANET Mesh: " + (!onMesh && !MeshRadio.picked() ? "not on the mesh network" : !MeshRadio.hasLogin() ? "not logged in" : (node.length() > 0 ? node : "my node ?")
                     + (best != Integer.MIN_VALUE ? ", best neighbour " + best + " dBm" : "")) + "  ›", new Runnable() {
                 @Override
                 public void run() {
@@ -2962,7 +2964,7 @@ public final class MainActivity extends Activity implements RadioService.Ui {
             halowBar.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
-                    HalowToggle.dialog(MainActivity.this);
+                    HalowToggle.dialog(MainActivity.this); // opens the dialog only: the buttons work straight away, nothing is sent by the tap
                 }
             });
             content.addView(halowBar, new android.widget.FrameLayout.LayoutParams(android.widget.FrameLayout.LayoutParams.MATCH_PARENT,

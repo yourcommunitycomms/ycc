@@ -104,7 +104,7 @@ final class UpdateCheck {
         java.net.HttpURLConnection h = null;
         try {
             for (int hop = 0; hop < 4; hop++) { // GitHub's release links redirect (to another host)
-                h = (java.net.HttpURLConnection) new java.net.URL(u).openConnection();
+                h = org.communitycomms.app.net.LanNet.open(new java.net.URL(u));
                 h.setInstanceFollowRedirects(false);
                 h.setConnectTimeout(8000);
                 h.setReadTimeout(10000);

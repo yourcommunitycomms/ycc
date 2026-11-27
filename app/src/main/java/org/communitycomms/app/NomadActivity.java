@@ -227,7 +227,7 @@ public final class NomadActivity extends Activity {
     }
 
     private static String http(String url, String body, int readMs) throws Exception {
-        HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
+        HttpURLConnection c = org.communitycomms.app.net.LanNet.open(new java.net.URL(url));
         c.setConnectTimeout(5000);
         c.setReadTimeout(readMs);
         try {

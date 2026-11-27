@@ -291,63 +291,92 @@ public final class CustomizeOm {
         }
     }
 
-    static void rc(UbusApi u, String name, String action) throws Exception {
+    /*
+     * Only calls LuCI itself uses: the HT-HD01 firmware gives the web login (even root) nothing else. So: start-up
+     * commands go in /etc/rc.local (LuCI's System > Startup page may edit it), services are switched with
+     * luci.setInitAction, settings with uci set/commit, and radios with /sbin/wifi.
+     */
+
+    static final String RCLOCAL = "/etc/rc.local";
+    static final String BLOCK_START = "# >>> YCC ycc-ap-auto", BLOCK_END = "# <<< YCC ycc-ap-auto";
+
+    static void initAction(UbusApi u, String name, String action) throws Exception {
         try {
-            u.call("rc", "init", new JSONObject().put("name", name).put("action", action));
+            u.call("luci", "setInitAction", new JSONObject().put("name", name).put("action", action));
         } catch (UbusApi.UbusException e) {
             if (!e.noAnswer()) throw e; // a WiFi change can drop this very call
         }
     }
 
+    /** The old hand-installed /etc/init.d/ycc-ap-auto, if the node has it: enabled or not; null = none. */
+    static Boolean oldService(UbusApi u) {
+        try {
+            JSONObject l = u.call("luci", "getInitList", new JSONObject().put("name", "ycc-ap-auto")).optJSONObject("ycc-ap-auto");
+            return l == null ? null : l.optBoolean("enabled", false);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    static String withoutBlock(String rc) {
+        int a = rc.indexOf(BLOCK_START);
+        if (a < 0) return rc;
+        int b = rc.indexOf(BLOCK_END, a);
+        int end = b < 0 ? rc.length() : rc.indexOf('\n', b) < 0 ? rc.length() : rc.indexOf('\n', b) + 1;
+        return rc.substring(0, a) + rc.substring(end);
+    }
+
+    /** The start-up check as an rc.local block: the asset script's one-shot body in a background subshell. */
+    static String block(String script, boolean halow) {
+        String s = script.replace("\r\n", "\n");
+        int i = s.indexOf("<<'EOF'\n"), j = s.indexOf("\nEOF\n");
+        String body = i >= 0 && j > i ? s.substring(i + 8, j) : s;
+        StringBuilder b = new StringBuilder(BLOCK_START + " (Ethernet preferred: WiFi off if the LAN cable is in at start-up; "
+                + "set by the YCC Mesh controller, remove with its Normal mode)\n(\n");
+        for (String line : body.split("\n")) {
+            if (line.startsWith("#!") || line.startsWith("HALOW=") || line.contains("/etc/ycc-ap-auto.conf")) continue;
+            b.append(line).append("\n");
+        }
+        b.insert(b.indexOf("(\n") + 2, "HALOW=" + (halow ? 1 : 0) + "\n");
+        return b.append(") >/dev/null 2>&1 &\n").append(BLOCK_END).append("\n").toString();
+    }
+
     static String install(UbusApi u, String script, boolean halow, boolean anyBoard, int watchMin) throws Exception {
         String b = board(u);
         if (!anyBoard && !b.startsWith("heltec,")) return "-skipped: " + (b.length() == 0 ? "unknown board" : b) + " (not a Heltec)";
-        u.call("file", "write", new JSONObject().put("path", SVC).put("data", script).put("mode", 493));
-        u.call("file", "write", new JSONObject().put("path", CONF).put("data", "# YCC Customize OpenMANET\nHALOW=" + (halow ? 1 : 0)
-                + "\n").put("mode", 420));
-        String keep = read(u, KEEP);
-        if (keep == null) keep = "";
-        StringBuilder add = new StringBuilder();
-        if (!hasLine(keep, SVC)) add.append(SVC).append("\n");
-        if (!hasLine(keep, CONF)) add.append(CONF).append("\n");
-        if (add.length() > 0) {
-            String data = (keep.length() > 0 && !keep.endsWith("\n") ? keep + "\n" : keep) + add;
-            u.call("file", "write", new JSONObject().put("path", KEEP).put("data", data).put("mode", 420));
+        if (oldService(u) != null) { // the hand-installed service: off, so the check does not run twice
+            initAction(u, "ycc-ap-auto", "disable");
+            initAction(u, "ycc-ap-auto", "stop");
         }
-        rc(u, "ycc-ap-auto", "enable");
-        rc(u, "ycc-ap-auto", "restart");
+        String rc = read(u, RCLOCAL);
+        if (rc == null) rc = "#!/bin/sh\nexit 0\n";
+        rc = withoutBlock(rc);
+        String blk = block(script, halow);
+        int ex = rc.lastIndexOf("\nexit 0");
+        rc = ex >= 0 ? rc.substring(0, ex + 1) + blk + rc.substring(ex + 1) : rc + (rc.endsWith("\n") ? "" : "\n") + blk;
+        u.call("file", "write", new JSONObject().put("path", RCLOCAL).put("data", rc));
         return null;
     }
 
+    /** Takes Ethernet preferred off (the rc.local block, and the old service). "-not on" when there was nothing. */
     static String remove(UbusApi u) throws Exception {
-        if (!exists(u, SVC)) return "-not installed";
-        rc(u, "ycc-ap-auto", "stop");
-        rc(u, "ycc-ap-auto", "disable");
-        for (String p : new String[]{SVC, CONF, LOOP, "/usr/bin/ycc-ap-auto-once"}) {
-            try {
-                u.call("file", "remove", new JSONObject().put("path", p));
-            } catch (UbusApi.UbusException ignored) {
-            }
+        boolean did = false;
+        String rc = read(u, RCLOCAL);
+        if (rc != null && rc.contains(BLOCK_START)) {
+            u.call("file", "write", new JSONObject().put("path", RCLOCAL).put("data", withoutBlock(rc)));
+            did = true;
         }
-        String keep = read(u, KEEP);
-        if (keep != null && (hasLine(keep, SVC) || hasLine(keep, CONF))) {
-            StringBuilder b = new StringBuilder();
-            for (String line : keep.split("\n", -1)) {
-                if (line.trim().equals(SVC) || line.trim().equals(CONF)) continue;
-                b.append(line).append("\n");
-            }
-            String data = b.toString();
-            while (data.endsWith("\n\n")) data = data.substring(0, data.length() - 1);
-            u.call("file", "write", new JSONObject().put("path", KEEP).put("data", data).put("mode", 420));
+        if (oldService(u) != null) {
+            initAction(u, "ycc-ap-auto", "stop"); // its stop turns the radios back on
+            initAction(u, "ycc-ap-auto", "disable");
+            did = true;
         }
-        return null;
+        return did ? null : "-not on";
     }
 
     // ---- WiFi modes ----
 
     static final int MODE_NORMAL = 0, MODE_PREF = 1, MODE_ONLY = 2;
-    /** Written when Ethernet only switches the WiFi radio off in uci: "RADIO=radio0" and "WAS=<its old disabled value>". */
-    static final String ETHONLY = "/etc/ycc-ethonly";
 
     static String modeName(int m) {
         return m == MODE_NORMAL ? "Normal" : m == MODE_ONLY ? "Ethernet only" : "Ethernet preferred";
@@ -357,13 +386,13 @@ public final class CustomizeOm {
                             final int watchMin, final TextView status, final RoLogin.Login root) {
         String msg;
         if (mode == MODE_NORMAL) {
-            msg = "Put " + names + " back to normal: the WiFi-off service is removed and, if Ethernet only switched the WiFi "
-                    + "off, it is switched back on. Any radio the service turned off comes back on.";
+            msg = "Put " + names + " back to normal: the start-up check is removed and, if Ethernet only switched the WiFi "
+                    + "off, it is switched back on. Any radio that is off now comes back on.";
         } else if (mode == MODE_PREF) {
             msg = names + ": WiFi goes off when the node finds its Ethernet cable" + (h ? ", HaLow off too" : " (HaLow stays on)")
-                    + ". It looks at the port a few times in the first 2 minutes after each start (installing counts as one), "
-                    + "acts once and stops: no polling. A node with its cable already in turns its WiFi off within about 30 s: "
-                    + "phones on its WiFi drop off.\n\nWhat it decided stays until the node restarts: unplugging the cable later "
+                    + ". It is a start-up command (in the node's /etc/rc.local, as LuCI's System > Startup shows): it looks at "
+                    + "the port a few times in the first 2 minutes after each start, acts once and stops; no polling. It takes "
+                    + "effect from the node's NEXT restart (nothing changes now).\n\nWhat it decided stays until the node restarts: unplugging the cable later "
                     + "does NOT bring WiFi back" + (h ? " (with HaLow off too, the node is unreachable until it restarts)" : "") + "."
                     + (any ? "" : "\n\nNon-Heltec nodes are skipped.");
         } else {
@@ -395,7 +424,8 @@ public final class CustomizeOm {
         if (mode == MODE_NORMAL) {
             String r = remove(u);
             boolean back = restoreWifi(u);
-            return back || r == null ? null : "-already normal";
+            boolean up = radiosUp(u);
+            return back || up || r == null ? null : "-already normal";
         }
         String b = board(u);
         if (!anyBoard && !b.startsWith("heltec,")) return "-skipped: " + (b.length() == 0 ? "unknown board" : b) + " (not a Heltec)";
@@ -410,14 +440,14 @@ public final class CustomizeOm {
             return "-skipped: its 2.4 GHz radio is also its WiFi uplink (sta_radio0)";
         String radio = wifiRadio(all);
         if (radio == null) return "-skipped: no 2.4 GHz WiFi radio";
-        remove(u); // no service needed
-        if (!exists(u, ETHONLY)) {
-            String was = all.optJSONObject(radio).optString("disabled", "");
-            u.call("file", "write", new JSONObject().put("path", ETHONLY).put("data", "# YCC Ethernet only\nRADIO=" + radio + "\nWAS=" + was + "\n").put("mode", 420));
-        }
-        u.call("uci", "set", new JSONObject().put("config", "wireless").put("section", radio).put("values", new JSONObject().put("disabled", "1")));
+        remove(u); // no start-up check needed
+        JSONObject sec = all.optJSONObject(radio);
+        JSONObject vals = new JSONObject().put("disabled", "1");
+        if (!"1".equals(sec.optString("ycc_ethonly"))) // remember how it was, in the radio's own settings (no other file is writable)
+            vals.put("ycc_ethonly", "1").put("ycc_was", sec.optString("disabled", "0"));
+        u.call("uci", "set", new JSONObject().put("config", "wireless").put("section", radio).put("values", vals));
         u.call("uci", "commit", new JSONObject().put("config", "wireless"));
-        reloadWifi(u, radio, false);
+        wifiNow(u, "down", radio);
         return null;
     }
 
@@ -432,60 +462,68 @@ public final class CustomizeOm {
 
     /** Undoes Ethernet only (puts the radio's disabled setting back as it was). False when it was not on. */
     static boolean restoreWifi(UbusApi u) throws Exception {
-        String m = read(u, ETHONLY);
-        if (m == null) return false;
-        java.util.regex.Matcher r = java.util.regex.Pattern.compile("RADIO=(\\w+)").matcher(m), w = java.util.regex.Pattern.compile("WAS=(\\S*)").matcher(m);
-        String radio = r.find() ? r.group(1) : "radio0", was = w.find() ? w.group(1) : "";
-        if (was.length() == 0 || "0".equals(was))
-            u.call("uci", "delete", new JSONObject().put("config", "wireless").put("section", radio).put("option", "disabled"));
-        else
-            u.call("uci", "set", new JSONObject().put("config", "wireless").put("section", radio).put("values", new JSONObject().put("disabled", was)));
-        u.call("uci", "commit", new JSONObject().put("config", "wireless"));
-        try {
-            u.call("file", "remove", new JSONObject().put("path", ETHONLY));
-        } catch (UbusApi.UbusException ignored) {
+        JSONObject all = u.call("uci", "get", new JSONObject().put("config", "wireless")).optJSONObject("values");
+        if (all == null) return false;
+        boolean did = false;
+        for (String radio : new String[]{"radio0", "radio1", "radio2"}) {
+            JSONObject s = all.optJSONObject(radio);
+            if (s == null || !"1".equals(s.optString("ycc_ethonly"))) continue;
+            String was = s.optString("ycc_was", "0");
+            for (String opt : new String[]{"ycc_ethonly", "ycc_was"})
+                u.call("uci", "delete", new JSONObject().put("config", "wireless").put("section", radio).put("option", opt));
+            if ("1".equals(was))
+                u.call("uci", "set", new JSONObject().put("config", "wireless").put("section", radio).put("values", new JSONObject().put("disabled", "1")));
+            else
+                u.call("uci", "delete", new JSONObject().put("config", "wireless").put("section", radio).put("option", "disabled"));
+            u.call("uci", "commit", new JSONObject().put("config", "wireless"));
+            if (!"1".equals(was)) wifiNow(u, "up", radio);
+            did = true;
         }
-        reloadWifi(u, radio, true);
-        return true;
+        return did;
     }
 
-    /** Applies the committed wireless setting now (netifd reload), and makes sure the radio goes down / up. */
-    static void reloadWifi(UbusApi u, String radio, boolean up) throws Exception {
+    /** Brings back any radio that is enabled in the settings but down now (e.g. switched off by the start-up check). */
+    static boolean radiosUp(UbusApi u) throws Exception {
+        boolean did = false;
+        JSONObject st = u.call("luci-rpc", "getWirelessDevices", null);
+        for (java.util.Iterator<String> it = st.keys(); it.hasNext(); ) {
+            String r = it.next();
+            JSONObject d = st.optJSONObject(r);
+            if (d != null && !d.optBoolean("up") && !d.optBoolean("disabled")) {
+                wifiNow(u, "up", r);
+                did = true;
+            }
+        }
+        return did;
+    }
+
+    /** /sbin/wifi up|down <radio>: allowed for LuCI's network page (the permission is on the program). */
+    static void wifiNow(UbusApi u, String action, String radio) throws Exception {
         try {
-            u.call("network", "reload", null);
+            HalowToggle.wifi(u, action, radio);
         } catch (UbusApi.UbusException e) {
             if (!e.noAnswer()) throw e;
         }
-        try {
-            u.call("network.wireless", up ? "up" : "down", new JSONObject().put("device", radio));
-        } catch (UbusApi.UbusException e) {
-            if (!e.noAnswer() && e.status != 4 && e.status != 3) throw e;
-        }
     }
 
-    static boolean hasLine(String text, String line) {
-        for (String l : text.split("\n")) if (l.trim().equals(line)) return true;
-        return false;
-    }
-
-    /** Reads the board, the WiFi-off service state and the DHCP range into t.info. */
+    /** Reads the board, the WiFi mode and the DHCP range into t.info. */
     static String check(Target t, UbusApi u) throws Exception {
         StringBuilder s = new StringBuilder();
         String b = board(u);
         s.append(b.length() == 0 ? "board ?" : b);
-        if (exists(u, ETHONLY)) {
+        JSONObject all = u.call("uci", "get", new JSONObject().put("config", "wireless")).optJSONObject("values");
+        String r = wifiRadio(all);
+        JSONObject sec = r == null ? null : all.optJSONObject(r);
+        String rc = read(u, RCLOCAL);
+        Boolean old = oldService(u);
+        if (sec != null && "1".equals(sec.optString("ycc_ethonly"))) {
             s.append("; WiFi mode: Ethernet only (WiFi switched off)");
-        } else if (exists(u, SVC)) {
-            String conf = read(u, CONF);
-            boolean h = conf != null && conf.contains("HALOW=1");
-            String svc = read(u, SVC);
-            String watch = svc != null && svc.contains("ycc-ap-auto-once") ? ", start-up check" : ", old always-watching version";
-            s.append("; WiFi mode: Ethernet preferred").append(exists(u, BOOT_LINK) ? "" : " (installed, not enabled)")
-                    .append(h ? ", HaLow too" : "").append(watch);
+        } else if (rc != null && rc.contains(BLOCK_START)) {
+            s.append("; WiFi mode: Ethernet preferred").append(rc.contains("HALOW=1") ? ", HaLow too" : "").append(", start-up check");
+        } else if (old != null && old) {
+            s.append("; WiFi mode: Ethernet preferred (service installed by hand)");
         } else {
-            JSONObject all = u.call("uci", "get", new JSONObject().put("config", "wireless")).optJSONObject("values");
-            String r = wifiRadio(all);
-            boolean off = r != null && "1".equals(all.optJSONObject(r).optString("disabled"));
+            boolean off = sec != null && "1".equals(sec.optString("disabled"));
             s.append("; WiFi mode: Normal").append(off ? " (but WiFi is switched off in its settings)" : "");
         }
         readDhcp(t, u);
@@ -493,7 +531,6 @@ public final class CustomizeOm {
         t.info = s.toString();
         return null;
     }
-
     static void readDhcp(Target t, UbusApi u) throws Exception {
         t.dhcpSection = null;
         t.start = t.limit = t.base = t.ip = -1;
@@ -666,7 +703,7 @@ public final class CustomizeOm {
                                         u.call("uci", "set", new JSONObject().put("config", "dhcp").put("section", t.dhcpSection)
                                                 .put("values", new JSONObject().put("start", String.valueOf(t.newStart))));
                                         u.call("uci", "commit", new JSONObject().put("config", "dhcp"));
-                                        rc(u, "dnsmasq", "restart");
+                                        initAction(u, "dnsmasq", "restart");
                                         NodeShare.log("DHCP range on " + t.name + ": start " + old + " -> " + t.newStart + " (undo: set start back to " + old + ")");
                                         t.start = t.newStart;
                                         return null;

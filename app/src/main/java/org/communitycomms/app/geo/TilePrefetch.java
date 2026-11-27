@@ -202,7 +202,7 @@ public final class TilePrefetch {
     private static byte[] fromNet(String url, int z, int x, int y) throws Exception {
         String u = url.replace("{z}", String.valueOf(z)).replace("{x}", String.valueOf(x)).replace("{y}", String.valueOf(y));
         org.communitycomms.app.DataControl.check(u, false);
-        HttpURLConnection c = (HttpURLConnection) new URL(u).openConnection();
+        HttpURLConnection c = org.communitycomms.app.net.LanNet.open(new java.net.URL(u));
         Tls12SocketFactory.apply(c);
         c.setConnectTimeout(6000);
         c.setReadTimeout(10000);

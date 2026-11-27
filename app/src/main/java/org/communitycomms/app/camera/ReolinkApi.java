@@ -374,7 +374,7 @@ public final class ReolinkApi {
     private byte[] httpOnce(String method, String path, String body, String[] type) throws IOException {
         HttpURLConnection c = null;
         try {
-            c = (HttpURLConnection) new URL(base + path).openConnection();
+            c = org.communitycomms.app.net.LanNet.open(new java.net.URL(base + path));
             if (c instanceof HttpsURLConnection) lanTls((HttpsURLConnection) c);
             c.setConnectTimeout(CONNECT_MS);
             c.setReadTimeout(READ_MS);

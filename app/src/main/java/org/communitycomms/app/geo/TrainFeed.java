@@ -224,7 +224,7 @@ public final class TrainFeed {
     /** A feed's bytes. header null = the Transport Victoria key headers. */
     private static byte[] get(String url, String header, String key) throws Exception {
         org.communitycomms.app.DataControl.check(url, true);
-        HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
+        HttpURLConnection c = org.communitycomms.app.net.LanNet.open(new java.net.URL(url));
         Tls12SocketFactory.apply(c);
         c.setConnectTimeout(8000);
         c.setReadTimeout(20000);

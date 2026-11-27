@@ -33,7 +33,7 @@ public final class MeshRadio {
     private static final String TAG = "MeshRadio";
     static volatile boolean viewOpen;
     private static volatile String pass;
-    private static volatile String detected = "", detectedFrom = "";
+    private static volatile String detected = "", detectedFrom = "", detectedHost = ""; // detectedHost: the address it was found at ("" = by WiFi name)
     private static volatile long lastDetectMs;
 
     private MeshRadio() {
@@ -115,6 +115,11 @@ public final class MeshRadio {
         return pass != null ? pass : savedPass() != null ? savedPass() : NodeShare.pass();
     }
 
+    /** An admin login that survives the app being closed (remembered or shared): what alarms (radio windows) can use. */
+    static boolean adminRemembered() {
+        return savedPass() != null || NodeShare.held();
+    }
+
     /** An admin login (own, remembered or shared), not counting the read-only one. */
     public static boolean hasAdmin() {
         return pass != null || savedPass() != null || NodeShare.held();
@@ -132,6 +137,7 @@ public final class MeshRadio {
         if (MeshTest.app == null) return;
         detected = "";
         detectedFrom = "";
+        detectedHost = "";
         lastWebName = 0;
         MeshNode.LOCAL.stop();
         ensure(c);
@@ -149,9 +155,14 @@ public final class MeshRadio {
             public void run() {
                 String[] dh = detectHost(c);
                 if (dh == null) return;
+                if (detectedHost.length() > 0 && !detectedHost.equals(dh[0])) { // moved to another node's WiFi: the old name is wrong now
+                    detected = "";
+                    detectedFrom = "";
+                    detectedHost = "";
+                }
                 java.net.HttpURLConnection h = null;
                 try {
-                    h = (java.net.HttpURLConnection) new java.net.URL("http://" + dh[0] + "/cgi-bin/luci/").openConnection();
+                    h = org.communitycomms.app.net.LanNet.open(new java.net.URL("http://" + dh[0] + "/cgi-bin/luci/"));
                     h.setConnectTimeout(5000);
                     h.setReadTimeout(5000);
                     int code = h.getResponseCode();
@@ -171,6 +182,7 @@ public final class MeshRadio {
                         if (!nm.equals(detected)) Log.i(TAG, "my node by " + dh[1] + " (its web page): " + nm);
                         detected = nm;
                         detectedFrom = dh[1];
+                        detectedHost = dh[0];
                     }
                 } catch (Exception e) {
                     Log.d(TAG, "web name: " + e.getMessage());
@@ -296,12 +308,22 @@ public final class MeshRadio {
     /** "My mesh node": picked (Mapping walk / Mesh radio), else found from the WiFi name; "" = not known. */
     public static String myNode() {
         String m = MeshTest.sp().getString("walk_node", "").trim();
-        return m.length() > 0 ? m : detected;
+        return m.length() > 0 ? m : detectedNode();
     }
 
-    /** The node found by the gateway / WiFi name ("" = not found), whether or not one is picked. */
+    /** The node found by the gateway / WiFi name ("" = not found, or this phone is not on the mesh network now), whether or not one is picked. */
     public static String detectedNode() {
+        if (detected.length() > 0 && MeshTest.app != null && !onMeshLan(MeshTest.app)) { // WiFi off / left the mesh: no node is "mine" now
+            detected = "";
+            detectedFrom = "";
+            detectedHost = "";
+        }
         return detected;
+    }
+
+    /** The detected node's name if it was found at this address (not a node this phone was on earlier), else "". */
+    public static String detectedNodeAt(String host) {
+        return host != null && host.equals(detectedHost) ? detected : "";
     }
 
     public static boolean picked() {
@@ -311,6 +333,7 @@ public final class MeshRadio {
     /** How my node was found, for the page: "picked", "from WiFi localnetHT01", or why not. */
     public static String howFound() {
         if (picked()) return "picked";
+        if (MeshTest.app != null && !onMeshLan(MeshTest.app)) return "this phone is not on the OpenMANET network (WiFi off or another network)";
         if (detected.length() > 0) return "found by " + detectedFrom;
         String s = ssid();
         if (s.length() == 0) return "WiFi name not readable (location permission, or not on WiFi): pick it";
@@ -407,6 +430,7 @@ public final class MeshRadio {
                     if (!self.equals(detected)) Log.i(TAG, "my node by " + dh[1] + ": " + self);
                     detected = self;
                     detectedFrom = dh[1];
+                    detectedHost = dh[0];
                     return;
                 }
             }
@@ -419,6 +443,7 @@ public final class MeshRadio {
                     if (m != null && !m.equals(detected)) Log.i(TAG, "my node from WiFi " + s + ": " + m);
                     detected = m == null ? "" : m;
                     detectedFrom = "WiFi name " + s;
+                    detectedHost = "";
                 }
             }
             String mine = myNode();

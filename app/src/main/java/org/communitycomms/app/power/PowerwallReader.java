@@ -31,7 +31,7 @@ public final class PowerwallReader extends BatteryReader {
         try {
             String host = unit.addr.trim();
             URL url = new URL((host.startsWith("http") ? host : "https://" + host).replaceAll("/+$", "") + path);
-            c = (HttpURLConnection) url.openConnection();
+            c = org.communitycomms.app.net.LanNet.open(url);
             if (c instanceof javax.net.ssl.HttpsURLConnection) org.communitycomms.app.camera.ReolinkApi.lanTls((javax.net.ssl.HttpsURLConnection) c);
             c.setConnectTimeout(5000);
             c.setReadTimeout(8000);

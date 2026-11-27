@@ -65,7 +65,7 @@ import javax.crypto.KeyAgreement;
  */
 public final class NodeShare {
     private static final String TAG = "NodeShare";
-    public static final int KIND_OFFER = 32, KIND_ACCEPT = 33, KIND_LOGIN = 34, KIND_FORGET = 35;
+    public static final int KIND_OFFER = 32, KIND_ACCEPT = 33, KIND_LOGIN = 34, KIND_FORGET = 35, KIND_RO = 36;
     public static final String QR_PREFIX = "YCCNODE1:";
     public static final String EXTRA_QR = "nodeShareQr";
     private static final Charset UTF8 = Charset.forName("UTF-8");
@@ -468,6 +468,55 @@ public final class NodeShare {
         });
     }
 
+    // ---- the read-only login: it can only read radio data, so it goes plainly on the private channel (no key exchange) ----
+
+    /** Sends the read-only login to everyone on this private channel; each phone is asked before using it. */
+    public static String shareRo(String user, String pass, String nodesJson) {
+        String cp = channelProblem();
+        if (cp != null) return cp;
+        RadioEngine e = engine();
+        try {
+            byte[] js = loginJson(user, pass, nodesJson);
+            ByteBuffer b = ByteBuffer.allocate(1 + 1 + 4 + 2 + js.length);
+            b.put((byte) KIND_RO).put((byte) 1).putInt(new java.security.SecureRandom().nextInt() & 0x7fffffff).putShort((short) js.length).put(js);
+            send3(e, b.array());
+            log("Shared the read-only node login (" + user + ") with everyone on " + MeshTest.channelNow());
+            return null;
+        } catch (Exception ex) {
+            return String.valueOf(ex.getMessage());
+        }
+    }
+
+    static void onRo(RadioEngine e, long sender, final String name, byte[] p, int off) throws Exception {
+        ByteBuffer b = ByteBuffer.wrap(p, off, p.length - off);
+        if (b.get() != 1) return;
+        int id = b.getInt();
+        if (name.equalsIgnoreCase(me()) || MeshTest.isPublic(e) || !firstTime(KIND_RO, sender, id)) return;
+        if (!MeshRadio.available(MeshTest.app)) return;
+        byte[] js = new byte[b.getShort() & 0xffff];
+        b.get(js);
+        final JSONObject o = new JSONObject(new String(js, UTF8));
+        final String u = o.optString("u", RoLogin.DEFAULT_USER), pw = RoLogin.norm(o.optString("p"));
+        if (!RoLogin.valid(pw)) return;
+        if (RoLogin.held() && u.equals(RoLogin.user()) && pw.equals(RoLogin.pass())) return; // already have it
+        log(name + " shared the read-only node login (" + u + ")");
+        post(new Ask() {
+            @Override
+            public void show(final Activity a) {
+                new AlertDialog.Builder(a).setTitle(name + " shared the read-only node login")
+                        .setMessage("Use the read-only login " + u + " to read your mesh node's radio data (OpenMANET Mesh, Mapping walk)? "
+                                + "It can only read, never change a node." + (RoLogin.held() ? "\n\nIt replaces the read-only login this phone has now." : ""))
+                        .setPositiveButton("Use it", new DialogInterface.OnClickListener() {
+                            @Override
+                            public void onClick(DialogInterface d, int w) {
+                                RoLogin.store(u, pw, name, o.optJSONArray("n"));
+                                Toast.makeText(a, "Read-only login from " + name + " saved", Toast.LENGTH_SHORT).show();
+                            }
+                        }).setNegativeButton("No", null).show();
+            }
+        });
+    }
+
     /** From MeshTest's chat hook. True when the body was one of ours. */
     static boolean onChat(RadioEngine e, long sender, String name, int kind, byte[] p, int off) {
         try {
@@ -475,6 +524,7 @@ public final class NodeShare {
             else if (kind == KIND_ACCEPT) onAccept(e, sender, name, p, off);
             else if (kind == KIND_LOGIN) onLogin(e, sender, name, p, off);
             else if (kind == KIND_FORGET) onForget(e, sender, name, p, off);
+            else if (kind == KIND_RO) onRo(e, sender, name, p, off);
             else return false;
         } catch (Exception ex) {
             Log.d(TAG, "bad share body: " + ex);

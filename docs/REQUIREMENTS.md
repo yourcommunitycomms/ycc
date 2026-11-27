@@ -87,6 +87,7 @@ ALL-FEATURES.txt the one-list summary, PROTOCOL.md the wire format, UPDATES.md t
 - Customize OpenMANET (Mesh controller > More), pushed like the read-only login: "Disable WiFi when Ethernet connected" to
   reduce the trackable RF footprint, with an option to disable HaLow too; give each node its own DHCP range.
   WiFi modes per node: Normal (both bridged), Ethernet preferred, Ethernet only (WiFi stays disabled).
+  HT-HD01 v2 mods page: node drop-down (all HD01s) with status check on select; a switch per saving (LED/button monitor off after 2 min, NTP, DNS, mDNS); DHCP fixer under Mesh troubleshooting (detects the clash).
   Later: a timed burst mode.
 - HaLow disable / enable toggle with an on-screen bar below the menus: red when off, green when on.
 - Mapping walk: every probe at its own GPS position; 1 s probing; a live bar graph of the last 30 s (answered / lost);

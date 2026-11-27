@@ -148,7 +148,7 @@ public final class ArtcRail {
                     + "&spatialRel=esriSpatialRelIntersects&outFields=OBJECTID&returnGeometry=true&outSR=4326&maxAllowableOffset=0.0002"
                     + "&geometryPrecision=5&resultOffset=%d&resultRecordCount=1000&f=json", w, s, e, n, offset);
             org.communitycomms.app.DataControl.check(q, true);
-            HttpURLConnection c = (HttpURLConnection) new URL(q).openConnection();
+            HttpURLConnection c = org.communitycomms.app.net.LanNet.open(new java.net.URL(q));
             Tls12SocketFactory.apply(c);
             c.setConnectTimeout(8000);
             c.setReadTimeout(30000);

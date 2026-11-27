@@ -342,7 +342,7 @@ public final class MeshTest implements RadioEngine.RxHook {
                 MeshWalk.onAnswer(e, sender, name, p, off + 1);
                 return true;
             }
-            if (kind >= NodeShare.KIND_OFFER && kind <= NodeShare.KIND_FORGET) return NodeShare.onChat(e, sender, name, kind, p, off + 1);
+            if (kind >= NodeShare.KIND_OFFER && kind <= NodeShare.KIND_RO) return NodeShare.onChat(e, sender, name, kind, p, off + 1);
             if (kind == org.communitycomms.app.msg.MessageCenter.KIND_TEXT) EchoTest.onChat(e, sender, name, from, p, off + 1);
         } catch (RuntimeException ex) {
             Log.d(TAG, "bad test body: " + ex);

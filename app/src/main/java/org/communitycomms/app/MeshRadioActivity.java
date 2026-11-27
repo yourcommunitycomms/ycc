@@ -31,7 +31,7 @@ public final class MeshRadioActivity extends Activity {
     private final Handler ui = new Handler(Looper.getMainLooper());
     private float d;
     private TextView head, neighbours, topology, contacts;
-    private Button loginB;
+    private Button loginB, roB;
 
     public static void open(Context c) {
         c.startActivity(new Intent(c, MeshRadioActivity.class));
@@ -46,28 +46,28 @@ public final class MeshRadioActivity extends Activity {
         root.setOrientation(LinearLayout.VERTICAL);
         int pad = (int) (12 * d);
         root.setPadding(pad, pad, pad, pad);
-        head = text(root, "", 15);
-        LinearLayout r = new LinearLayout(this);
-        r.setBaselineAligned(false);
-        loginB = button(r, "Log in for radio data", new View.OnClickListener() {
+        // the logins first: admin and read-only, each "Log in as …" or "Log out as …"
+        LinearLayout r0 = new LinearLayout(this);
+        r0.setBaselineAligned(false);
+        loginB = button(r0, "Log in as admin", new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                if (!MeshRadio.usingShared() && !MeshRadio.hasAdmin()) {
-                    MeshRadio.askLogin(MeshRadioActivity.this, false, new Runnable() {
+                if (MeshRadio.usingShared()) {
+                    NodeShare.confirmForget(MeshRadioActivity.this, new Runnable() {
                         @Override
                         public void run() {
                             refresh();
                         }
                     });
-                } else if (MeshRadio.usingShared()) {
-                    NodeShare.confirmForget(MeshRadioActivity.this, null);
-                } else if (MeshRadio.hasLogin()) {
-                    new AlertDialog.Builder(MeshRadioActivity.this).setTitle("Log out")
-                            .setMessage("Stop reading the node and forget the login (also the Mesh controller's remembered one)?")
+                } else if (MeshRadio.hasAdmin()) {
+                    new AlertDialog.Builder(MeshRadioActivity.this).setTitle("Log out as " + MeshRadio.user())
+                            .setMessage("Forget the admin login (also the Mesh controller's remembered one)?"
+                                    + (RoLogin.held() ? " The read-only login keeps reading the node." : " Reading the node stops."))
                             .setPositiveButton("Log out", new DialogInterface.OnClickListener() {
                                 @Override
                                 public void onClick(DialogInterface di, int w) {
                                     MeshRadio.logout();
+                                    MeshRadio.ensure(MeshRadioActivity.this);
                                     refresh();
                                 }
                             }).setNegativeButton(android.R.string.cancel, null).show();
@@ -81,6 +81,33 @@ public final class MeshRadioActivity extends Activity {
                 }
             }
         });
+        roB = button(r0, "Log in as read-only", new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (RoLogin.held()) {
+                    new AlertDialog.Builder(MeshRadioActivity.this).setTitle("Log out as " + RoLogin.user())
+                            .setMessage("Forget the read-only login on this phone?" + (MeshRadio.hasAdmin() ? " The admin login keeps reading the node." : ""))
+                            .setPositiveButton("Log out", new DialogInterface.OnClickListener() {
+                                @Override
+                                public void onClick(DialogInterface di, int w) {
+                                    RoLogin.forget();
+                                    refresh();
+                                }
+                            }).setNegativeButton(android.R.string.cancel, null).show();
+                } else {
+                    RoLogin.enterDialog(MeshRadioActivity.this, new Runnable() {
+                        @Override
+                        public void run() {
+                            refresh();
+                        }
+                    });
+                }
+            }
+        });
+        root.addView(r0);
+        head = text(root, "", 15);
+        LinearLayout r = new LinearLayout(this);
+        r.setBaselineAligned(false);
         button(r, "My node…", new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -93,22 +120,15 @@ public final class MeshRadioActivity extends Activity {
                 settings();
             }
         });
-        root.addView(r);
-        LinearLayout r2 = new LinearLayout(this);
-        button(r2, "Read-only login (type / QR)…", new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                RoLogin.enterDialog(MeshRadioActivity.this, null);
-            }
-        });
-        button(r2, "HaLow on / off…", new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                HalowToggle.dialog(MeshRadioActivity.this);
-            }
-        });
-        root.addView(r2);
-        ScrollView sv = new ScrollView(this);
+        if (MeshControllerActivity.featureOn(this)) { // mesh administration is on: a way straight there
+            button(r, "Mesh admin…", new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    startActivity(new Intent(MeshRadioActivity.this, MeshControllerActivity.class));
+                }
+            });
+        }
+        root.addView(r);        ScrollView sv = new ScrollView(this);
         LinearLayout body = new LinearLayout(this);
         body.setOrientation(LinearLayout.VERTICAL);
         sv.addView(body);
@@ -119,7 +139,7 @@ public final class MeshRadioActivity extends Activity {
         topology = text(body, "", 14);
         heading(body, "Contacts on this channel");
         contacts = text(body, "", 14);
-        TextView foot = text(body, "Read-only (only HaLow on / off changes anything, and only when you press it). Read every 10 s while this page is open; the title bar "
+        TextView foot = text(body, "Read-only: nothing on the node is changed from this page (node changes are in Mesh admin). Read every 10 s while this page is open; the title bar "
                 + "icon reads it every " + MeshRadio.bgSec() + " s (not in Ultra low, Away or with the screen off). A busy node is read "
                 + "every 30 s. Signal: -60 dBm or better is strong, below -85 is weak.", 12);
         foot.setTextColor(0xffb0bec5);
@@ -195,10 +215,15 @@ public final class MeshRadioActivity extends Activity {
     private void refresh() {
         MeshNode.Poller p = MeshNode.LOCAL;
         boolean login = MeshRadio.hasLogin();
-        loginB.setText(MeshRadio.usingShared() ? "Forget shared" : MeshRadio.hasAdmin() ? "Log out" : "Admin login");
+        loginB.setText(MeshRadio.usingShared() ? "Forget shared login (" + NodeShare.from() + ")" : MeshRadio.hasAdmin() ? "Log out as " + MeshRadio.user() + " (admin)" : "Log in as admin");
+        roB.setText(RoLogin.held() ? "Log out as " + RoLogin.user() + " (read-only)" : "Log in as read-only");
         StringBuilder h = new StringBuilder();
         String mine = MeshRadio.myNode();
         h.append("My node: ").append(mine.length() > 0 ? mine : "not known").append(" (").append(MeshRadio.howFound()).append(")");
+        String det = MeshRadio.detectedNode();
+        if (MeshRadio.picked() && det.length() > 0 && !det.equalsIgnoreCase(mine))
+            h.append("\n⚠ My node is set to ").append(mine).append(", but this phone is connected to ").append(det)
+                    .append(". Tap My node… and pick Auto (or ").append(det).append(") to follow the node you are on.");
         if (!MeshRadio.available(this)) h.append("\nTurn OpenMANET on in Settings to use this page.");
         else if (!login) h.append("\nNot logged in: showing YCC's own figures only. Log in to read the node's radio data.");
         else if (MeshRadio.usingShared()) h.append("\nUsing the node login ●●●●● shared by ").append(NodeShare.from()).append(" (read only).");
@@ -208,6 +233,9 @@ public final class MeshRadioActivity extends Activity {
             if (p.lastOkMs() > 0 && p.via().length() > 0) h.append(" with the ").append(p.via());
             if (p.busy()) h.append("\nNode busy or slow: reading it every 30 s");
             if (p.lastError().length() > 0) h.append("\n").append(p.lastError());
+            if (p.lastError().length() > 0 && p.host() != null && p.host().equals(HalowToggle.node()) && "off".equals(HalowToggle.state()))
+                h.append("\n(HaLow is off on this node, and YCC stopped OpenMANET's service openmanetd with it, so there is no mesh data to read. "
+                        + "Turn HaLow on (the HaLow bar) to read it again.)");
             if (p.load().length() > 0 || p.uptime().length() > 0)
                 h.append("\nLoad: ").append(p.load().length() > 0 ? p.load() : "?").append(" · up ").append(p.uptime().length() > 0 ? p.uptime() : "?");
             if (mine.length() > 0 && p.selfName().length() > 0 && !mine.equalsIgnoreCase(p.selfName()))

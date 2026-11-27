@@ -101,6 +101,7 @@ public final class MessageCenter {
         m.mine = true;
         log().put(m);
         transmit(e, m);
+        if (!text.startsWith(org.communitycomms.app.RadioService.SAY)) halowWarn("message");
         // TAK chat is the OM/TAK channel's chat now (ChatActivity), never Public or a private channel.
         return true;
     }
@@ -202,12 +203,41 @@ public final class MessageCenter {
         m.time = System.currentTimeMillis();
         log().put(m);
         RadioEngine e = air.engine();
-        if (e != null && e.channelTag() == channelTag) transmit(e, m);
+        if (e != null && e.channelTag() == channelTag) {
+            transmit(e, m);
+            halowWarn("report");
+        }
         else {
             m.state = MessageLog.STATE_SCHEDULED; // not on that channel: goes when it is
             log().update(m);
         }
         return m;
+    }
+
+    private static long lastHalowWarn;
+
+    /**
+     * My node's HaLow is off (radio silence): what is sent now reaches only phones on that node's WiFi. Say so (once a
+     * minute at most); it goes out again by itself when HaLow is back on (RadioService.halowBackOn resends since then).
+     */
+    static void halowWarn(String what) {
+        try {
+            if (!"off".equals(org.communitycomms.app.HalowToggle.state()) || !org.communitycomms.app.HalowToggle.barOn()) return;
+            long now = System.currentTimeMillis();
+            if (now - lastHalowWarn < 60000) return;
+            lastHalowWarn = now;
+            final String msg = "HaLow is off on " + org.communitycomms.app.HalowToggle.barName() + ": this " + what + " reaches only phones on its WiFi "
+                    + "for now. It is sent again automatically when HaLow is back on.";
+            final android.content.Context c = org.communitycomms.app.CommsApp.context();
+            if (c == null) return;
+            new android.os.Handler(android.os.Looper.getMainLooper()).post(new Runnable() {
+                @Override
+                public void run() {
+                    android.widget.Toast.makeText(c, msg, android.widget.Toast.LENGTH_LONG).show();
+                }
+            });
+        } catch (RuntimeException ignored) {
+        }
     }
 
     /** Called every few seconds: sends scheduled reports that are due on the channel on air. */
@@ -221,6 +251,7 @@ public final class MessageCenter {
             m.time = now;
             log().update(m);
             transmit(e, m);
+            halowWarn(m.type == MessageLog.TYPE_REPORT ? "scheduled report" : "message");
         }
     }
 

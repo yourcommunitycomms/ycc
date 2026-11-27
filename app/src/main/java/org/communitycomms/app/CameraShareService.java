@@ -403,7 +403,7 @@ public final class CameraShareService extends Service implements Camera.PreviewC
     }
 
     private static Bitmap fetch(String address, int width) throws Exception {
-        HttpURLConnection c = (HttpURLConnection) new URL(address).openConnection();
+        HttpURLConnection c = org.communitycomms.app.net.LanNet.open(new java.net.URL(address));
         c.setConnectTimeout(3000);
         c.setReadTimeout(4000);
         try {

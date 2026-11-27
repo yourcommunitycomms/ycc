@@ -44,6 +44,96 @@ public final class UpdateFromUrl {
         return lan.configured() ? lan.base() + "/Updates/YCC.apk" : null;
     }
 
+    static final String UPDATES_PATH = "/Updates/YCC.apk";
+
+    /** A YCC storage server's own update address for a data (LAN storage) address: base + /Updates/YCC.apk. */
+    static String updateUrlFor(String base) {
+        String b = base.trim();
+        while (b.endsWith("/")) b = b.substring(0, b.length() - 1);
+        return b + UPDATES_PATH;
+    }
+
+    /** "http://host:port" of an address (scheme, host and port only), or "" when it is not one. */
+    static String origin(String url) {
+        String u = url == null ? "" : url.trim();
+        int s = u.indexOf("://");
+        if (s <= 0) return "";
+        int p = u.indexOf('/', s + 3);
+        return p < 0 ? u : u.substring(0, p);
+    }
+
+    /** The path part of an address (from the first / after the host; "" when none). */
+    static String pathOf(String url) {
+        String u = url == null ? "" : url.trim();
+        String o = origin(u);
+        return o.length() == 0 ? "" : u.substring(o.length());
+    }
+
+    static boolean sameOrigin(String x, String y) {
+        String a = origin(x), b = origin(y);
+        return a.length() > 0 && a.equalsIgnoreCase(b);
+    }
+
+    private static boolean isGithub(String url) {
+        return origin(url).toLowerCase(java.util.Locale.US).contains("github");
+    }
+
+    /**
+     * After saving the update server: if the data server is on another host or port, offer to move it to this one.
+     * Only the host and port change; each address keeps its own path (the data and update paths are different).
+     */
+    static void offerDataServer(final Activity a, String updateUrl) {
+        final String o = origin(updateUrl);
+        if (o.length() == 0 || isGithub(updateUrl)) return; // GitHub: not a storage server
+        final LanTiles lan = new LanTiles(a);
+        if (lan.configured() && sameOrigin(lan.base(), updateUrl)) return; // already the same host and port
+        // keep the data server's own path; with none set yet, guess from a standard storage server layout
+        final String base = lan.configured() ? o + pathOf(lan.base())
+                : updateUrl.endsWith(UPDATES_PATH) ? updateUrl.substring(0, updateUrl.length() - UPDATES_PATH.length()) : o;
+        new AlertDialog.Builder(a).setTitle("Data server too?")
+                .setMessage("Use the same host and port for data (LAN storage: maps cache, sync, backups) as well?\n\n" + base
+                        + (lan.configured() ? "\n\nNow: " + lan.base() + "\n(only the host and port change; its path stays)"
+                        : "\n\nNo data server is set yet: check its path in Settings > LAN storage location.")
+                        + (lan.configured() && lan.user().length() > 0 ? "\n\nIts user and password are kept." : ""))
+                .setPositiveButton("Use the same", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface d, int w) {
+                        if (lan.configured()) {
+                            lan.save(base, lan.user(), null, lan.shareWithManet());
+                            Toast.makeText(a, "Data server set to " + base, Toast.LENGTH_LONG).show();
+                        } else {
+                            lan.save(base, "", null, false);
+                            Toast.makeText(a, "Data server set to " + base + " (add its login in Settings > LAN storage if it needs one)", Toast.LENGTH_LONG).show();
+                        }
+                    }
+                }).setNegativeButton("Keep it as it is", null).show();
+    }
+
+    /**
+     * After saving the data server: if the update server is on another host or port, offer to move it to this one.
+     * Only the host and port change and the update address keeps its own path; from GitHub (or none) it becomes
+     * the storage server's standard update address.
+     */
+    static void offerUpdateServer(final Activity a, String base) {
+        final String o = origin(base);
+        if (o.length() == 0) return;
+        String now = sp(a).getString("updateUrl", "").trim();
+        boolean keepPath = now.length() > 0 && origin(now).length() > 0 && !isGithub(now);
+        if (keepPath && sameOrigin(now, base)) return; // already the same host and port
+        final String want = keepPath ? o + pathOf(now) : updateUrlFor(base);
+        new AlertDialog.Builder(a).setTitle("Update server too?")
+                .setMessage("Get app updates from the same host and port as well?\n\n" + want + "\n\nNow: "
+                        + (now.length() > 0 ? now : DEFAULT_URL + " (GitHub)")
+                        + (keepPath ? "\n(only the host and port change; its path stays)" : ""))
+                .setPositiveButton("Use the same", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface d, int w) {
+                        sp(a).edit().putString("updateUrl", want).commit();
+                        Toast.makeText(a, "Update server set to " + want, Toast.LENGTH_LONG).show();
+                    }
+                }).setNegativeButton("Keep it as it is", null).show();
+    }
+
     /** "Update from URL": the saved address (GitHub by default). */
     public static void run(final Activity a) {
         download(a, url(a));
@@ -161,6 +251,7 @@ public final class UpdateFromUrl {
                                 dlg.dismiss();
                                 Toast.makeText(a, "Update address saved", Toast.LENGTH_SHORT).show();
                                 if (thenUpdate) download(a, u);
+                                else offerDataServer(a, u);
                             }
                         };
                         final Runnable checked = new Runnable() {
@@ -226,7 +317,7 @@ public final class UpdateFromUrl {
             }
             String vUrl = u.substring(0, u.lastIndexOf('/') + 1) + "version.txt";
             if (!u.contains("github.com")) {
-                HttpURLConnection c = (HttpURLConnection) new URL(vUrl).openConnection();
+                HttpURLConnection c = org.communitycomms.app.net.LanNet.open(new java.net.URL(vUrl));
                 c.setConnectTimeout(8000);
                 c.setReadTimeout(8000);
                 if (c.getResponseCode() == 200) {
@@ -237,7 +328,7 @@ public final class UpdateFromUrl {
                 }
                 c.disconnect();
             }
-            HttpURLConnection c = (HttpURLConnection) url.openConnection();
+            HttpURLConnection c = org.communitycomms.app.net.LanNet.open(url);
             org.communitycomms.app.geo.Tls12SocketFactory.apply(c);
             c.setConnectTimeout(10000);
             c.setReadTimeout(15000);
@@ -403,7 +494,7 @@ public final class UpdateFromUrl {
                 String rel = u.substring(lan.base().length()).replaceFirst("^/", "");
                 if (!lan.getPathToFile(rel, out)) return "Could not download it from the LAN storage (" + u + ").";
             } else {
-                c = (HttpURLConnection) new URL(u).openConnection();
+                c = org.communitycomms.app.net.LanNet.open(new java.net.URL(u));
                 c.setConnectTimeout(10000);
                 c.setReadTimeout(30000);
                 int code = c.getResponseCode();

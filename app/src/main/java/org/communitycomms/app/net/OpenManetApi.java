@@ -98,7 +98,7 @@ public final class OpenManetApi {
     private JSONObject post(String path, JSONObject body, boolean auth) throws IOException {
         HttpURLConnection c = null;
         try {
-            c = (HttpURLConnection) new URL("http://" + host + ":" + PORT + path).openConnection();
+            c = LanNet.open(new URL("http://" + host + ":" + PORT + path));
             c.setConnectTimeout(timeoutMs);
             c.setReadTimeout(timeoutMs + 4000);
             c.setRequestMethod("POST");

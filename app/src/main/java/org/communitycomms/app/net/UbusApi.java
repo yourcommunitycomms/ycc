@@ -91,12 +91,15 @@ public final class UbusApi {
             JSONObject req = new JSONObject().put("jsonrpc", "2.0").put("id", ++id).put("method", "call")
                     .put("params", new JSONArray().put(session).put(object).put(method).put(args));
             byte[] body = req.toString().getBytes("UTF-8");
-            c = (HttpURLConnection) new URL("http://" + host + "/ubus").openConnection();
-            c.setConnectTimeout(timeoutMs);
+            c = LanNet.open(new URL("http://" + host + "/ubus"));
+            c.setConnectTimeout(Math.min(timeoutMs, 8000)); // a node on the LAN connects in well under a second: fail fast when it is gone
             c.setReadTimeout(timeoutMs);
             c.setDoOutput(true);
             c.setRequestMethod("POST");
             c.setRequestProperty("Content-Type", "application/json");
+            // A fresh connection per call: a pooled one the node has already closed (idle keep-alive timeout) makes
+            // the next POST fail with no answer, and a POST is not retried.
+            c.setRequestProperty("Connection", "close");
             c.setFixedLengthStreamingMode(body.length);
             OutputStream o = c.getOutputStream();
             o.write(body);
@@ -128,7 +131,7 @@ public final class UbusApi {
         } catch (JSONException e) {
             throw new UbusException(-3, "Bad answer: " + e.getMessage());
         } catch (IOException e) {
-            throw new UbusException(-1, "No answer (" + e.getClass().getSimpleName() + ")");
+            throw new UbusException(-1, "No answer (" + e.getClass().getSimpleName() + ", " + LanNet.lastRoute + ")");
         } finally {
             if (c != null) c.disconnect();
         }

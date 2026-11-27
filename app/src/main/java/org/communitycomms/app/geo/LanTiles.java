@@ -212,7 +212,7 @@ public final class LanTiles {
     }
 
     private HttpURLConnection open(String u, String method) throws Exception {
-        HttpURLConnection c = (HttpURLConnection) new URL(u).openConnection();
+        HttpURLConnection c = org.communitycomms.app.net.LanNet.open(new java.net.URL(u));
         c.setRequestMethod(method);
         c.setConnectTimeout(5000);
         c.setReadTimeout(15000);

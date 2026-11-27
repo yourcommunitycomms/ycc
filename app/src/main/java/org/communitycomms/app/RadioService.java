@@ -657,6 +657,7 @@ public final class RadioService extends Service implements RadioEngine.Listener 
             }
             checkDrops(e, pr);
             checkBack(e, pr);
+            checkHalowCatchUp(e);
             newcomers(e);
         }
         RadioEngine side = omSide; // YCC channels listened to while on OM/TAK
@@ -702,6 +703,55 @@ public final class RadioService extends Service implements RadioEngine.Listener 
             if (l == null || !pr.offerMissed()) continue;
             int n = messages.countSince(had, s.lastSeenMs, s.name);
             if (n > 0) l.onMissedWhileOffline(s.name, (int) ((s.lastSeenMs - had) / 60000), n, letterOf(pr, e), had);
+        }
+    }
+
+    // ---- my node's HaLow back on (after radio silence): catch up both ways ----
+
+    /** While set: HaLow came back on at this time after being off since halowOffSince; the next contact heard triggers one more catch-up. */
+    private volatile long halowBackAt, halowOffSince;
+
+    /**
+     * My node's HaLow is confirmed back on after being off since offSince: 10 s later (the mesh needs a moment to
+     * join) ask everyone for what was missed and send again what this phone sent meanwhile (messages, reports, map
+     * points, voice / burst recordings; others drop what they already have). Once more when the first contact is heard
+     * after that (for 30 minutes).
+     */
+    public static void halowBackOn(final long offSince) {
+        final RadioService rs = instance;
+        if (rs == null) return;
+        rs.main.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                rs.halowOffSince = offSince > 0 ? offSince : System.currentTimeMillis() - 3600000L;
+                rs.halowBackAt = System.currentTimeMillis();
+                rs.halowCatchUp("HaLow back on");
+            }
+        }, 10000);
+    }
+
+    private void halowCatchUp(String why) {
+        if (engine == null || messages == null || RadioEngine.radioSilent) return;
+        long since = halowOffSince;
+        int min = catchUpAfterAway(Math.max(0, System.currentTimeMillis() - since));
+        messages.resendSince(since);
+        messages.sendDue();
+        android.util.Log.i("RadioService", why + ": catch-up asked for " + min + " min, own messages since then sent again");
+    }
+
+    private void checkHalowCatchUp(RadioEngine e) {
+        long back = halowBackAt;
+        if (back == 0) return;
+        if (System.currentTimeMillis() - back > 30 * 60000L) {
+            halowBackAt = 0;
+            return;
+        }
+        for (RadioEngine.Station s : e.stations()) {
+            if (s.name != null && s.name.length() > 0 && !"?".equals(s.name) && s.lastSeenMs > back + 2000) {
+                halowBackAt = 0; // once
+                halowCatchUp("First contact after HaLow back on (" + s.name + ")");
+                return;
+            }
         }
     }
 

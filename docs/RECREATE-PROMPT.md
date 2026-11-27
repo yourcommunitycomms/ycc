@@ -1075,6 +1075,8 @@ Each of these happened in the original build. Check for them in yours.
   app is open can log "Unable to instantiate application" once as Android restarts it mid-install; it is harmless.
 - **Typed grid references:** pick the 2000 km northing cycle from the band (or the map's +), place a short
   reference in the middle of its square, and test that every reference the map shows parses back to itself.
+**openmanetd stale lock:** openmanetd 1.4.0 leaves /etc/openmanetd/openmanetd.db.lock behind when it is killed mid-write (restart, power cut) and then refuses to start ("database is locked"). Found on HT02 2026-11-27; YCC adds a start-up step that clears it (HT-HD01 v2 mods / Mesh troubleshooting).
+**HT-HD01 web API limits:** the HD01 firmware lets the web login make only LuCI's own calls, so the read-only login for team phones cannot be installed on HD01 nodes from the app (it needs to write an rpcd permission file); it works on the Pi. HaLow on / off and Customize OpenMANET were reworked to fit (2026-11-26).
 **Not yet tested on real equipment:** Customize OpenMANET pushed from the app to real nodes (the WiFi-off service itself was tested by hand on HT02, the DHCP move by hand on HT02; HaLow-off and non-Heltec boards untested; the HaLow on / off toggle untested on a real node; the walk's own 1 s GPS and graph tested on emulators only), scanning a phone setup QR code with a real camera, Bluetooth PTT buttons (e.g. FalconClaw "BLU-PTT"; the signal it
 sends is unknown, so the app shows the last raw value in Settings), OpenMANET / ATAK Vx voice, USB,
 network and intercom cameras, the possible-gunshots alert, crash detection, tunnel comms over a real

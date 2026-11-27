@@ -112,6 +112,7 @@ public final class LanStorageDialog {
                                         lan.save(u, user.getText().toString(), pw, true);
                                         ConfigShare.sendLan(a); // to everyone on the channel now, and with Share config later
                                         if (saved != null) saved.run();
+                                        UpdateFromUrl.offerUpdateServer(a, u);
                                     }
                                 })
                                 .setNegativeButton("This phone only", new DialogInterface.OnClickListener() {
@@ -119,6 +120,7 @@ public final class LanStorageDialog {
                                     public void onClick(DialogInterface d2, int w) {
                                         lan.save(u, user.getText().toString(), pw, false);
                                         if (saved != null) saved.run();
+                                        UpdateFromUrl.offerUpdateServer(a, u);
                                     }
                                 })
                                 .setCancelable(false)

@@ -274,7 +274,7 @@ public final class GatewayActivity extends Activity {
             JSONObject req = new JSONObject();
             req.put("jsonrpc", "2.0").put("id", ++id).put("method", "call");
             req.put("params", new JSONArray().put(sid).put(object).put(method).put(args));
-            HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
+            HttpURLConnection c = org.communitycomms.app.net.LanNet.open(new java.net.URL(url));
             c.setConnectTimeout(5000);
             c.setReadTimeout(20000);
             c.setDoOutput(true);

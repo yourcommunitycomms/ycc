@@ -350,6 +350,11 @@ public final class ReportComposeActivity extends Activity {
             r.labels.add(t.fields.get(i).label);
             r.values.add(values[i]);
         }
+        String win = HalowWindows.nextWindowText(); // radio windows set up: everyone knows when the mesh is next on
+        if (win.length() > 0 && !r.labels.contains("Next radio window")) {
+            r.labels.add("Next radio window");
+            r.values.add(win);
+        }
         return r;
     }
 
